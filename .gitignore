@@ -1,0 +1,38 @@
+
+# Claude MCP configuration
+.mcp.json
+.mcp.json.backup.*
+.claude/
+
+# 環境変数（APIキーなど）
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Phase 0 テストデータ
+# 個人の家電写真
+tests/phase0/test_images/
+# ダウンロードしたPDF（大容量）
+tests/phase0/test_pdfs/
+# 抽出結果JSON
+tests/phase0/results/
+# 過去バージョンのスクリプト
+tests/phase0/archive/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
