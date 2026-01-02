@@ -69,35 +69,64 @@
 
 ## 4. 技術スタック
 
+### アーキテクチャ概要
+
+**ハイブリッド構成**: Next.js（フロントエンド）+ Python（AIバックエンド）
+
+```
+クライアント（ブラウザ/PWA）
+        ↓
+Next.js 14+ (TypeScript) - UI/BFF層
+        ↓ REST API
+FastAPI (Python) - AIバックエンド
+        ↓
+Supabase (PostgreSQL/Auth/Storage)
+```
+
 ### フロントエンド
 - **Next.js 14+** (App Router)
 - **TypeScript**
 - **Tailwind CSS**
 - **PWA対応** (next-pwa)
 
-### バックエンド/データベース
+### BFF層（Backend for Frontend）
+- **Next.js API Routes**
+  - 認証確認
+  - Python バックエンドへのプロキシ
+  - レスポンス整形
+
+### AIバックエンド
+- **FastAPI** (Python)
+- **LangChain** - RAG、チェーン処理
+- **LangGraph** - 複雑なエージェントフロー
+- **Gemini API** (via LangChain)
+  - 画像認識（型番・メーカー特定）
+  - 説明書解析（メンテナンス項目・周期の抽出）
+  - RAG（マニュアル検索・質問応答）
+
+### データベース/認証
 - **Supabase**
-  - PostgreSQL（データベース）
+  - PostgreSQL（メインDB）
+  - pgvector（RAG用ベクトル検索）
   - Auth（メール認証）
-  - Edge Functions（APIロジック）
 
 ### ストレージ
-- **Google Cloud Storage**
+- **Supabase Storage** または **Google Cloud Storage**
   - `temp/` バケット: 一時保存
   - `manuals/` バケット: 確認済み正式版
   - 階層: `カテゴリ/メーカー/型番/`
 
-### AI/LLM
-- **Gemini API**
-  - 画像認識（型番・メーカー特定）
-  - 説明書解析（メンテナンス項目・周期の抽出）
-- **将来的に追加**: LangChain / LangGraph
-  - AIエージェント質問機能実装時に導入
-  - RAG（マニュアル検索）機能で活用
-
 ### 通知
 - **Web Push API** (VAPID)
 - Service Workerでバックグラウンド通知
+
+### 採用理由
+
+| 選択 | 理由 |
+|------|------|
+| Python バックエンド | LangChain/LangGraph の最新機能を活用可能 |
+| Next.js フロントエンド | モダンなUI/UX、SSR、PWA対応 |
+| Supabase | 認証・DB・ストレージを一元管理、pgvector対応 |
 
 ---
 
