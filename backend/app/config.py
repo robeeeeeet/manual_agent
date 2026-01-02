@@ -1,0 +1,41 @@
+"""Application configuration"""
+
+import os
+from pathlib import Path
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables"""
+
+    # API Keys
+    gemini_api_key: str
+    google_cse_api_key: str
+    google_cse_id: str
+
+    # Supabase (Optional for Phase 1, Required from Phase 2)
+    supabase_url: str | None = None
+    supabase_publishable_key: str | None = None
+    supabase_secret_key: str | None = None
+
+    # API Configuration
+    api_v1_prefix: str = "/api/v1"
+    project_name: str = "Manual Agent Backend"
+    version: str = "0.1.0"
+
+    # CORS
+    cors_origins: list[str] = ["http://localhost:3000"]
+
+    # Upload limits
+    max_upload_size_mb: int = 50
+
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).parent.parent.parent / ".env"),
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
+
+
+# Global settings instance
+settings = Settings()

@@ -38,10 +38,10 @@
 
 ---
 
-### Phase 1: 基盤構築（ハイブリッドアーキテクチャ）
+### Phase 1: 基盤構築（ハイブリッドアーキテクチャ） ✅ 完了
 
 #### 1-1. プロジェクト構造セットアップ
-- [ ] モノレポ構成の作成
+- [x] モノレポ構成の作成
   ```
   manual_agent/
   ├── frontend/          # Next.js
@@ -50,26 +50,29 @@
   ```
 
 #### 1-2. Python バックエンド（FastAPI）
-- [ ] FastAPI プロジェクト初期化
-- [ ] LangChain / LangGraph セットアップ
-- [ ] Phase 0 ロジックの移植
-  - [ ] 画像認識サービス
-  - [ ] PDF 取得サービス
-  - [ ] メンテナンス抽出サービス
-- [ ] API エンドポイント設計・実装
+- [x] FastAPI プロジェクト初期化
+- [x] Gemini API (google-genai) セットアップ
+- [x] Phase 0 ロジックの移植
+  - [x] 画像認識サービス (`/api/v1/appliances/recognize`)
+  - [x] PDF 取得サービス (`/api/v1/manuals/search`)
+  - [x] メンテナンス抽出サービス (`/api/v1/manuals/extract-maintenance`)
+- [x] API エンドポイント設計・実装
+- [x] Supabase 接続テスト (`/health/supabase`)
 
 #### 1-3. Next.js フロントエンド
-- [ ] Next.js 14+ プロジェクト作成（App Router）
-- [ ] Tailwind CSS セットアップ
-- [ ] 基本レイアウト・コンポーネント
-- [ ] API Routes（BFF層）
+- [x] Next.js 16 プロジェクト作成（App Router）
+- [x] Tailwind CSS 4 セットアップ
+- [x] 基本レイアウト・コンポーネント（Header, Footer, Button, Card）
+- [x] API Routes（BFF層）
+- [x] 家電登録画面（画像アップロード → AI解析）
 
 #### 1-4. Supabase 設定
-- [ ] プロジェクト作成
-- [ ] PostgreSQL スキーマ設計・作成
-- [ ] pgvector 拡張有効化（RAG 用）
-- [ ] Auth 設定（メール認証）
-- [ ] Storage バケット作成
+- [x] プロジェクト作成
+- [x] PostgreSQL スキーマ設計・作成（マイグレーションファイル）
+- [x] pgvector 拡張有効化（RAG 用）
+- [x] Auth 設定（メール認証）
+- [x] Storage バケット作成（manuals, images）
+- [x] RLS ポリシー設定
 
 ---
 
@@ -168,14 +171,14 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
 
 ## 現在のステータス
 
-**現在のフェーズ**: Phase 1（基盤構築）準備中
+**現在のフェーズ**: Phase 1.5（デプロイ基盤構築）または Phase 2（認証）
 
 ### 進捗サマリー
 
 | フェーズ | ステータス | 備考 |
 |---------|-----------|------|
 | Phase 0 | ✅ 完了 | 3機能すべて100%成功、Go判定 |
-| Phase 1 | ⚪ 未着手 | 次のステップ（基盤構築） |
+| Phase 1 | ✅ 完了 | FastAPI + Next.js + Supabase 基盤構築 |
 | Phase 1.5 | ⚪ 未着手 | デプロイ基盤構築 🚀 |
 | Phase 2 | ⚪ 未着手 | 認証 |
 | Phase 3 | ⚪ 未着手 | 家電登録・説明書取得 |
@@ -202,23 +205,20 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
 
 ## 次のステップ
 
-1. **Phase 1-1: プロジェクト構造セットアップ**
-   - モノレポ構成の作成（frontend/ + backend/）
+Phase 1 が完了したため、以下のいずれかに進む：
 
-2. **Phase 1-2: Python バックエンド構築**
-   - FastAPI プロジェクト初期化
-   - LangChain / LangGraph セットアップ
-   - Phase 0 ロジックの移植（画像認識・PDF取得・メンテナンス抽出）
+### オプション A: Phase 1.5（デプロイ基盤構築）🚀
 
-3. **Phase 1-3: Next.js フロントエンド構築**
-   - Next.js 14+ プロジェクト作成
-   - 基本レイアウト・コンポーネント
+継続的デプロイ環境を先に構築し、以降の開発をステージング環境で確認しながら進める。
 
-4. **Phase 1-4: Supabase 設定**
-   - DB スキーマ作成
-   - Auth 設定
+1. **Vercel** でフロントエンドデプロイ
+2. **Railway/Render** でバックエンドデプロイ
+3. **GitHub Actions** で CI/CD パイプライン構築
 
-5. **Phase 1.5: デプロイ基盤構築** 🚀
-   - Vercel（フロントエンド）+ Railway/Render（バックエンド）
-   - CI/CD パイプライン構築
-   - ステージング環境で動作確認可能に
+### オプション B: Phase 2（認証）
+
+ローカル開発を継続し、認証機能を実装する。
+
+1. **Supabase Auth** 連携（フロントエンド）
+2. **ログイン/新規登録画面** 実装
+3. **認証状態管理** 実装

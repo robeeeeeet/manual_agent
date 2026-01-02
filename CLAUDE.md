@@ -25,7 +25,7 @@ AIを活用して商品認識・説明書取得・メンテナンス項目抽出
 ```
 クライアント（ブラウザ/PWA）
         ↓
-Next.js 14+ (TypeScript) - UI/BFF層
+Next.js 16+ (TypeScript) - UI/BFF層
         ↓ REST API
 FastAPI (Python) - AIバックエンド
    ├── LangChain (RAG)
@@ -39,32 +39,37 @@ Supabase (PostgreSQL/pgvector/Auth/Storage)
 
 | レイヤー | 技術 |
 |---------|------|
-| フロントエンド | Next.js 14+, TypeScript, Tailwind CSS, PWA |
+| フロントエンド | Next.js 16+, TypeScript, Tailwind CSS 4, React 19, PWA |
 | BFF層 | Next.js API Routes |
-| AIバックエンド | FastAPI, LangChain, LangGraph, Gemini API |
+| AIバックエンド | FastAPI, LangChain, LangGraph, Gemini API (google-genai) |
 | データベース | Supabase PostgreSQL, pgvector |
 | 認証 | Supabase Auth |
-| ストレージ | Supabase Storage / GCS |
+| ストレージ | Supabase Storage |
 | パッケージ管理 | uv (Python), npm (Node.js) |
 
-## ディレクトリ構造（計画）
+## ディレクトリ構造
 
 ```
 manual_agent/
 ├── CLAUDE.md              # AI向けガイド（このファイル）
 ├── CHANGELOG.md           # 変更履歴
-├── docs/
+├── docs/                  # ドキュメント
 │   ├── requirements.md    # 要件定義書
-│   └── development-plan.md # 開発計画書
-├── frontend/              # Next.js アプリケーション（Phase 1で作成）
-│   ├── app/
-│   ├── components/
+│   ├── development-plan.md # 開発計画書
+│   ├── supabase-setup.md  # Supabase設定手順書
+│   └── notes/             # 技術メモ
+├── frontend/              # Next.js アプリケーション
+│   ├── src/app/           # App Router（ページ、APIルート）
+│   ├── src/components/    # UIコンポーネント
+│   ├── src/lib/           # ユーティリティ
 │   └── package.json
-├── backend/               # FastAPI アプリケーション（Phase 1で作成）
+├── backend/               # FastAPI アプリケーション
 │   ├── app/
-│   │   ├── api/
-│   │   ├── services/
+│   │   ├── api/routes/    # APIルート
+│   │   ├── schemas/       # Pydanticスキーマ
+│   │   ├── services/      # ビジネスロジック（AI処理）
 │   │   └── main.py
+│   ├── supabase/          # DBスキーマ・マイグレーション
 │   └── pyproject.toml
 ├── tests/phase0/          # Phase 0 検証スクリプト（Python）
 │   ├── scripts/
@@ -76,29 +81,38 @@ manual_agent/
 ## コマンド
 
 ```bash
-# Phase 0 検証スクリプト（現在）
-uv sync                    # 依存関係インストール
+# バックエンド
+cd backend && uv sync                              # 依存関係インストール
+cd backend && uv run uvicorn app.main:app --reload # 開発サーバー起動 → http://localhost:8000
+cd backend && uv run pytest                        # テスト実行
+
+# フロントエンド
+cd frontend && npm install   # 依存関係インストール
+cd frontend && npm run dev   # 開発サーバー起動 → http://localhost:3000
+cd frontend && npm run lint  # Lint実行
+cd frontend && npm run build # ビルド
+
+# Phase 0 検証スクリプト（ルートから実行）
 uv run python tests/phase0/scripts/test_image_recognition.py <画像>
 uv run python tests/phase0/scripts/test_custom_search_api.py
 uv run python tests/phase0/scripts/test_maintenance_extraction.py
-
-# Phase 1 以降（将来）
-# フロントエンド
-cd frontend && npm run dev
-
-# バックエンド
-cd backend && uv run uvicorn app.main:app --reload
 ```
 
 ## 環境変数
 
 ```bash
-# .env に設定が必要
-GEMINI_API_KEY=           # Gemini API キー（必須）
-GOOGLE_CSE_API_KEY=       # Google Custom Search API キー
-GOOGLE_CSE_ID=            # Google 検索エンジン ID
-SUPABASE_URL=             # Supabase URL（Phase 1以降）
-SUPABASE_ANON_KEY=        # Supabase Anonymous Key（Phase 1以降）
+# プロジェクトルート .env に設定（バックエンド用）
+GEMINI_API_KEY=              # Gemini API キー（必須）
+GOOGLE_CSE_API_KEY=          # Google Custom Search API キー
+GOOGLE_CSE_ID=               # Google 検索エンジン ID
+SUPABASE_URL=                # Supabase URL
+SUPABASE_PUBLISHABLE_KEY=    # Supabase Publishable Key（sb_publishable_...）
+SUPABASE_SECRET_KEY=         # Supabase Secret Key（sb_secret_...）
+
+# frontend/.env.local に設定（フロントエンド用）
+BACKEND_URL=                         # バックエンドAPI URL（http://localhost:8000）
+NEXT_PUBLIC_SUPABASE_URL=            # Supabase URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= # Supabase Publishable Key
 ```
 
 ## 開発規約
@@ -127,23 +141,37 @@ SUPABASE_ANON_KEY=        # Supabase Anonymous Key（Phase 1以降）
 
 ### フロントエンド開発
 
-フロントエンドの開発を行う場合は、必ず skills の `frontend-design` を参照すること。
+フロントエンドの開発を行う場合は、skills の `frontend-design` を活用すること。
 このスキルには、プロダクショングレードのUI実装パターンとデザインガイドラインが含まれている。
 
-```
-/frontend-design
-```
+**スキルの動作:**
+- スキルはコマンドではなく、会話の文脈から**自動的にトリガー**される
+- 「コンポーネントを作成」「ページを実装」「UIを構築」などのリクエストで発動
+- 発動条件は各スキルの `SKILL.md` の `description` フィールドで定義
+
+### 実装後のテスト
+
+フロントエンド機能の実装後は、**Playwright MCP** を使用してブラウザ上での動作確認を行うこと。
+詳細なテストパターンは skills の `webapp-testing` を参照。
+
+**スキルの発動条件:**
+- 「動作確認して」「テストして」「ブラウザで確認」などのリクエストで自動発動
+
+**テスト時の注意点:**
+- HEICなど特殊フォーマットのファイルアップロードもテスト対象に含める
+- API連携を含むE2Eフローを確認する
+- エラーケース（API失敗、バリデーションエラー等）も確認する
 
 ## 現在のステータス
 
-**Phase 0: フィジビリティ確認** ✅ 完了（Go判定）
+**Phase 1: 基盤構築** ✅ 完了
 
-コアAI機能の検証が完了し、実現可能性を確認済み：
-1. ✅ 画像からのメーカー・型番読み取り（100%成功率）
-2. ✅ メーカー・型番からマニュアルPDF取得（100%成功率）
-3. ✅ マニュアルからメンテナンス項目抽出（100%成功率、70件抽出）
+Phase 0（AI機能検証）とPhase 1（基盤構築）が完了：
+- ✅ FastAPI バックエンド（画像認識、説明書検索、メンテナンス抽出API）
+- ✅ Next.js 16 フロントエンド（家電登録画面、BFF層）
+- ✅ Supabase 設定（DBスキーマ、Auth、Storage、接続テスト）
 
-**次のステップ**: Phase 1（基盤構築）
+**次のステップ**: Phase 1.5（デプロイ基盤構築）または Phase 2（認証）
 
 詳細は `docs/development-plan.md` を参照。
 
