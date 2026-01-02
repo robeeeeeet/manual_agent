@@ -45,12 +45,41 @@
 | Push通知 | PWA Push通知でスマホに通知 |
 | 完了記録 | 作業完了をタップで記録、次回リマインド自動設定 |
 
+#### 周期マッピングルール
+
+| 説明書の表現 | interval_type | interval_value | 備考 |
+|-------------|---------------|----------------|------|
+| 「月1回」「3ヶ月ごと」 | months | 1, 3 | カレンダー周期 |
+| 「年1回」 | months | 12 | 年周期 |
+| 「毎週」「2週間ごと」 | days | 7, 14 | 日数周期 |
+| 「使用後」「異常時」 | manual | - | 手動設定必須 |
+| 「シーズン前」 | manual | - | ユーザーが日付指定 |
+
 ### 2.3 ユーザー管理
 
 | 機能 | 詳細 |
 |------|------|
 | メール+パスワード認証 | Supabase Authで実装 |
-| 家族グループ | 招待制で家族とデータを共有 |
+| 個人利用のみ | MVPは個人利用のみ対応（家族共有は将来拡張） |
+
+### 2.4 例外処理・フォールバック
+
+| シナリオ | 対応 |
+|---------|------|
+| 画像認識失敗（メーカー/型番不明） | 手動入力フォームへ誘導 |
+| 画像認識で複数候補 | 候補一覧から選択 or 手動入力 |
+| PDF取得失敗（見つからない） | 手動アップロードへ誘導 |
+| PDFテキスト抽出不可 | 「抽出不可」表示 + 手動入力 |
+| メンテナンス項目抽出失敗 | 「抽出できませんでした」+ 手動追加 |
+
+### 2.5 通知仕様
+
+| 項目 | 仕様 |
+|------|------|
+| 通知タイミング | ユーザー設定可能（デフォルト: 当日 9:00） |
+| タイムゾーン | Asia/Tokyo 固定（MVP） |
+| 期限超過時 | 毎日1回通知（最大7日間） |
+| PWA非対応環境 | 一覧画面での表示のみ（メール通知は将来拡張） |
 
 ---
 
@@ -135,26 +164,33 @@ Supabase (PostgreSQL/Auth/Storage)
 ```
 users
 ├── id, email, created_at
-
-families (グループ)
-├── id, name, owner_id, invite_code
-
-family_members
-├── family_id, user_id, role
+├── notify_time          # 通知時刻（デフォルト 09:00）
+├── timezone             # タイムゾーン（デフォルト Asia/Tokyo）
 
 appliances (家電)
-├── id, family_id, name, maker, model_number, category
-├── manual_url, image_url
+├── id, user_id, name, maker, model_number, category
+├── manual_source_url    # 出典URL（必須）
+├── stored_pdf_path      # 保存先パス
+├── image_url
 
 maintenance_schedules (メンテナンス予定)
-├── id, appliance_id, task_name, interval_days
+├── id, appliance_id, task_name
+├── interval_type        # days / months / manual
+├── interval_value       # 数値（manualの場合はnull）
 ├── last_done_at, next_due_at
+├── source_page          # 根拠ページ番号
 
 maintenance_logs (実施記録)
 ├── id, schedule_id, done_at, done_by_user_id
 
 push_subscriptions (通知設定)
 ├── id, user_id, endpoint, keys
+
+# 将来拡張（家族共有機能）
+# families (グループ)
+# ├── id, name, owner_id, invite_code
+# family_members
+# ├── family_id, user_id, role
 ```
 
 ---
@@ -166,17 +202,22 @@ push_subscriptions (通知設定)
 1. **ログイン画面**
    - メール + パスワード認証
    - 新規登録
+   - メール確認フローあり
+   - ※パスワードリセットはMVP対象外
 
 2. **家電一覧画面**
    - 次回作業実施日の近い順に表示
+   - **期限超過は最上位固定 + 赤色表示**
    - 各アイテムに次回メンテナンス日・内容を表示
    - Push通知設定へのリンク
+   - **通知時刻の設定**
 
-3. **家電登録画面**
-   - 画像アップロード or 手動入力
-   - AI解析結果の確認
-   - 説明書検索・取得
-   - メンテナンス項目の確認・登録
+3. **家電登録画面**（ステップ形式）
+   - Step 1: 画像アップロード or 手動入力
+   - Step 2: AI解析結果の確認・修正（メーカー/型番/カテゴリ）
+   - Step 3: 説明書検索・取得 or 手動アップロード
+   - Step 4: メンテナンス項目の確認・編集
+   - Step 5: 登録完了
 
 ### 将来的に追加
 
@@ -219,3 +260,34 @@ push_subscriptions (通知設定)
 | 掃除 | 掃除機、ロボット掃除機 |
 | 住宅設備 | 換気扇、24時間換気、インターホン |
 | その他 | 自由入力 |
+
+---
+
+## 9. MVPスコープ
+
+### MVPに含む機能
+- [x] 個人利用（認証・登録・通知）
+- [x] 画像認識 → 手動入力フォールバック
+- [x] PDF取得 → 手動アップロードフォールバック
+- [x] メンテナンス抽出 → 手動追加可能
+- [x] PWA Push通知（ユーザー設定可能な時刻）
+- [x] 完了記録・次回自動設定
+
+### MVPに含まない機能
+- [ ] 家族グループ共有
+- [ ] 家電詳細画面・RAG質問機能
+- [ ] LINE通知
+- [ ] パスワードリセット
+- [ ] OCR再学習
+
+---
+
+## 10. 非機能要件
+
+| 項目 | 仕様 |
+|------|------|
+| PDFサイズ上限 | 50MB |
+| 画像サイズ上限 | 10MB |
+| 処理タイムアウト | 60秒 |
+| 同時登録制限 | 1件ずつ（MVP） |
+| PDF保存時の出典URL | 必須 |
