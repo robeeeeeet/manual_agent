@@ -125,6 +125,15 @@ SUPABASE_ANON_KEY=        # Supabase Anonymous Key（Phase 1以降）
 - `feature/*`: 機能開発ブランチ
 - `fix/*`: バグ修正ブランチ
 
+### フロントエンド開発
+
+フロントエンドの開発を行う場合は、必ず skills の `frontend-design` を参照すること。
+このスキルには、プロダクショングレードのUI実装パターンとデザインガイドラインが含まれている。
+
+```
+/frontend-design
+```
+
 ## 現在のステータス
 
 **Phase 0: フィジビリティ確認** ✅ 完了（Go判定）
