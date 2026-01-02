@@ -3,12 +3,11 @@ Phase 0-1: 画像からメーカー・型番読み取りの検証スクリプト
 
 使用方法:
 1. プロジェクトルートに .env ファイルを作成し、GEMINI_API_KEY を設定
-2. 実行: python test_image_recognition.py <画像パス>
+2. 実行: uv run python test_image_recognition.py <画像パス>
 """
 
 import os
 import sys
-import base64
 import json
 from pathlib import Path
 
@@ -16,23 +15,25 @@ from pathlib import Path
 try:
     from dotenv import load_dotenv
     # プロジェクトルートの.envを読み込む
-    project_root = Path(__file__).parent.parent.parent
+    # tests/phase0/scripts/ から4階層上がプロジェクトルート
+    project_root = Path(__file__).parent.parent.parent.parent
     load_dotenv(project_root / ".env")
 except ImportError:
     print("python-dotenv パッケージをインストールしてください:")
-    print("  pip install python-dotenv")
+    print("  uv add python-dotenv")
     sys.exit(1)
 
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
 except ImportError:
-    print("google-generativeai パッケージをインストールしてください:")
-    print("  pip install google-generativeai")
+    print("google-genai パッケージをインストールしてください:")
+    print("  uv add google-genai")
     sys.exit(1)
 
 
-def encode_image(image_path: str) -> tuple[str, str]:
-    """画像をbase64エンコードし、MIMEタイプを返す"""
+def get_mime_type(image_path: str) -> str:
+    """ファイル拡張子からMIMEタイプを取得"""
     path = Path(image_path)
     suffix = path.suffix.lower()
 
@@ -46,12 +47,7 @@ def encode_image(image_path: str) -> tuple[str, str]:
         ".heif": "image/heif",
     }
 
-    mime_type = mime_types.get(suffix, "image/jpeg")
-
-    with open(image_path, "rb") as f:
-        image_data = base64.standard_b64encode(f.read()).decode("utf-8")
-
-    return image_data, mime_type
+    return mime_types.get(suffix, "image/jpeg")
 
 
 def analyze_appliance_image(image_path: str) -> dict:
@@ -62,13 +58,16 @@ def analyze_appliance_image(image_path: str) -> dict:
     if not api_key:
         raise ValueError("環境変数 GEMINI_API_KEY が設定されていません")
 
-    genai.configure(api_key=api_key)
-
-    # Gemini 2.0 Flash を使用（画像対応、高速、無料枠あり）
-    model = genai.GenerativeModel("gemini-2.0-flash-exp")
+    # google-genai パッケージを使用
+    client = genai.Client(api_key=api_key)
 
     # 画像を読み込み
-    image_data, mime_type = encode_image(image_path)
+    mime_type = get_mime_type(image_path)
+    with open(image_path, "rb") as f:
+        image_bytes = f.read()
+
+    # 画像パートを作成
+    image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
     prompt = """この画像は家電製品または住宅設備の写真です。
 
@@ -114,10 +113,11 @@ def analyze_appliance_image(image_path: str) -> dict:
 
 JSON形式のみで回答してください。"""
 
-    response = model.generate_content([
-        {"mime_type": mime_type, "data": image_data},
-        prompt
-    ])
+    # Gemini 2.0 Flash を使用（画像対応、高速、無料枠あり）
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-exp",
+        contents=[image_part, prompt]
+    )
 
     # レスポンスをパース
     response_text = response.text.strip()
