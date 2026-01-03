@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { isHeicFile, convertHeicToJpeg } from "@/lib/heicConverter";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -15,6 +16,7 @@ export default function RegisterPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -43,25 +45,40 @@ export default function RegisterPage() {
     { number: 5, title: "完了" },
   ];
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
+    if (!file) return;
 
-      // Check if file is HEIC/HEIF (browsers can't preview these)
-      const isHeic = file.name.toLowerCase().match(/\.(heic|heif)$/);
+    setImageFile(file);
 
-      if (isHeic) {
-        // For HEIC files, show a placeholder instead of preview
+    // Check if file is HEIC/HEIF
+    if (isHeicFile(file)) {
+      setIsConverting(true);
+      setImagePreview(null); // Clear previous preview
+
+      try {
+        const result = await convertHeicToJpeg(file);
+
+        if (result.success && result.dataUrl) {
+          setImagePreview(result.dataUrl);
+        } else {
+          // Fallback to placeholder if conversion fails
+          setImagePreview("heic-placeholder");
+          console.warn("HEIC conversion failed, using placeholder:", result.error);
+        }
+      } catch (error) {
+        console.error("HEIC conversion error:", error);
         setImagePreview("heic-placeholder");
-      } else {
-        // For other image formats, create preview
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setImagePreview(reader.result as string);
-        };
-        reader.readAsDataURL(file);
+      } finally {
+        setIsConverting(false);
       }
+    } else {
+      // For other image formats, create preview using FileReader
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -262,10 +279,19 @@ export default function RegisterPage() {
               {inputMethod === "image" && (
                 <div className="mt-6 space-y-4">
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                    {imagePreview ? (
+                    {isConverting ? (
+                      // HEIC変換中のローディング表示
+                      <div className="py-8">
+                        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                        <p className="text-gray-600 font-medium">HEIC画像を変換中...</p>
+                        <p className="text-sm text-gray-400 mt-1">
+                          しばらくお待ちください
+                        </p>
+                      </div>
+                    ) : imagePreview ? (
                       <div className="space-y-4">
                         {imagePreview === "heic-placeholder" ? (
-                          // HEIC files can't be previewed in browser
+                          // HEIC変換失敗時のフォールバック表示
                           <div className="py-8">
                             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                               <svg
