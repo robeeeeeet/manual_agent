@@ -45,9 +45,20 @@ manual_agent/
 ├── CHANGELOG.md           # 変更履歴
 ├── docs/                  # ドキュメント
 ├── frontend/              # Next.js アプリケーション
-│   ├── src/app/           # App Router
+│   ├── src/app/           # App Router（ページ、APIルート）
+│   │   ├── api/           # BFF層 API Routes
+│   │   ├── auth/callback/ # 認証コールバック
+│   │   ├── login/         # ログインページ
+│   │   ├── signup/        # 新規登録ページ
+│   │   └── register/      # 家電登録ページ
 │   ├── src/components/    # UIコンポーネント
-│   └── src/lib/           # ユーティリティ
+│   │   ├── auth/          # 認証関連（AuthForm）
+│   │   ├── layout/        # レイアウト（Header, Footer）
+│   │   └── ui/            # 汎用UI（Button, Card）
+│   ├── src/contexts/      # React Context（AuthContext）
+│   ├── src/lib/           # ユーティリティ
+│   │   └── supabase/      # Supabaseクライアント
+│   └── src/middleware.ts  # Next.js ミドルウェア
 ├── backend/               # FastAPI アプリケーション
 │   ├── app/
 │   │   ├── api/routes/    # APIルート
@@ -66,6 +77,10 @@ manual_agent/
 | フロントエンド | https://manual-agent-seven.vercel.app/ |
 | バックエンドAPI | https://manual-agent-api-36vsycvgwa-an.a.run.app |
 
+## 現在のステータス
+
+**Phase 2: 認証** ✅ 完了（次: Phase 3 家電登録・説明書取得）
+
 ## 重要な設計判断
 
 1. **AI優先アプローチ**: 手動入力よりAI自動認識を優先
@@ -73,3 +88,4 @@ manual_agent/
 3. **カテゴリ**: 事前定義リスト + 自由入力の両対応
 4. **認証・DB・ストレージ**: Supabaseで一元管理
 5. **HEIC対応**: サーバーサイド変換（pillow-heif）でiPhone写真に対応
+6. **認証フロー**: @supabase/ssr + ミドルウェアによるルート保護

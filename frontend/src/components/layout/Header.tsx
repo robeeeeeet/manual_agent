@@ -2,9 +2,20 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, loading, signOut } = useAuth();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await signOut();
+    setIsMenuOpen(false);
+    router.push("/");
+    router.refresh();
+  };
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
@@ -37,12 +48,46 @@ export default function Header() {
             >
               家電一覧
             </Link>
-            <Link
-              href="/register"
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              家電を登録
-            </Link>
+            {!loading && (
+              <>
+                {user ? (
+                  <>
+                    <Link
+                      href="/register"
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      家電を登録
+                    </Link>
+                    <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
+                      <span className="text-sm text-gray-600 truncate max-w-[150px]">
+                        {user.email}
+                      </span>
+                      <button
+                        onClick={handleSignOut}
+                        className="text-gray-600 hover:text-red-600 transition-colors text-sm"
+                      >
+                        ログアウト
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/login"
+                      className="text-gray-600 hover:text-blue-600 transition-colors"
+                    >
+                      ログイン
+                    </Link>
+                    <Link
+                      href="/signup"
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      新規登録
+                    </Link>
+                  </>
+                )}
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -87,13 +132,49 @@ export default function Header() {
               >
                 家電一覧
               </Link>
-              <Link
-                href="/register"
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-center"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                家電を登録
-              </Link>
+              {!loading && (
+                <>
+                  {user ? (
+                    <>
+                      <Link
+                        href="/register"
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-center"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        家電を登録
+                      </Link>
+                      <div className="pt-4 border-t border-gray-200">
+                        <p className="text-sm text-gray-600 mb-2 truncate">
+                          {user.email}
+                        </p>
+                        <button
+                          onClick={handleSignOut}
+                          className="text-red-600 hover:text-red-700 transition-colors text-sm"
+                        >
+                          ログアウト
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        href="/login"
+                        className="text-gray-600 hover:text-blue-600 transition-colors"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        ログイン
+                      </Link>
+                      <Link
+                        href="/signup"
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-center"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        新規登録
+                      </Link>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           </div>
         )}

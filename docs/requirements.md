@@ -105,7 +105,7 @@
 ```
 クライアント（ブラウザ/PWA）
         ↓
-Next.js 14+ (TypeScript) - UI/BFF層
+Next.js 16+ (TypeScript) - UI/BFF層
         ↓ REST API
 FastAPI (Python) - AIバックエンド
         ↓
@@ -113,7 +113,7 @@ Supabase (PostgreSQL/Auth/Storage)
 ```
 
 ### フロントエンド
-- **Next.js 14+** (App Router)
+- **Next.js 16+** (App Router)
 - **TypeScript**
 - **Tailwind CSS**
 - **PWA対応** (next-pwa)

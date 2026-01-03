@@ -68,8 +68,19 @@ manual_agent/
 │   └── deploy.yml         # CI/CD パイプライン
 ├── frontend/              # Next.js アプリケーション
 │   ├── src/app/           # App Router（ページ、APIルート）
+│   │   ├── api/           # BFF層 API Routes
+│   │   ├── auth/callback/ # 認証コールバック
+│   │   ├── login/         # ログインページ
+│   │   ├── signup/        # 新規登録ページ
+│   │   └── register/      # 家電登録ページ
 │   ├── src/components/    # UIコンポーネント
+│   │   ├── auth/          # 認証関連（AuthForm）
+│   │   ├── layout/        # Header, Footer
+│   │   └── ui/            # Button, Card
+│   ├── src/contexts/      # React Context（AuthContext）
 │   ├── src/lib/           # ユーティリティ
+│   │   └── supabase/      # Supabaseクライアント
+│   ├── src/middleware.ts  # Next.js ミドルウェア（ルート保護）
 │   └── package.json
 ├── backend/               # FastAPI アプリケーション
 │   ├── app/
@@ -182,17 +193,18 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= # Supabase Publishable Key
 
 ## 現在のステータス
 
-**Phase 1.5: デプロイ基盤構築** ✅ 完了
+**Phase 2: 認証** ✅ 完了
 
-Phase 0〜1.5 が完了：
+Phase 0〜2 が完了：
 - ✅ FastAPI バックエンド（画像認識、説明書検索、メンテナンス抽出API、HEIC変換）
 - ✅ Next.js 16 フロントエンド（家電登録画面、BFF層、HEIC対応）
 - ✅ Supabase 設定（DBスキーマ、Auth、Storage、接続テスト）
 - ✅ Vercel デプロイ → https://manual-agent-seven.vercel.app/
 - ✅ Cloud Run デプロイ
 - ✅ GitHub Actions CI/CD パイプライン
+- ✅ Supabase Auth連携（ログイン/新規登録画面、認証状態管理、ルート保護）
 
-**次のフェーズ:** Phase 2（認証）または Phase 3（家電登録・説明書取得）
+**次のフェーズ:** Phase 3（家電登録・説明書取得）
 
 詳細は `docs/development-plan.md` および `docs/deploy-setup.md` を参照。
 

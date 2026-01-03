@@ -37,11 +37,19 @@ async def endpoint_name(request: RequestSchema):
 
 ### ファイル構成
 - `src/app/` - Next.js App Router (ページ、APIルート)
+  - `api/` - BFF層 API Routes
+  - `auth/` - 認証関連ルート（callback）
+  - `login/`, `signup/` - 認証ページ
+  - `register/` - 家電登録ページ
 - `src/components/` - Reactコンポーネント
-  - `layout/` - レイアウトコンポーネント
-  - `ui/` - 汎用UIコンポーネント
-  - `appliances/` - 家電関連コンポーネント
+  - `auth/` - 認証関連（AuthForm）
+  - `layout/` - レイアウトコンポーネント（Header, Footer）
+  - `ui/` - 汎用UIコンポーネント（Button, Card）
+  - `appliances/` - 家電関連コンポーネント（未実装）
+- `src/contexts/` - React Context（AuthContext）
 - `src/lib/` - ユーティリティ
+  - `supabase/` - Supabaseクライアント（client, server, middleware）
+- `src/middleware.ts` - Next.js ミドルウェア（ルート保護）
 
 ### スタイル
 - TypeScript 5+

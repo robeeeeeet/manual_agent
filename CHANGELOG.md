@@ -8,12 +8,58 @@
 ## [Unreleased]
 
 ### Added
-- ドキュメント分割（要件定義書、開発計画書、CHANGELOG、CLAUDE.md）
+- Phase 2: 認証機能
+  - Supabase Auth連携（@supabase/ssr）
+  - ログイン/新規登録画面（AuthFormコンポーネント）
+  - 認証状態管理（AuthContext/AuthProvider）
+  - ミドルウェアによるルート保護
+  - メール確認コールバック処理
 
 ### Changed
-- 開発計画書のPhase 0ステータスを「完了」に更新
-  - 検証結果: 3機能すべて100%成功率
-  - Go判定により本開発への移行を決定
+- Headerコンポーネントに認証UI追加（ログイン/ログアウト表示切替）
+
+---
+
+## [0.3.0] - 2025-01-02
+
+### Added
+- Phase 1.5: デプロイ基盤構築
+  - Vercelデプロイ（フロントエンド）
+  - Cloud Runデプロイ（バックエンド）
+  - GitHub Actions CI/CDパイプライン
+  - Workload Identity Federation設定
+  - デプロイスクリプト（`scripts/deploy-backend.sh`、`scripts/setup-secrets.sh`）
+
+### Technical Notes
+- 本番URL: https://manual-agent-seven.vercel.app/
+- バックエンドAPI: Cloud Run（自動スケール）
+
+---
+
+## [0.2.0] - 2025-01-01
+
+### Added
+- Phase 1: 基盤構築（ハイブリッドアーキテクチャ）
+  - FastAPIバックエンド
+    - 画像認識API（`/api/v1/appliances/recognize`）
+    - 説明書検索API（`/api/v1/manuals/search`）
+    - メンテナンス抽出API（`/api/v1/manuals/extract-maintenance`）
+    - HEIC変換API（`/api/v1/appliances/convert-heic`）
+  - Next.js 16フロントエンド
+    - 基本レイアウト（Header, Footer, Button, Card）
+    - 家電登録画面（画像アップロード → AI解析）
+    - BFF層 API Routes
+    - HEICプレビュー対応
+  - Supabase設定
+    - PostgreSQLスキーマ
+    - pgvector拡張
+    - Auth設定（メール認証）
+    - Storageバケット（manuals, images）
+    - RLSポリシー
+
+### Technical Notes
+- ハイブリッドアーキテクチャ: Next.js（TypeScript）+ FastAPI（Python）
+- AI処理はPythonバックエンドで実行（LangChain/LangGraph対応）
 
 ---
 
