@@ -59,9 +59,17 @@ manual_agent/
 └── .env                   # 環境変数（git管理外）
 ```
 
+## 本番環境
+
+| 環境 | URL |
+|------|-----|
+| フロントエンド | https://manual-agent-seven.vercel.app/ |
+| バックエンドAPI | https://manual-agent-api-36vsycvgwa-an.a.run.app |
+
 ## 重要な設計判断
 
 1. **AI優先アプローチ**: 手動入力よりAI自動認識を優先
 2. **PDF保存方式**: リンク保存ではなくPDFダウンロード保存
 3. **カテゴリ**: 事前定義リスト + 自由入力の両対応
 4. **認証・DB・ストレージ**: Supabaseで一元管理
+5. **HEIC対応**: サーバーサイド変換（pillow-heif）でiPhone写真に対応

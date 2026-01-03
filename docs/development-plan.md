@@ -56,6 +56,7 @@
   - [x] 画像認識サービス (`/api/v1/appliances/recognize`)
   - [x] PDF 取得サービス (`/api/v1/manuals/search`)
   - [x] メンテナンス抽出サービス (`/api/v1/manuals/extract-maintenance`)
+  - [x] HEIC 変換サービス (`/api/v1/appliances/convert-heic`)
 - [x] API エンドポイント設計・実装
 - [x] Supabase 接続テスト (`/health/supabase`)
 
@@ -65,6 +66,7 @@
 - [x] 基本レイアウト・コンポーネント（Header, Footer, Button, Card）
 - [x] API Routes（BFF層）
 - [x] 家電登録画面（画像アップロード → AI解析）
+- [x] HEIC 画像プレビュー対応（サーバーサイド変換）
 
 #### 1-4. Supabase 設定
 - [x] プロジェクト作成
@@ -76,7 +78,7 @@
 
 ---
 
-### Phase 1.5: デプロイ基盤構築 🚀
+### Phase 1.5: デプロイ基盤構築 ✅ 完了
 
 Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はステージング環境で動作確認しながら進める。
 
@@ -126,11 +128,12 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
 - [x] Workload Identity Federation 設定（`scripts/setup-workload-identity.sh`）
 - [ ] ブランチ保護ルール設定（任意）
 
-#### 1.5-4. 動作確認
-- [ ] Vercel → Cloud Run API 疎通確認
-- [ ] Cloud Run → Supabase 接続確認
-- [ ] CORS 設定確認
-- [ ] 画像アップロード → AI 解析 E2E 確認
+#### 1.5-4. 動作確認 ✅ 完了
+- [x] Vercel → Cloud Run API 疎通確認
+- [x] Cloud Run → Supabase 接続確認
+- [x] CORS 設定確認
+- [x] 画像アップロード → AI 解析 E2E 確認
+- [x] HEIC 画像変換 → プレビュー表示 E2E 確認
 
 ---
 
@@ -140,10 +143,13 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
 - [ ] 認証状態管理
 
 ### Phase 3: 家電登録・説明書取得
-- [ ] 家電登録画面
-- [ ] 画像アップロード → AI 解析連携
-- [ ] 手動入力フォーム
+- [ ] 家電登録画面の完成
+  - [ ] 画像アップロード → AI 解析連携
+  - [ ] 型番未検出時のラベル位置ガイド表示（`label_guide` UI実装）
+  - [ ] 手動入力フォーム
+  - [ ] カテゴリ選択・新規カテゴリ追加
 - [ ] 説明書 Web 検索・保存
+- [ ] 家電データのSupabase保存
 
 ---
 
