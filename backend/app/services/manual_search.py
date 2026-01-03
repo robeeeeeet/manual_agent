@@ -3,7 +3,6 @@
 import json
 import tempfile
 import time
-from pathlib import Path
 from urllib.parse import urljoin
 
 import requests
@@ -45,11 +44,13 @@ def custom_search(query: str, num_results: int = 10) -> list[dict]:
 
         results = []
         for item in data.get("items", []):
-            results.append({
-                "title": item.get("title", ""),
-                "link": item.get("link", ""),
-                "snippet": item.get("snippet", ""),
-            })
+            results.append(
+                {
+                    "title": item.get("title", ""),
+                    "link": item.get("link", ""),
+                    "snippet": item.get("snippet", ""),
+                }
+            )
         return results
     except Exception as e:
         print(f"Custom Search API error: {e}")
@@ -57,9 +58,7 @@ def custom_search(query: str, num_results: int = 10) -> list[dict]:
 
 
 def is_target_manual_by_snippet(
-    result: dict,
-    manufacturer: str,
-    model_number: str
+    result: dict, manufacturer: str, model_number: str
 ) -> str:
     """
     Judge if search result is target manual by snippet.
@@ -106,20 +105,21 @@ def verify_pdf(url: str) -> bool:
 
         # For /file type URLs, use GET to verify
         if url.endswith("/file"):
-            response = requests.get(url, headers=headers, timeout=10, allow_redirects=True, stream=True)
+            response = requests.get(
+                url, headers=headers, timeout=10, allow_redirects=True, stream=True
+            )
             content_type = response.headers.get("Content-Type", "")
-            return response.status_code == 200 and "application/pdf" in content_type.lower()
+            return (
+                response.status_code == 200
+                and "application/pdf" in content_type.lower()
+            )
 
         return False
     except Exception:
         return False
 
 
-def verify_pdf_is_target(
-    pdf_url: str,
-    manufacturer: str,
-    model_number: str
-) -> bool:
+def verify_pdf_is_target(pdf_url: str, manufacturer: str, model_number: str) -> bool:
     """
     Download PDF and verify with LLM if it's the target manual.
 
@@ -155,17 +155,16 @@ def verify_pdf_is_target(
             file = client.files.upload(
                 file=tmp_path,
                 config=types.UploadFileConfig(
-                    display_name="manual_check",
-                    mime_type='application/pdf'
-                )
+                    display_name="manual_check", mime_type="application/pdf"
+                ),
             )
 
             # Wait for processing
-            while file.state.name == 'PROCESSING':
+            while file.state.name == "PROCESSING":
                 time.sleep(2)
                 file = client.files.get(name=file.name)
 
-            if file.state.name == 'FAILED':
+            if file.state.name == "FAILED":
                 return False
 
             # Verify with LLM
@@ -181,8 +180,7 @@ def verify_pdf_is_target(
 ```"""
 
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=[file, prompt]
+                model="gemini-2.5-flash", contents=[file, prompt]
             )
 
             response_text = response.text.strip()
@@ -197,6 +195,7 @@ def verify_pdf_is_target(
         finally:
             # Clean up temporary file
             import os
+
             os.unlink(tmp_path)
 
     except Exception as e:
@@ -205,9 +204,7 @@ def verify_pdf_is_target(
 
 
 async def search_pdf_direct(
-    manufacturer: str,
-    model_number: str,
-    official_domains: list[str]
+    manufacturer: str, model_number: str, official_domains: list[str]
 ) -> dict:
     """
     Step 1: Direct PDF search using filetype:pdf
@@ -242,7 +239,11 @@ async def search_pdf_direct(
             elif judgment == "maybe":
                 if verify_pdf_is_target(link, manufacturer, model_number):
                     print(f"PDF found (LLM verified): {link}")
-                    return {"success": True, "pdf_url": link, "method": "direct_search_verified"}
+                    return {
+                        "success": True,
+                        "pdf_url": link,
+                        "method": "direct_search_verified",
+                    }
 
     return {"success": False}
 
@@ -282,8 +283,10 @@ def fetch_page_html(url: str, model_number: str = None) -> str:
                 priority_links.append(link_info)
             elif ".pdf" in href_lower or href.endswith("/file"):
                 pdf_links.append(link_info)
-            elif any(kw in href_lower or kw in text.lower() for kw in
-                     ["manual", "取扱説明書", "マニュアル", "toiawase", "support"]):
+            elif any(
+                kw in href_lower or kw in text.lower()
+                for kw in ["manual", "取扱説明書", "マニュアル", "toiawase", "support"]
+            ):
                 manual_links.append(link_info)
 
         formatted = f"""## 型番関連リンク（{len(priority_links)}件）:
@@ -300,11 +303,7 @@ def fetch_page_html(url: str, model_number: str = None) -> str:
         return f"Error: {e}"
 
 
-def extract_pdf_with_llm(
-    page_info: str,
-    manufacturer: str,
-    model_number: str
-) -> dict:
+def extract_pdf_with_llm(page_info: str, manufacturer: str, model_number: str) -> dict:
     """Use LLM to analyze page and extract PDF link"""
     client = get_gemini_client()
     model_no_hyphen = model_number.replace("-", "")
@@ -348,9 +347,7 @@ def extract_pdf_with_llm(
 
 
 async def search_manual_page(
-    manufacturer: str,
-    model_number: str,
-    official_domains: list[str]
+    manufacturer: str, model_number: str, official_domains: list[str]
 ) -> dict:
     """
     Step 2: Search manual page and extract PDF
@@ -379,10 +376,14 @@ async def search_manual_page(
             visited.add(page_url)
 
             # If direct PDF
-            if page_url.lower().endswith('.pdf'):
+            if page_url.lower().endswith(".pdf"):
                 if verify_pdf(page_url):
                     print(f"PDF found: {page_url}")
-                    return {"success": True, "pdf_url": page_url, "method": "page_search_direct"}
+                    return {
+                        "success": True,
+                        "pdf_url": page_url,
+                        "method": "page_search_direct",
+                    }
 
             # Extract PDF from page
             page_info = fetch_page_html(page_url, model_number)
@@ -395,7 +396,11 @@ async def search_manual_page(
             found_pdf = llm_result.get("found_pdf")
             if found_pdf and verify_pdf(found_pdf):
                 print(f"PDF found: {found_pdf}")
-                return {"success": True, "pdf_url": found_pdf, "method": "page_search_extract"}
+                return {
+                    "success": True,
+                    "pdf_url": found_pdf,
+                    "method": "page_search_extract",
+                }
 
             # Follow exploration links (depth 1)
             for link in llm_result.get("explore_links", [])[:3]:
@@ -407,19 +412,23 @@ async def search_manual_page(
                 if sub_page_info.startswith("Error"):
                     continue
 
-                sub_result = extract_pdf_with_llm(sub_page_info, manufacturer, model_number)
+                sub_result = extract_pdf_with_llm(
+                    sub_page_info, manufacturer, model_number
+                )
                 sub_pdf = sub_result.get("found_pdf")
                 if sub_pdf and verify_pdf(sub_pdf):
                     print(f"PDF found: {sub_pdf}")
-                    return {"success": True, "pdf_url": sub_pdf, "method": "page_search_deep"}
+                    return {
+                        "success": True,
+                        "pdf_url": sub_pdf,
+                        "method": "page_search_deep",
+                    }
 
     return {"success": False, "reason": "not_found"}
 
 
 async def search_manual(
-    manufacturer: str,
-    model_number: str,
-    official_domains: list[str] | None = None
+    manufacturer: str, model_number: str, official_domains: list[str] | None = None
 ) -> dict:
     """
     Search for manual PDF using two-step strategy.

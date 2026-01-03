@@ -38,17 +38,16 @@ async def upload_pdf_to_gemini(client, pdf_bytes: bytes, filename: str):
         file = client.files.upload(
             file=tmp_path,
             config=types.UploadFileConfig(
-                display_name=Path(filename).stem,
-                mime_type='application/pdf'
-            )
+                display_name=Path(filename).stem, mime_type="application/pdf"
+            ),
         )
 
         # Wait for processing
-        while file.state.name == 'PROCESSING':
+        while file.state.name == "PROCESSING":
             time.sleep(2)
             file = client.files.get(name=file.name)
 
-        if file.state.name == 'FAILED':
+        if file.state.name == "FAILED":
             raise Exception(f"File processing failed: {file.state.name}")
 
         return file
@@ -56,6 +55,7 @@ async def upload_pdf_to_gemini(client, pdf_bytes: bytes, filename: str):
     finally:
         # Clean up temporary file
         import os
+
         os.unlink(tmp_path)
 
 
@@ -86,7 +86,7 @@ async def extract_maintenance_items(
     manufacturer: str = None,
     model_number: str = None,
     category: str = None,
-    source_filename: str = "manual.pdf"
+    source_filename: str = "manual.pdf",
 ) -> dict:
     """
     Extract maintenance items from manual PDF.
@@ -171,8 +171,7 @@ async def extract_maintenance_items(
 """
 
     response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=[uploaded_file, prompt]
+        model="gemini-2.5-flash", contents=[uploaded_file, prompt]
     )
 
     response_text = response.text.strip()
@@ -193,5 +192,5 @@ async def extract_maintenance_items(
     except json.JSONDecodeError as e:
         return {
             "error": f"JSON parse error: {str(e)}",
-            "raw_response": response_text[:1000]
+            "raw_response": response_text[:1000],
         }

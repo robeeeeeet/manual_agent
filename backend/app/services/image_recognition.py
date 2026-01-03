@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-from typing import BinaryIO
 
 from google import genai
 from google.genai import types
@@ -39,9 +38,7 @@ DEFAULT_CATEGORIES = [
 
 
 async def analyze_appliance_image(
-    image_bytes: bytes,
-    filename: str,
-    existing_categories: list[str] | None = None
+    image_bytes: bytes, filename: str, existing_categories: list[str] | None = None
 ) -> dict:
     """
     Analyze appliance image to extract manufacturer and model number.
@@ -120,8 +117,7 @@ JSON形式のみで回答してください。"""
 
     # Call Gemini 2.0 Flash
     response = client.models.generate_content(
-        model="gemini-2.0-flash-exp",
-        contents=[image_part, prompt]
+        model="gemini-2.0-flash-exp", contents=[image_part, prompt]
     )
 
     # Parse response
@@ -146,9 +142,6 @@ JSON形式のみで回答してください。"""
     try:
         result = json.loads(response_text)
     except json.JSONDecodeError as e:
-        result = {
-            "raw_response": response_text,
-            "error": f"JSON parse error: {str(e)}"
-        }
+        result = {"raw_response": response_text, "error": f"JSON parse error: {str(e)}"}
 
     return result

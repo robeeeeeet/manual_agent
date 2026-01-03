@@ -1,19 +1,25 @@
 """Manual-related API routes"""
 
+from typing import Annotated
+
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
+from app.config import settings
 from app.schemas.appliance import (
     ErrorResponse,
-    MaintenanceExtractionRequest,
     MaintenanceExtractionResponse,
     ManualSearchRequest,
     ManualSearchResponse,
 )
 from app.services.maintenance_extraction import extract_maintenance_items
 from app.services.manual_search import search_manual
-from app.config import settings
 
 router = APIRouter(prefix="/manuals", tags=["manuals"])
+
+# Type alias with metadata for PDF file upload
+PdfFile = Annotated[
+    UploadFile | None, File(description="Manual PDF file (alternative to URL)")
+]
 
 
 @router.post(
@@ -24,7 +30,7 @@ router = APIRouter(prefix="/manuals", tags=["manuals"])
         500: {"model": ErrorResponse},
     },
     summary="Search for manual PDF",
-    description="Search for manual PDF using manufacturer and model number"
+    description="Search for manual PDF using manufacturer and model number",
 )
 async def search_manual_pdf(request: ManualSearchRequest):
     """
@@ -47,7 +53,7 @@ async def search_manual_pdf(request: ManualSearchRequest):
         result = await search_manual(
             manufacturer=request.manufacturer,
             model_number=request.model_number,
-            official_domains=request.official_domains
+            official_domains=request.official_domains,
         )
         return result
 
@@ -57,9 +63,9 @@ async def search_manual_pdf(request: ManualSearchRequest):
             detail={
                 "error": "Manual search failed",
                 "code": "SEARCH_ERROR",
-                "details": str(e)
-            }
-        )
+                "details": str(e),
+            },
+        ) from e
 
 
 @router.post(
@@ -71,14 +77,14 @@ async def search_manual_pdf(request: ManualSearchRequest):
         500: {"model": ErrorResponse},
     },
     summary="Extract maintenance items from manual PDF",
-    description="Extract maintenance items from manual PDF (URL or file upload)"
+    description="Extract maintenance items from manual PDF (URL or file upload)",
 )
 async def extract_maintenance(
     pdf_url: str = None,
     manufacturer: str = None,
     model_number: str = None,
     category: str = None,
-    pdf_file: UploadFile = File(None, description="Manual PDF file (alternative to URL)")
+    pdf_file: PdfFile = None,
 ):
     """
     Extract maintenance items from manual PDF.
@@ -112,8 +118,8 @@ async def extract_maintenance(
             detail={
                 "error": "Missing PDF source",
                 "code": "MISSING_PDF_SOURCE",
-                "details": "Provide either pdf_url or pdf_file"
-            }
+                "details": "Provide either pdf_url or pdf_file",
+            },
         )
 
     if pdf_url and pdf_file:
@@ -122,8 +128,8 @@ async def extract_maintenance(
             detail={
                 "error": "Multiple PDF sources",
                 "code": "MULTIPLE_PDF_SOURCES",
-                "details": "Provide only one of pdf_url or pdf_file"
-            }
+                "details": "Provide only one of pdf_url or pdf_file",
+            },
         )
 
     try:
@@ -136,8 +142,8 @@ async def extract_maintenance(
                     detail={
                         "error": "Invalid file type",
                         "code": "INVALID_FILE_TYPE",
-                        "details": f"Expected application/pdf, got {pdf_file.content_type}"
-                    }
+                        "details": f"Expected application/pdf, got {pdf_file.content_type}",
+                    },
                 )
 
             # Check file size
@@ -150,8 +156,8 @@ async def extract_maintenance(
                     detail={
                         "error": "File too large",
                         "code": "FILE_TOO_LARGE",
-                        "details": f"Max size: {settings.max_upload_size_mb}MB, got {file_size_mb:.2f}MB"
-                    }
+                        "details": f"Max size: {settings.max_upload_size_mb}MB, got {file_size_mb:.2f}MB",
+                    },
                 )
 
             pdf_source = contents
@@ -166,7 +172,7 @@ async def extract_maintenance(
             manufacturer=manufacturer,
             model_number=model_number,
             category=category,
-            source_filename=source_filename
+            source_filename=source_filename,
         )
 
         # Check for extraction errors
@@ -176,8 +182,8 @@ async def extract_maintenance(
                 detail={
                     "error": "Extraction failed",
                     "code": "EXTRACTION_ERROR",
-                    "details": result.get("error")
-                }
+                    "details": result.get("error"),
+                },
             )
 
         return result
@@ -190,6 +196,6 @@ async def extract_maintenance(
             detail={
                 "error": "Maintenance extraction failed",
                 "code": "EXTRACTION_ERROR",
-                "details": str(e)
-            }
-        )
+                "details": str(e),
+            },
+        ) from e

@@ -2,13 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Header, status
-
-from app.config import settings
+from fastapi import Header
 
 
 async def verify_backend_key(
-    x_backend_key: Annotated[str | None, Header()] = None
+    x_backend_key: Annotated[str | None, Header()] = None,
 ) -> None:
     """
     Verify backend API key (for BFF → Backend authentication).

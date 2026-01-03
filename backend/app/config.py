@@ -1,7 +1,7 @@
 """Application configuration"""
 
-import os
 from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,7 +24,11 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+    ]
+    # Vercel プレビュー/本番ドメイン用の正規表現パターン
+    cors_origin_regex: str | None = r"https://.*\.vercel\.app"
 
     # Upload limits
     max_upload_size_mb: int = 50
@@ -33,7 +37,7 @@ class Settings(BaseSettings):
         env_file=str(Path(__file__).parent.parent.parent / ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
-        extra="ignore"
+        extra="ignore",
     )
 
 

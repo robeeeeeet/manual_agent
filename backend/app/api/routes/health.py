@@ -15,11 +15,7 @@ async def health_check():
     Returns:
         dict: Status information
     """
-    return {
-        "status": "ok",
-        "service": "Manual Agent Backend",
-        "version": "0.1.0"
-    }
+    return {"status": "ok", "service": "Manual Agent Backend", "version": "0.1.0"}
 
 
 @router.get("/health/supabase")
@@ -42,7 +38,7 @@ async def supabase_health_check():
             "connection": False,
             "categories_table": False,
         },
-        "details": {}
+        "details": {},
     }
 
     # Check environment variables
@@ -66,10 +62,7 @@ async def supabase_health_check():
         # Use secret key to bypass RLS for health check
         # In production, this endpoint should be protected or removed
         key_to_use = settings.supabase_secret_key or settings.supabase_publishable_key
-        supabase = create_client(
-            settings.supabase_url,
-            key_to_use
-        )
+        supabase = create_client(settings.supabase_url, key_to_use)
         result["checks"]["connection"] = True
         result["details"]["using_secret_key"] = bool(settings.supabase_secret_key)
 
