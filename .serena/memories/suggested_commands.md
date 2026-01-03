@@ -75,3 +75,31 @@ git commit -m "<type>: <subject>"
 - `SUPABASE_SECRET_KEY` - Supabase Secret Key
 
 フロントエンドは `frontend/.env.local` を使用。
+
+## Lint / Format
+
+```bash
+# バックエンド（ruff）
+cd backend && uv run ruff check app/       # Lint
+cd backend && uv run ruff format app/      # Format
+cd backend && uv run ruff check app/ --fix # 自動修正
+
+# フロントエンド（ESLint）
+cd frontend && npm run lint
+```
+
+## デプロイ
+
+```bash
+# バックエンド（Cloud Run）- プロジェクトルートから実行
+./scripts/deploy-backend.sh          # ビルド & デプロイ
+./scripts/deploy-backend.sh build    # ビルドのみ
+./scripts/deploy-backend.sh deploy   # デプロイのみ
+
+# シークレット管理
+./scripts/setup-secrets.sh           # Secret Manager に登録
+./scripts/setup-secrets.sh --list    # シークレット一覧表示
+
+# Workload Identity Federation（初回のみ）
+GITHUB_ORG=<username> ./scripts/setup-workload-identity.sh
+```

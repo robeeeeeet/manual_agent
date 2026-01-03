@@ -33,6 +33,9 @@ Supabase (PostgreSQL/pgvector/Auth/Storage)
 | 認証 | Supabase Auth |
 | ストレージ | Supabase Storage |
 | パッケージ管理 | uv (Python), npm (Node.js) |
+| デプロイ（フロント） | Vercel |
+| デプロイ（バック） | Google Cloud Run |
+| CI/CD | GitHub Actions |
 
 ## ディレクトリ構造
 

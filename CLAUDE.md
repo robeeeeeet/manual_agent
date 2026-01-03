@@ -15,6 +15,8 @@ AIを活用して商品認識・説明書取得・メンテナンス項目抽出
 |---------|------|
 | `docs/requirements.md` | 要件定義書（機能要件、技術スタック、データモデル） |
 | `docs/development-plan.md` | 開発計画書（フェーズ、タスク管理） |
+| `docs/deploy-setup.md` | デプロイ手順書（Vercel, Cloud Run, CI/CD） |
+| `docs/supabase-setup.md` | Supabase設定手順書 |
 | `CHANGELOG.md` | 変更履歴 |
 | `CLAUDE.md` | このファイル（AI向けガイド） |
 
@@ -46,6 +48,9 @@ Supabase (PostgreSQL/pgvector/Auth/Storage)
 | 認証 | Supabase Auth |
 | ストレージ | Supabase Storage |
 | パッケージ管理 | uv (Python), npm (Node.js) |
+| デプロイ（フロント） | Vercel |
+| デプロイ（バック） | Google Cloud Run |
+| CI/CD | GitHub Actions |
 
 ## ディレクトリ構造
 
@@ -56,8 +61,11 @@ manual_agent/
 ├── docs/                  # ドキュメント
 │   ├── requirements.md    # 要件定義書
 │   ├── development-plan.md # 開発計画書
+│   ├── deploy-setup.md    # デプロイ手順書
 │   ├── supabase-setup.md  # Supabase設定手順書
 │   └── notes/             # 技術メモ
+├── .github/workflows/     # GitHub Actions
+│   └── deploy.yml         # CI/CD パイプライン
 ├── frontend/              # Next.js アプリケーション
 │   ├── src/app/           # App Router（ページ、APIルート）
 │   ├── src/components/    # UIコンポーネント
@@ -70,6 +78,7 @@ manual_agent/
 │   │   ├── services/      # ビジネスロジック（AI処理）
 │   │   └── main.py
 │   ├── supabase/          # DBスキーマ・マイグレーション
+│   ├── Dockerfile         # Cloud Run 用
 │   └── pyproject.toml
 ├── tests/phase0/          # Phase 0 検証スクリプト（Python）
 │   ├── scripts/
@@ -85,6 +94,8 @@ manual_agent/
 cd backend && uv sync                              # 依存関係インストール
 cd backend && uv run uvicorn app.main:app --reload # 開発サーバー起動 → http://localhost:8000
 cd backend && uv run pytest                        # テスト実行
+cd backend && uv run ruff check app/               # Lint実行
+cd backend && uv run ruff format app/              # フォーマット
 
 # フロントエンド
 cd frontend && npm install   # 依存関係インストール
@@ -96,6 +107,13 @@ cd frontend && npm run build # ビルド
 uv run python tests/phase0/scripts/test_image_recognition.py <画像>
 uv run python tests/phase0/scripts/test_custom_search_api.py
 uv run python tests/phase0/scripts/test_maintenance_extraction.py
+
+# デプロイ（プロジェクトルートから実行）
+./scripts/deploy-backend.sh          # ビルド & Cloud Run デプロイ
+./scripts/deploy-backend.sh build    # ビルドのみ
+./scripts/deploy-backend.sh deploy   # デプロイのみ
+./scripts/setup-secrets.sh           # Secret Manager にシークレット登録
+./scripts/setup-secrets.sh --list    # シークレット一覧表示
 ```
 
 ## 環境変数
@@ -164,16 +182,19 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= # Supabase Publishable Key
 
 ## 現在のステータス
 
-**Phase 1: 基盤構築** ✅ 完了
+**Phase 1.5: デプロイ基盤構築** ✅ 完了
 
-Phase 0（AI機能検証）とPhase 1（基盤構築）が完了：
-- ✅ FastAPI バックエンド（画像認識、説明書検索、メンテナンス抽出API）
-- ✅ Next.js 16 フロントエンド（家電登録画面、BFF層）
+Phase 0〜1.5 が完了：
+- ✅ FastAPI バックエンド（画像認識、説明書検索、メンテナンス抽出API、HEIC変換）
+- ✅ Next.js 16 フロントエンド（家電登録画面、BFF層、HEIC対応）
 - ✅ Supabase 設定（DBスキーマ、Auth、Storage、接続テスト）
+- ✅ Vercel デプロイ → https://manual-agent-seven.vercel.app/
+- ✅ Cloud Run デプロイ
+- ✅ GitHub Actions CI/CD パイプライン
 
-**次のステップ**: Phase 1.5（デプロイ基盤構築）または Phase 2（認証）
+**次のフェーズ:** Phase 2（認証）または Phase 3（家電登録・説明書取得）
 
-詳細は `docs/development-plan.md` を参照。
+詳細は `docs/development-plan.md` および `docs/deploy-setup.md` を参照。
 
 ## 重要な設計判断
 
@@ -183,3 +204,4 @@ Phase 0（AI機能検証）とPhase 1（基盤構築）が完了：
 4. **カテゴリ**: 事前定義リスト + 自由入力の両対応
 5. **Supabase採用**: 認証・DB・ストレージを一元管理、pgvector対応
 6. **LangChain/LangGraph採用**: 将来のRAG機能・複雑なエージェントフローに対応
+7. **デプロイ構成**: Vercel（Next.js最適化）+ Cloud Run（無料枠大、自動スケール）+ GitHub Actions（CI/CD）

@@ -80,29 +80,57 @@
 
 Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はステージング環境で動作確認しながら進める。
 
-#### 1.5-1. フロントエンドデプロイ（Vercel）
-- [ ] Vercel プロジェクト作成・GitHub 連携
-- [ ] 環境変数設定（Supabase URL, API エンドポイント等）
-- [ ] プレビューデプロイ設定（PR ごとに自動デプロイ）
+**デプロイ構成:**
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│     Vercel      │────▶│  Cloud Run      │────▶│    Supabase     │
+│   (Next.js)     │     │   (FastAPI)     │     │  (DB/Auth/Storage)
+│   フロントエンド   │     │   バックエンド    │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+詳細なセットアップ手順: [deploy-setup.md](./deploy-setup.md)
+
+#### 1.5-1. フロントエンドデプロイ（Vercel） ✅ 完了
+- [x] Vercel アカウント作成・GitHub 連携
+- [x] プロジェクト作成（frontend ディレクトリ指定）
+- [x] 環境変数設定
+  - `BACKEND_URL`: Cloud Run の URL
+  - `NEXT_PUBLIC_SUPABASE_URL`: Supabase URL
+  - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Supabase Publishable Key
+- [x] プレビューデプロイ確認（PR ごとに自動デプロイ）
 - [ ] カスタムドメイン設定（任意）
 
-#### 1.5-2. バックエンドデプロイ（Railway / Render）
-- [ ] デプロイ先選定・プロジェクト作成
-- [ ] Python 環境設定（uv / requirements.txt）
-- [ ] 環境変数設定（API キー類）
-- [ ] ヘルスチェックエンドポイント追加
+**本番 URL:** https://manual-agent-seven.vercel.app/
 
-#### 1.5-3. CI/CD パイプライン
-- [ ] GitHub Actions ワークフロー作成
-  - [ ] Lint / Type check（フロント・バック両方）
-  - [ ] テスト実行
-  - [ ] 自動デプロイトリガー
-- [ ] ブランチ保護ルール設定
+#### 1.5-2. バックエンドデプロイ（Google Cloud Run）
+- [x] Google Cloud プロジェクト作成（manual-agent-prod）
+- [x] Cloud Run API 有効化
+- [x] Dockerfile 作成（backend/）
+- [x] Artifact Registry リポジトリ作成（manual-agent-repo）
+- [x] Cloud Run サービスデプロイ
+- [x] 環境変数設定（Secret Manager）
+  - `GEMINI_API_KEY`
+  - `GOOGLE_CSE_API_KEY`
+  - `GOOGLE_CSE_ID`
+  - `SUPABASE_URL`
+  - `SUPABASE_PUBLISHABLE_KEY`
+  - `SUPABASE_SECRET_KEY`
+- [x] CORS 設定（Vercel ドメイン許可）
+
+#### 1.5-3. CI/CD パイプライン ✅ 完了
+- [x] GitHub Actions ワークフロー作成（`.github/workflows/deploy.yml`）
+  - [x] フロントエンド: Lint / Type check / Build
+  - [x] バックエンド: Lint (ruff) / Format check
+  - [x] Cloud Run 自動デプロイ（main ブランチ）
+- [x] Workload Identity Federation 設定（`scripts/setup-workload-identity.sh`）
+- [ ] ブランチ保護ルール設定（任意）
 
 #### 1.5-4. 動作確認
-- [ ] フロント ↔ バック API 疎通確認
-- [ ] Supabase 接続確認
+- [ ] Vercel → Cloud Run API 疎通確認
+- [ ] Cloud Run → Supabase 接続確認
 - [ ] CORS 設定確認
+- [ ] 画像アップロード → AI 解析 E2E 確認
 
 ---
 
@@ -171,7 +199,7 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
 
 ## 現在のステータス
 
-**現在のフェーズ**: Phase 1.5（デプロイ基盤構築）または Phase 2（認証）
+**現在のフェーズ**: Phase 2（認証）または Phase 3（家電登録・説明書取得）
 
 ### 進捗サマリー
 
@@ -179,7 +207,7 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
 |---------|-----------|------|
 | Phase 0 | ✅ 完了 | 3機能すべて100%成功、Go判定 |
 | Phase 1 | ✅ 完了 | FastAPI + Next.js + Supabase 基盤構築 |
-| Phase 1.5 | ⚪ 未着手 | デプロイ基盤構築 🚀 |
+| Phase 1.5 | ✅ 完了 | Vercel + Cloud Run + CI/CD 構築完了 |
 | Phase 2 | ⚪ 未着手 | 認証 |
 | Phase 3 | ⚪ 未着手 | 家電登録・説明書取得 |
 | Phase 3.5 | ⚪ 未着手 | **📱 初回リリース（スマホ確認可能）** |
