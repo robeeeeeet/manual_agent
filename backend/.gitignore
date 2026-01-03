@@ -28,7 +28,7 @@ ENV/
 
 # uv
 .uv/
-uv.lock
+# uv.lock は本番ビルドに必要なため、コミットする
 
 # IDE
 .vscode/
