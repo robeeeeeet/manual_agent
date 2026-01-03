@@ -8,6 +8,10 @@
 .env
 .env.local
 .env.*.local
+.env.bk
+
+# Playwright MCP
+.playwright-mcp/
 
 # Python
 __pycache__/
