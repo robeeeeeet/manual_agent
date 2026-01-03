@@ -1,0 +1,50 @@
+# Cloud Build 用の除外設定
+# （.gitignore とは別に管理）
+
+# Python キャッシュ
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 仮想環境（ビルド時に新規作成）
+.venv/
+venv/
+env/
+ENV/
+.uv/
+
+# 環境変数（機密情報）
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# テスト・開発用
+tests/
+test_*.py
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Lint・型チェック
+.mypy_cache/
+.ruff_cache/
+
+# ドキュメント（README.md はビルドに必要なので除外しない）
+DEVELOPMENT.md
+
+# その他
+*.log
+.DS_Store
+Thumbs.db
+
+# Supabase（実行時不要）
+supabase/
+
+# 重要: uv.lock は含める（.gitignore では除外されているが、ビルドに必要）
+# !uv.lock  ← 明示的に含める必要はない（除外リストに入れなければOK）

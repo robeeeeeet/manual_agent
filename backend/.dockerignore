@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# 仮想環境（ビルド時に新規作成）
+.venv/
+venv/
+ENV/
+
+# 環境変数（機密情報）
+.env
+.env.*
+*.env
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# テスト・開発用
+tests/
+test_*.py
+pytest.ini
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 型チェック・Lint
+.mypy_cache/
+.ruff_cache/
+
+# ドキュメント（README.md はビルドに必要なので除外しない）
+DEVELOPMENT.md
+docs/
+
+# その他
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Supabase マイグレーション（実行時不要）
+supabase/
