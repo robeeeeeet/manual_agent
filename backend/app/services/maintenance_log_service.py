@@ -102,11 +102,7 @@ async def complete_maintenance(
             "notes": notes,
         }
 
-        log_response = (
-            client.table("maintenance_logs")
-            .insert(log_data)
-            .execute()
-        )
+        log_response = client.table("maintenance_logs").insert(log_data).execute()
 
         if not log_response.data:
             return {"error": "Failed to create maintenance log"}
@@ -167,7 +163,11 @@ async def get_maintenance_logs(
     """
     client = get_supabase_client()
     if not client:
-        return {"error": "Database connection not available", "logs": [], "total_count": 0}
+        return {
+            "error": "Database connection not available",
+            "logs": [],
+            "total_count": 0,
+        }
 
     try:
         # Verify user owns this schedule

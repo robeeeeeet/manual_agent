@@ -193,18 +193,14 @@ async def _send_reminders_for_user(
 
         # Send notification for items due today
         if due_today:
-            notification_result = await _send_due_today_notification(
-                user_id, due_today
-            )
+            notification_result = await _send_due_today_notification(user_id, due_today)
             results["success"] += notification_result.get("success", 0)
             results["failed"] += notification_result.get("failed", 0)
             results["errors"].extend(notification_result.get("errors", []))
 
         # Send notification for items due soon
         if due_soon:
-            notification_result = await _send_due_soon_notification(
-                user_id, due_soon
-            )
+            notification_result = await _send_due_soon_notification(user_id, due_soon)
             results["success"] += notification_result.get("success", 0)
             results["failed"] += notification_result.get("failed", 0)
             results["errors"].extend(notification_result.get("errors", []))
@@ -259,9 +255,7 @@ async def _send_due_today_notification(
     }
 
     try:
-        return await send_notification_to_user(
-            UUID(user_id), notification_payload
-        )
+        return await send_notification_to_user(UUID(user_id), notification_payload)
     except Exception as e:
         logger.error(f"Failed to send due today notification: {e}")
         return {"success": 0, "failed": 1, "errors": [str(e)]}
@@ -307,9 +301,7 @@ async def _send_due_soon_notification(
     }
 
     try:
-        return await send_notification_to_user(
-            UUID(user_id), notification_payload
-        )
+        return await send_notification_to_user(UUID(user_id), notification_payload)
     except Exception as e:
         logger.error(f"Failed to send due soon notification: {e}")
         return {"success": 0, "failed": 1, "errors": [str(e)]}
@@ -365,9 +357,7 @@ async def send_test_notification(user_id: str) -> dict[str, Any]:
     }
 
     try:
-        return await send_notification_to_user(
-            UUID(user_id), notification_payload
-        )
+        return await send_notification_to_user(UUID(user_id), notification_payload)
     except Exception as e:
         logger.error(f"Failed to send test notification: {e}")
         return {"success": 0, "failed": 1, "expired": 0, "errors": [str(e)]}

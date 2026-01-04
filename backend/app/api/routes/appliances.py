@@ -716,17 +716,19 @@ async def get_upcoming_maintenance_tasks(
             user_appliance = schedule.get("user_appliances", {})
             shared_appliance = user_appliance.get("shared_appliances", {})
 
-            result.append({
-                "id": schedule["id"],
-                "task_name": schedule["task_name"],
-                "description": schedule.get("description"),
-                "next_due_at": schedule.get("next_due_at"),
-                "importance": schedule.get("importance", "medium"),
-                "appliance_name": user_appliance.get("name", ""),
-                "appliance_id": user_appliance.get("id"),
-                "maker": shared_appliance.get("maker", ""),
-                "model_number": shared_appliance.get("model_number", ""),
-            })
+            result.append(
+                {
+                    "id": schedule["id"],
+                    "task_name": schedule["task_name"],
+                    "description": schedule.get("description"),
+                    "next_due_at": schedule.get("next_due_at"),
+                    "importance": schedule.get("importance", "medium"),
+                    "appliance_name": user_appliance.get("name", ""),
+                    "appliance_id": user_appliance.get("id"),
+                    "maker": shared_appliance.get("maker", ""),
+                    "model_number": shared_appliance.get("model_number", ""),
+                }
+            )
 
         return result
 
