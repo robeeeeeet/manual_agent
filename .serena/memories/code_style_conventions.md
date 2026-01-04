@@ -84,6 +84,17 @@ export default function ComponentName({ prop }: Props) {
 }
 ```
 
+### Modalコンポーネント
+```tsx
+// variant="lightbox" (デフォルト) - 画像表示用（背景透明）
+// variant="dialog" - ダイアログ用（白背景、角丸、シャドウ）
+<Modal isOpen={isOpen} onClose={handleClose} variant="dialog">
+  <div className="p-6">
+    {/* ダイアログ内容 */}
+  </div>
+</Modal>
+```
+
 ## コミットメッセージ
 
 ```

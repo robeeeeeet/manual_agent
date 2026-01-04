@@ -74,7 +74,8 @@ manual_agent/
 │   │   ├── login/         # ログインページ
 │   │   ├── signup/        # 新規登録ページ
 │   │   ├── register/      # 家電登録ページ
-│   │   └── appliances/    # 家電一覧ページ
+│   │   └── appliances/    # 家電一覧・詳細ページ
+│   │       └── [id]/      # 家電詳細ページ（動的ルート）
 │   ├── src/components/    # UIコンポーネント
 │   │   ├── auth/          # 認証関連（AuthForm）
 │   │   ├── layout/        # Header, Footer
@@ -207,21 +208,22 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= # Supabase Publishable Key
 
 ## 現在のステータス
 
-**Phase 3: 家電登録・説明書取得** 🚧 進行中
+**Phase 3: 家電登録・説明書取得** ✅ 完了
 
-### 完了済み
+### 完了済み（Phase 0〜3）
 - ✅ Phase 0〜2: 基盤構築、デプロイ、認証
-- ✅ データベース設計リファクタリング（共有マスター方式）
+- ✅ データベース設計（共有マスター方式）
   - `shared_appliances`（家電マスター）+ `user_appliances`（所有関係）
   - `shared_maintenance_items`（メンテナンス項目キャッシュ）
 - ✅ バックエンドAPI実装（家電CRUD、PDFストレージ、メンテナンスキャッシュ）
 - ✅ フロントエンドBFF層（家電登録・説明書・メンテナンス全フロー）
-- ✅ 家電一覧ページ、Modalコンポーネント、型定義
+- ✅ 家電一覧ページ、詳細画面、Modalコンポーネント、型定義
+- ✅ 家電登録画面（ラベル位置ガイド、手動入力、カテゴリ選択）
+- ✅ メンテナンス項目選択UI（チェックボックス式）
 
-### 進行中
-- ⚪ 家電登録画面のUI完成（ラベル位置ガイド、手動入力、カテゴリ選択）
-- ⚪ 家電詳細画面
-- ⚪ メンテナンス項目選択UI
+### 次のフェーズ
+- Phase 4: メンテナンス管理（完了記録、次回作業日表示）
+- Phase 5: 通知・PWA
 
 **本番URL:** https://manual-agent-seven.vercel.app/
 

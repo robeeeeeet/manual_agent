@@ -164,54 +164,71 @@ export default function AppliancesPage() {
       {!isLoading && !error && appliances.length > 0 && (
         <div className="space-y-4">
           {appliances.map((appliance) => (
-            <Card key={appliance.id}>
-              <CardBody>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-bold text-gray-900">
-                        {appliance.name}
-                      </h3>
-                      <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">
-                        {appliance.category}
-                      </span>
+            <Link key={appliance.id} href={`/appliances/${appliance.id}`}>
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <CardBody>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-bold text-gray-900">
+                          {appliance.name}
+                        </h3>
+                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">
+                          {appliance.category}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {appliance.maker} {appliance.model_number}
+                      </p>
                     </div>
-                    <p className="text-sm text-gray-600">
-                      {appliance.maker} {appliance.model_number}
-                    </p>
-                  </div>
 
-                  <div className="flex flex-col items-end gap-2">
-                    {appliance.manual_source_url && (
-                      <a
-                        href={appliance.manual_source_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                      >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
+                    <div className="flex flex-col items-end gap-2">
+                      {appliance.manual_source_url && (
+                        <span
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            window.open(appliance.manual_source_url!, "_blank");
+                          }}
+                          className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                          />
-                        </svg>
-                        説明書
-                      </a>
-                    )}
-                    <span className="text-xs text-gray-400">
-                      {formatDate(appliance.created_at)} 登録
-                    </span>
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                            />
+                          </svg>
+                          説明書
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400">
+                        {formatDate(appliance.created_at)} 登録
+                      </span>
+                      <svg
+                        className="w-5 h-5 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </div>
                   </div>
-                </div>
-              </CardBody>
-            </Card>
+                </CardBody>
+              </Card>
+            </Link>
           ))}
         </div>
       )}

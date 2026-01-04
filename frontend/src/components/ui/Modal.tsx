@@ -6,9 +6,15 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  variant?: "lightbox" | "dialog";
 }
 
-export default function Modal({ isOpen, onClose, children }: ModalProps) {
+export default function Modal({
+  isOpen,
+  onClose,
+  children,
+  variant = "lightbox",
+}: ModalProps) {
   // ESC key to close
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -37,29 +43,35 @@ export default function Modal({ isOpen, onClose, children }: ModalProps) {
       onClick={onClose}
     >
       <div
-        className="relative max-w-7xl max-h-full"
+        className={`relative ${
+          variant === "dialog"
+            ? "bg-white rounded-xl shadow-2xl max-w-md w-full"
+            : "max-w-7xl max-h-full"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors"
-          aria-label="Close modal"
-        >
-          <svg
-            className="w-8 h-8"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        {/* Close button - only for lightbox variant */}
+        {variant === "lightbox" && (
+          <button
+            onClick={onClose}
+            className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors"
+            aria-label="Close modal"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
+            <svg
+              className="w-8 h-8"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        )}
 
         {children}
       </div>

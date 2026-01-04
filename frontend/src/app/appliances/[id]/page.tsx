@@ -1,0 +1,470 @@
+"use client";
+
+import { useEffect, useState, use } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import Button from "@/components/ui/Button";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import Modal from "@/components/ui/Modal";
+import { createClient } from "@/lib/supabase/client";
+import type {
+  UserApplianceWithDetails,
+  MaintenanceSchedule,
+} from "@/types/appliance";
+
+interface ApplianceDetailPageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default function ApplianceDetailPage({
+  params,
+}: ApplianceDetailPageProps) {
+  const { id } = use(params);
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+
+  const [appliance, setAppliance] = useState<UserApplianceWithDetails | null>(
+    null
+  );
+  const [schedules, setSchedules] = useState<MaintenanceSchedule[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Fetch appliance details
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Fetch appliance details via BFF
+        const response = await fetch(`/api/appliances/${id}`);
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error("この家電は見つかりませんでした");
+          }
+          throw new Error("家電データの取得に失敗しました");
+        }
+        const applianceData: UserApplianceWithDetails = await response.json();
+        setAppliance(applianceData);
+
+        // Fetch maintenance schedules from Supabase directly
+        const supabase = createClient();
+        if (supabase) {
+          const { data: schedulesData, error: schedulesError } = await supabase
+            .from("maintenance_schedules")
+            .select("*")
+            .eq("user_appliance_id", id)
+            .order("next_due_at", { ascending: true });
+
+          if (!schedulesError && schedulesData) {
+            setSchedules(schedulesData);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching appliance:", err);
+        setError(
+          err instanceof Error ? err.message : "家電データの取得に失敗しました"
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (!authLoading && user) {
+      fetchData();
+    } else if (!authLoading && !user) {
+      setIsLoading(false);
+    }
+  }, [id, user, authLoading]);
+
+  // Delete appliance
+  const handleDelete = async () => {
+    if (!appliance) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/appliances/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("削除に失敗しました");
+      }
+
+      router.push("/appliances");
+    } catch (err) {
+      console.error("Delete error:", err);
+      setError(err instanceof Error ? err.message : "削除に失敗しました");
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string | null): string => {
+    if (!dateString) return "未設定";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("ja-JP", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  // Calculate days until due
+  const getDaysUntilDue = (nextDueAt: string | null): number | null => {
+    if (!nextDueAt) return null;
+    const now = new Date();
+    const dueDate = new Date(nextDueAt);
+    const diffTime = dueDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // Get status color based on days until due
+  const getDueStatusColor = (daysUntil: number | null): string => {
+    if (daysUntil === null) return "bg-gray-100 text-gray-600";
+    if (daysUntil < 0) return "bg-red-100 text-red-700";
+    if (daysUntil <= 7) return "bg-amber-100 text-amber-700";
+    return "bg-green-100 text-green-700";
+  };
+
+  // Get importance badge color
+  const getImportanceBadgeColor = (
+    importance: "high" | "medium" | "low"
+  ): string => {
+    switch (importance) {
+      case "high":
+        return "bg-red-100 text-red-700";
+      case "medium":
+        return "bg-yellow-100 text-yellow-700";
+      case "low":
+        return "bg-green-100 text-green-700";
+      default:
+        return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  const importanceLabels: Record<"high" | "medium" | "low", string> = {
+    high: "高",
+    medium: "中",
+    low: "低",
+  };
+
+  if (authLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-64">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-12">
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">
+          ログインが必要です
+        </h1>
+        <p className="text-gray-600 mb-6">
+          家電の詳細を表示するにはログインしてください。
+        </p>
+        <Link href="/login">
+          <Button>ログイン</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-64">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !appliance) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <Link
+          href="/appliances"
+          className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1 mb-4"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          家電一覧に戻る
+        </Link>
+        <Card>
+          <CardBody>
+            <div className="text-center py-8">
+              <p className="text-red-600 mb-4">
+                {error || "家電が見つかりませんでした"}
+              </p>
+              <Link href="/appliances">
+                <Button>家電一覧に戻る</Button>
+              </Link>
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <Link
+          href="/appliances"
+          className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1 mb-4"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          家電一覧に戻る
+        </Link>
+      </div>
+
+      {/* Appliance Info Card */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">
+                {appliance.name}
+              </h1>
+              <p className="text-gray-600 mt-1">
+                {appliance.maker} {appliance.model_number}
+              </p>
+            </div>
+            <span className="px-3 py-1 text-sm font-medium rounded-full bg-gray-100 text-gray-700">
+              {appliance.category}
+            </span>
+          </div>
+        </CardHeader>
+        <CardBody>
+          <div className="space-y-4">
+            {/* Manual Link */}
+            {appliance.manual_source_url && (
+              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg
+                      className="w-5 h-5 text-blue-600"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.92,12.31 10.92,12.31Z" />
+                    </svg>
+                  </div>
+                  <span className="font-medium text-gray-900">説明書PDF</span>
+                </div>
+                <a
+                  href={appliance.manual_source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                >
+                  開く
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                    />
+                  </svg>
+                </a>
+              </div>
+            )}
+
+            {/* Registered Date */}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">登録日</span>
+              <span className="text-gray-900">
+                {formatDate(appliance.created_at)}
+              </span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteModal(true)}
+                className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
+              >
+                削除
+              </Button>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Maintenance Schedules Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-gray-900">メンテナンス項目</h2>
+            <span className="text-sm text-gray-500">
+              {schedules.length}件
+            </span>
+          </div>
+        </CardHeader>
+        <CardBody>
+          {schedules.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg
+                  className="w-6 h-6 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+              </div>
+              <p className="text-gray-500">
+                メンテナンス項目は登録されていません
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {schedules.map((schedule) => {
+                const daysUntil = getDaysUntilDue(schedule.next_due_at);
+                const statusColor = getDueStatusColor(daysUntil);
+
+                return (
+                  <div
+                    key={schedule.id}
+                    className="p-4 bg-gray-50 rounded-lg border border-gray-100"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900">
+                          {schedule.task_name}
+                        </h4>
+                        {schedule.description && (
+                          <p className="text-sm text-gray-600 mt-1">
+                            {schedule.description}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <span
+                            className={`px-2 py-0.5 text-xs font-medium rounded ${getImportanceBadgeColor(
+                              schedule.importance
+                            )}`}
+                          >
+                            重要度: {importanceLabels[schedule.importance]}
+                          </span>
+                          <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-700">
+                            {schedule.interval_type === "days"
+                              ? `${schedule.interval_value}日ごと`
+                              : schedule.interval_type === "months"
+                                ? `${schedule.interval_value}ヶ月ごと`
+                                : "手動"}
+                          </span>
+                          {schedule.source_page && (
+                            <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-700">
+                              📄 {schedule.source_page}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <span
+                          className={`inline-block px-2 py-1 text-xs font-medium rounded ${statusColor}`}
+                        >
+                          {daysUntil === null
+                            ? "未設定"
+                            : daysUntil < 0
+                              ? `${Math.abs(daysUntil)}日超過`
+                              : daysUntil === 0
+                                ? "今日"
+                                : `あと${daysUntil}日`}
+                        </span>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {formatDate(schedule.next_due_at)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-gray-900 mb-4">
+            家電を削除しますか？
+          </h3>
+          <p className="text-gray-600 mb-6">
+            「{appliance.name}」を削除すると、関連するメンテナンス記録もすべて削除されます。
+            この操作は取り消せません。
+          </p>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteModal(false)}
+              className="flex-1"
+              disabled={isDeleting}
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleDelete}
+              isLoading={isDeleting}
+              className="flex-1 bg-red-600 hover:bg-red-700"
+            >
+              削除する
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}

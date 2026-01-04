@@ -83,17 +83,24 @@ manual_agent/
 
 ## 現在のステータス
 
-**Phase 3: 家電登録・説明書取得** 🚧 進行中
+**Phase 3: 家電登録・説明書取得** ✅ 完了
 
-### 実装済み機能（Phase 3）
+### 実装済み機能（Phase 0〜3）
 - 共有マスター方式のデータベース設計（shared_appliances / user_appliances）
 - メンテナンス項目キャッシュシステム（shared_maintenance_items）
 - 家電CRUD API（バックエンド + BFF層）
 - 説明書検索・PDF保存・確認フロー
 - メンテナンス項目抽出・登録フロー
 - 家電一覧ページ（/appliances）
+- 家電詳細ページ（/appliances/[id]）
+- 家電登録画面（ラベル位置ガイド、手動入力、カテゴリ選択）
+- メンテナンス項目選択UI（チェックボックス式）
 - フロントエンド型定義（src/types/appliance.ts）
 - Modalコンポーネント
+
+### 次のフェーズ
+- Phase 4: メンテナンス管理（完了記録、次回作業日表示）
+- Phase 5: 通知・PWA
 
 ## 重要な設計判断
 
