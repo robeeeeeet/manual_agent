@@ -31,6 +31,9 @@ tests/phase0/results/
 # 過去バージョンのスクリプト
 tests/phase0/archive/
 
+# Phase 5 デバッグ用スクリーンショット
+tests/phase5/debug_screenshot/
+
 # IDE
 .idea/
 .vscode/
