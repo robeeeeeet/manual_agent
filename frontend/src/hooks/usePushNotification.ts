@@ -53,6 +53,68 @@ export function usePushNotification(): UsePushNotificationResult {
     }
   }, []);
 
+  // Push通知購読（内部実装）
+  // permissionOverride: requestPermission から呼ばれる場合、ステート更新前なので直接値を渡す
+  const subscribeInternal = useCallback(
+    async (permissionOverride?: NotificationPermission) => {
+      const currentPermission = permissionOverride ?? permission;
+
+      if (!registration) {
+        console.error("Subscribe failed: No service worker registration");
+        setError("Service Workerが登録されていません");
+        return;
+      }
+
+      if (currentPermission !== "granted") {
+        console.error("Subscribe failed: Permission not granted", currentPermission);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // VAPID公開鍵取得
+        const vapidResponse = await fetch("/api/push/vapid-public-key");
+        if (!vapidResponse.ok) {
+          const errorData = await vapidResponse.json().catch(() => ({}));
+          console.error("VAPID key fetch failed:", errorData);
+          throw new Error(errorData.error || "VAPID公開鍵の取得に失敗しました");
+        }
+        const { publicKey } = await vapidResponse.json();
+
+        // Push購読
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+
+        // サーバーに購読情報を送信
+        const subscribeResponse = await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(subscription),
+        });
+
+        if (!subscribeResponse.ok) {
+          const errorData = await subscribeResponse.json().catch(() => ({}));
+          console.error("Subscribe API failed:", errorData);
+          throw new Error(errorData.error || "購読登録に失敗しました");
+        }
+
+        setIsSubscribed(true);
+      } catch (err) {
+        console.error("Subscription failed:", err);
+        setError(err instanceof Error ? err.message : "通知の購読に失敗しました");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [registration, permission]
+  );
+
   // 通知許可リクエスト
   const requestPermission = useCallback(async () => {
     if (!isSupported) {
@@ -69,7 +131,8 @@ export function usePushNotification(): UsePushNotificationResult {
 
       if (result === "granted") {
         // 許可されたら自動的に購読
-        await subscribe();
+        // ステート更新は非同期なので、result を直接渡す
+        await subscribeInternal(result);
       } else if (result === "denied") {
         setError("通知が拒否されました。ブラウザの設定から許可してください。");
       }
@@ -79,52 +142,12 @@ export function usePushNotification(): UsePushNotificationResult {
     } finally {
       setLoading(false);
     }
-  }, [isSupported]);
+  }, [isSupported, subscribeInternal]);
 
-  // Push通知購読
+  // 外部公開用のsubscribe（ステートに依存）
   const subscribe = useCallback(async () => {
-    if (!registration || permission !== "granted") {
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      // VAPID公開鍵取得
-      const vapidResponse = await fetch("/api/push/vapid-public-key");
-      if (!vapidResponse.ok) {
-        throw new Error("VAPID公開鍵の取得に失敗しました");
-      }
-      const { publicKey } = await vapidResponse.json();
-
-      // Push購読
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
-      });
-
-      // サーバーに購読情報を送信
-      const subscribeResponse = await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(subscription),
-      });
-
-      if (!subscribeResponse.ok) {
-        throw new Error("購読登録に失敗しました");
-      }
-
-      setIsSubscribed(true);
-    } catch (err) {
-      console.error("Subscription failed:", err);
-      setError("通知の購読に失敗しました");
-    } finally {
-      setLoading(false);
-    }
-  }, [registration, permission]);
+    await subscribeInternal();
+  }, [subscribeInternal]);
 
   // Push通知購読解除
   const unsubscribe = useCallback(async () => {
