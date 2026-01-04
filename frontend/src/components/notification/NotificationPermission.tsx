@@ -1,8 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import { usePushNotification } from "@/hooks/usePushNotification";
+import { useAuth } from "@/contexts/AuthContext";
+
+// Check if user is allowed to send test notifications
+const ALLOWED_TEST_USERS = process.env.NEXT_PUBLIC_ALLOWED_TEST_NOTIFICATION_USERS || "";
+
+function isAllowedTestUser(email: string | undefined): boolean {
+  if (!email) return false;
+  if (!ALLOWED_TEST_USERS) return false;
+  const allowedEmails = ALLOWED_TEST_USERS.split(",").map((e) => e.trim().toLowerCase());
+  return allowedEmails.includes(email.toLowerCase());
+}
 
 export default function NotificationPermission() {
+  const { user } = useAuth();
   const {
     isSupported,
     permission,
@@ -12,6 +25,37 @@ export default function NotificationPermission() {
     requestPermission,
     unsubscribe,
   } = usePushNotification();
+
+  const [testLoading, setTestLoading] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+
+  const canSendTestNotification = isAllowedTestUser(user?.email);
+
+  const sendTestNotification = async () => {
+    setTestLoading(true);
+    setTestResult(null);
+    try {
+      const response = await fetch("/api/notifications/test", {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "テスト通知の送信に失敗しました");
+      }
+      const data = await response.json();
+      if (data.success > 0) {
+        setTestResult("テスト通知を送信しました");
+      } else if (data.failed > 0) {
+        setTestResult("通知の送信に失敗しました");
+      } else {
+        setTestResult("送信対象の購読がありません");
+      }
+    } catch (err) {
+      setTestResult(err instanceof Error ? err.message : "エラーが発生しました");
+    } finally {
+      setTestLoading(false);
+    }
+  };
 
   // ブラウザが通知をサポートしていない場合
   if (!isSupported) {
@@ -90,20 +134,36 @@ export default function NotificationPermission() {
                 d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
               />
             </svg>
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-medium text-green-700">通知は有効です</p>
               <p className="text-sm text-green-600 mt-1">
                 メンテナンスのリマインドを受け取ります
               </p>
+              <div className="mt-3 flex items-center gap-3">
+                {canSendTestNotification && (
+                  <button
+                    onClick={sendTestNotification}
+                    disabled={testLoading}
+                    className="bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    {testLoading ? "送信中..." : "テスト通知を送信"}
+                  </button>
+                )}
+                <button
+                  onClick={unsubscribe}
+                  disabled={loading}
+                  className="text-sm text-green-700 hover:text-green-800 underline disabled:opacity-50"
+                >
+                  解除
+                </button>
+              </div>
+              {testResult && (
+                <p className={`text-sm mt-2 ${testResult.includes("失敗") || testResult.includes("エラー") ? "text-red-600" : "text-green-600"}`}>
+                  {testResult}
+                </p>
+              )}
             </div>
           </div>
-          <button
-            onClick={unsubscribe}
-            disabled={loading}
-            className="text-sm text-green-700 hover:text-green-800 underline disabled:opacity-50"
-          >
-            解除
-          </button>
         </div>
       </div>
     );
