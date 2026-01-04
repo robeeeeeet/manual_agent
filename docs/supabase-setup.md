@@ -57,20 +57,41 @@
 
 ### Step 4: マイグレーション実行
 
+このリポジトリのDBスキーマは **複数マイグレーション（00001〜00006）** で構成されています。  
+**00001だけ実行すると、実装（共有マスター方式・共有Storageポリシー）と齟齬が出ます。**
+
+#### 推奨: Supabase CLI で一括適用
+
+```bash
+cd backend
+npx supabase db push
+npx supabase db seed
+```
+
+#### 手動: Dashboard の SQL Editor で順番に実行
+
 1. 左メニュー「SQL Editor」→「New query」
-2. `backend/supabase/migrations/00001_initial_schema.sql` の内容をコピー
-3. SQL Editorに貼り付けて「Run」をクリック
+2. `backend/supabase/migrations/` のSQLを **昇順で** コピーして順に実行
+   - `00001_initial_schema.sql`
+   - `00002_manufacturer_domains.sql`
+   - `00003_storage_shared_manuals.sql`
+   - `00004_shared_appliances_refactor.sql`
+   - `00005_create_manuals_bucket.sql`
+   - `00006_shared_maintenance_items.sql`
 
 **作成されるテーブル:**
 
 | テーブル | 用途 |
 |---------|------|
 | `users` | ユーザー設定（通知時刻等） |
-| `appliances` | 家電・設備情報 |
+| `shared_appliances` | 家電マスター（メーカー・型番・説明書情報の共有） |
+| `user_appliances` | ユーザー所有関係（表示名・画像URL） |
+| `shared_maintenance_items` | メンテナンス項目の共有キャッシュ |
 | `maintenance_schedules` | メンテナンススケジュール |
 | `maintenance_logs` | メンテナンス実施記録 |
 | `push_subscriptions` | PWAプッシュ通知設定 |
 | `categories` | カテゴリマスター |
+| `manufacturer_domains` | メーカー公式サイトドメイン（学習） |
 
 詳細は `backend/supabase/SCHEMA.md` を参照。
 
@@ -93,8 +114,13 @@ ON CONFLICT (name) DO NOTHING;
 
 ### Step 6: Storage バケット作成
 
+現在の実装では、PDFマニュアル保存用に **`manuals` バケット** を使用します。  
+バケット作成とRLSポリシーはマイグレーションに含まれています（`00003`, `00005`）。
+
+#### Dashboard で確認する場合
+
 1. 左メニュー「Storage」
-2. 「New bucket」で以下を作成：
+2. `manuals` バケットが存在することを確認
 
 #### manuals バケット（PDFマニュアル保存用）
 
@@ -105,82 +131,47 @@ ON CONFLICT (name) DO NOTHING;
 | Restrict file size | ✅ ON | `50` MB（マニュアルPDFは大きい場合あり） |
 | Restrict MIME types | ✅ ON | `application/pdf` |
 
-#### images バケット（家電画像保存用）
+### Step 6.1: Storage RLS ポリシー（manuals共有）
 
-家電の識別写真やラベル写真を保存。家電一覧画面でのサムネイル表示に使用。
-
-| オプション | 設定 | 値 |
-|-----------|:----:|-----|
-| Bucket name | - | `images` |
-| Public bucket | ❌ OFF | 認証済みユーザーのみアクセス |
-| Restrict file size | ✅ ON | `10` MB |
-| Restrict MIME types | ✅ ON | `image/jpeg, image/png, image/gif, image/webp, image/heic, image/heif` |
-
-3. 各バケットの「Policies」タブでRLSポリシーを追加
-
-**manuals バケット用ポリシー:**
-
-SQL Editorで以下を実行：
+ポリシーもマイグレーションに含まれています（`00003_storage_shared_manuals.sql`）。  
+手動で確認/再適用する場合は SQL Editor で `00003_storage_shared_manuals.sql` を実行してください。
 
 ```sql
--- SELECT ポリシー: ユーザーは自分のファイルのみ閲覧可能
-CREATE POLICY "Users can view own manuals"
+-- 共有PDFアクセス（認証済みユーザーのみ）
+CREATE POLICY "Authenticated users can view manuals"
 ON storage.objects FOR SELECT
 USING (
   bucket_id = 'manuals'
-  AND auth.uid()::text = (storage.foldername(name))[1]
+  AND auth.role() = 'authenticated'
 );
 
--- INSERT ポリシー: ユーザーは自分のフォルダにのみアップロード可能
-CREATE POLICY "Users can upload own manuals"
+CREATE POLICY "Authenticated users can upload manuals"
 ON storage.objects FOR INSERT
 WITH CHECK (
   bucket_id = 'manuals'
-  AND auth.uid()::text = (storage.foldername(name))[1]
+  AND auth.role() = 'authenticated'
 );
 
--- DELETE ポリシー: ユーザーは自分のファイルのみ削除可能
-CREATE POLICY "Users can delete own manuals"
-ON storage.objects FOR DELETE
+CREATE POLICY "Authenticated users can update manuals"
+ON storage.objects FOR UPDATE
 USING (
   bucket_id = 'manuals'
-  AND auth.uid()::text = (storage.foldername(name))[1]
-);
-```
-
-**images バケット用ポリシー:**
-
-```sql
--- SELECT ポリシー
-CREATE POLICY "Users can view own images"
-ON storage.objects FOR SELECT
-USING (
-  bucket_id = 'images'
-  AND auth.uid()::text = (storage.foldername(name))[1]
-);
-
--- INSERT ポリシー
-CREATE POLICY "Users can upload own images"
-ON storage.objects FOR INSERT
+  AND auth.role() = 'authenticated'
+)
 WITH CHECK (
-  bucket_id = 'images'
-  AND auth.uid()::text = (storage.foldername(name))[1]
-);
-
--- DELETE ポリシー
-CREATE POLICY "Users can delete own images"
-ON storage.objects FOR DELETE
-USING (
-  bucket_id = 'images'
-  AND auth.uid()::text = (storage.foldername(name))[1]
+  bucket_id = 'manuals'
+  AND auth.role() = 'authenticated'
 );
 ```
 
 **ファイルパス規則:**
 
 ```
-{bucket_name}/{user_id}/{appliance_id}/filename.ext
-例: manuals/550e8400-e29b-41d4-a716-446655440000/abc123/manual.pdf
+manuals/{manufacturer}/{model_number}.pdf
+例: manuals/panasonic/abc-123.pdf
+
+※ 実装では Supabase Storage 内のパスは `{manufacturer}/{model_number}.pdf` です
+   （バケット名 `manuals` は外側の概念）
 ```
 
 ### Step 7: Auth 設定
@@ -248,7 +239,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 | 3 | pgvector 拡張有効化 | ⬜ |
 | 4 | マイグレーション実行 | ⬜ |
 | 5 | カテゴリ初期データ投入 | ⬜ |
-| 6 | Storage バケット作成（manuals, images） | ⬜ |
+| 6 | Storage バケット作成（manuals） | ⬜ |
 | 7 | Storage RLSポリシー設定 | ⬜ |
 | 8 | Auth URL設定確認 | ⬜ |
 | 9 | backend/.env 設定 | ⬜ |

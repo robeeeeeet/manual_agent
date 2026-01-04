@@ -34,13 +34,13 @@
 - `manufacturer_domain.py`: メーカードメイン管理
 
 **バックエンドAPI**
-- `POST /api/appliances` - 家電登録
-- `GET /api/appliances` - 家電一覧取得
-- `GET /api/appliances/{id}` - 家電詳細取得
-- `PUT /api/appliances/{id}` - 家電更新
-- `DELETE /api/appliances/{id}` - 家電削除
-- `POST /api/appliances/check-existing` - 既存家電チェック
-- `POST /api/appliances/confirm-manual` - 説明書確認・PDF保存
+- `POST /api/v1/appliances/register` - 家電登録（ユーザー所有関係を作成）
+- `GET /api/v1/appliances` - 家電一覧取得
+- `GET /api/v1/appliances/{id}` - 家電詳細取得
+- `PATCH /api/v1/appliances/{id}` - 家電更新
+- `DELETE /api/v1/appliances/{id}` - 家電削除
+- `POST /api/v1/manuals/check-existing` - 既存PDFチェック（共有）
+- `POST /api/v1/manuals/confirm` - 説明書確認・PDF保存（共有）+ ドメイン学習
 
 **フロントエンドBFF層**
 - `/api/appliances/register` - 家電登録
@@ -65,6 +65,7 @@
   - `maintenance_schedules.appliance_id` → `user_appliance_id` へ変更
   - RLSポリシーを全面的に再設計（共有マスターは全ユーザー閲覧可能）
 - バックエンドに家電CRUD APIを追加（`/api/appliances`）
+  - 実装上のプレフィックスは `/api/v1`（`/api/v1/appliances`）
 - フロントエンドBFF層に家電管理APIルートを追加
 - Headerコンポーネントに認証UI追加（ログイン/ログアウト表示切替）
 - `manual_search.py`: ストリーミング検索対応
@@ -128,7 +129,7 @@
 
 ### Technical Notes
 - ハイブリッドアーキテクチャ: Next.js（TypeScript）+ FastAPI（Python）
-- AI処理はPythonバックエンドで実行（LangChain/LangGraph対応）
+- AI処理はPythonバックエンドで実行（Gemini API / google-genai）
 
 ---
 

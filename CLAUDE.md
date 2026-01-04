@@ -30,9 +30,7 @@ AIを活用して商品認識・説明書取得・メンテナンス項目抽出
 Next.js 16+ (TypeScript) - UI/BFF層
         ↓ REST API
 FastAPI (Python) - AIバックエンド
-   ├── LangChain (RAG)
-   ├── LangGraph (エージェント)
-   └── Gemini API
+   └── Gemini API (google-genai)
         ↓
 Supabase (PostgreSQL/pgvector/Auth/Storage)
 ```
@@ -43,7 +41,7 @@ Supabase (PostgreSQL/pgvector/Auth/Storage)
 |---------|------|
 | フロントエンド | Next.js 16+, TypeScript, Tailwind CSS 4, React 19, PWA |
 | BFF層 | Next.js API Routes |
-| AIバックエンド | FastAPI, LangChain, LangGraph, Gemini API (google-genai) |
+| AIバックエンド | FastAPI, Gemini API (google-genai) |
 | データベース | Supabase PostgreSQL, pgvector |
 | 認証 | Supabase Auth |
 | ストレージ | Supabase Storage |
@@ -231,12 +229,13 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= # Supabase Publishable Key
 
 ## 重要な設計判断
 
-1. **ハイブリッドアーキテクチャ**: フロントエンドは TypeScript (Next.js)、AIバックエンドは Python (LangChain/LangGraph)
+1. **ハイブリッドアーキテクチャ**: フロントエンドは TypeScript (Next.js)、AIバックエンドは Python（Gemini API / `google-genai`）
 2. **AI優先アプローチ**: 手動入力よりAI自動認識を優先
 3. **PDF保存方式**: リンク保存ではなくPDFダウンロード保存（Supabase Storage）
 4. **カテゴリ**: 事前定義リスト + 自由入力の両対応
 5. **Supabase採用**: 認証・DB・ストレージを一元管理、pgvector対応
 6. **LangChain/LangGraph採用**: 将来のRAG機能・複雑なエージェントフローに対応
+   - ※現状の実装は `google-genai` を直接利用（LangChain/LangGraphは将来検討）
 7. **デプロイ構成**: Vercel（Next.js最適化）+ Cloud Run（無料枠大、自動スケール）+ GitHub Actions（CI/CD）
 8. **共有マスター方式**: 同一メーカー・型番の家電は`shared_appliances`で共有し、ユーザー所有関係は`user_appliances`で管理
 9. **メンテナンスキャッシュ**: LLM抽出結果を`shared_maintenance_items`にキャッシュし、2人目以降のLLMコスト・処理時間を削減

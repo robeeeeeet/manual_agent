@@ -15,9 +15,7 @@ AIを活用して商品認識・説明書取得・メンテナンス項目抽出
 Next.js 16+ (TypeScript) - UI/BFF層
         ↓ REST API
 FastAPI (Python) - AIバックエンド
-   ├── LangChain (RAG)
-   ├── LangGraph (エージェント)
-   └── Gemini API
+   └── Gemini API (google-genai)
         ↓
 Supabase (PostgreSQL/pgvector/Auth/Storage)
 ```
@@ -28,7 +26,7 @@ Supabase (PostgreSQL/pgvector/Auth/Storage)
 |---------|------|
 | フロントエンド | Next.js 16+, TypeScript, Tailwind CSS 4, React 19, PWA |
 | BFF層 | Next.js API Routes |
-| AIバックエンド | FastAPI, LangChain, LangGraph, Gemini API (google-genai) |
+| AIバックエンド | FastAPI, Gemini API (google-genai) |
 | データベース | Supabase PostgreSQL, pgvector |
 | 認証 | Supabase Auth |
 | ストレージ | Supabase Storage |

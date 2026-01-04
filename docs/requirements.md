@@ -116,7 +116,7 @@ Supabase (PostgreSQL/Auth/Storage)
 - **Next.js 16+** (App Router)
 - **TypeScript**
 - **Tailwind CSS**
-- **PWA対応** (next-pwa)
+- **PWA対応**（Phase 5で実装予定）
 
 ### BFF層（Backend for Frontend）
 - **Next.js API Routes**
@@ -126,9 +126,7 @@ Supabase (PostgreSQL/Auth/Storage)
 
 ### AIバックエンド
 - **FastAPI** (Python)
-- **LangChain** - RAG、チェーン処理
-- **LangGraph** - 複雑なエージェントフロー
-- **Gemini API** (via LangChain)
+- **Gemini API** (`google-genai` を直接利用)
   - 画像認識（型番・メーカー特定）
   - 説明書解析（メンテナンス項目・周期の抽出）
   - RAG（マニュアル検索・質問応答）
@@ -141,9 +139,8 @@ Supabase (PostgreSQL/Auth/Storage)
 
 ### ストレージ
 - **Supabase Storage** または **Google Cloud Storage**
-  - `temp/` バケット: 一時保存
-  - `manuals/` バケット: 確認済み正式版
-  - 階層: `カテゴリ/メーカー/型番/`
+  - `manuals` バケット: 共有PDF保存（非公開 + 署名付きURL）
+  - パス: `{manufacturer}/{model_number}.pdf`
 
 ### 通知
 - **Web Push API** (VAPID)
@@ -153,7 +150,7 @@ Supabase (PostgreSQL/Auth/Storage)
 
 | 選択 | 理由 |
 |------|------|
-| Python バックエンド | LangChain/LangGraph の最新機能を活用可能 |
+| Python バックエンド | Gemini API（`google-genai`）をサーバー側で安全に利用可能 |
 | Next.js フロントエンド | モダンなUI/UX、SSR、PWA対応 |
 | Supabase | 認証・DB・ストレージを一元管理、pgvector対応 |
 
@@ -167,18 +164,27 @@ users
 ├── notify_time          # 通知時刻（デフォルト 09:00）
 ├── timezone             # タイムゾーン（デフォルト Asia/Tokyo）
 
-appliances (家電)
-├── id, user_id, name, maker, model_number, category
-├── manual_source_url    # 出典URL（必須）
-├── stored_pdf_path      # 保存先パス
+shared_appliances (家電マスター)
+├── id, maker, model_number, category
+├── manual_source_url
+├── stored_pdf_path      # Supabase Storage のパス（共有）
+
+user_appliances (所有関係)
+├── id, user_id, shared_appliance_id
+├── name                 # 表示名
 ├── image_url
 
 maintenance_schedules (メンテナンス予定)
-├── id, appliance_id, task_name
+├── id, user_appliance_id, task_name
 ├── interval_type        # days / months / manual
 ├── interval_value       # 数値（manualの場合はnull）
 ├── last_done_at, next_due_at
 ├── source_page          # 根拠ページ番号
+
+shared_maintenance_items (共有キャッシュ)
+├── id, shared_appliance_id, task_name
+├── recommended_interval_type / value
+├── extracted_at
 
 maintenance_logs (実施記録)
 ├── id, schedule_id, done_at, done_by_user_id
@@ -266,12 +272,12 @@ push_subscriptions (通知設定)
 ## 9. MVPスコープ
 
 ### MVPに含む機能
-- [x] 個人利用（認証・登録・通知）
+- [x] 個人利用（認証・登録）
 - [x] 画像認識 → 手動入力フォールバック
-- [x] PDF取得 → 手動アップロードフォールバック
-- [x] メンテナンス抽出 → 手動追加可能
-- [x] PWA Push通知（ユーザー設定可能な時刻）
-- [x] 完了記録・次回自動設定
+- [x] PDF取得（検索→確認→保存）→ 手動入力フォールバック
+- [x] メンテナンス抽出（共有キャッシュ）→ 手動追加可能
+- [ ] PWA Push通知（ユーザー設定可能な時刻）※ Phase 5
+- [ ] 完了記録・次回自動設定 ※ Phase 4
 
 ### MVPに含まない機能
 - [ ] 家族グループ共有
