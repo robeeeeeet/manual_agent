@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     supabase_publishable_key: str | None = None
     supabase_secret_key: str | None = None
 
+    # VAPID (Web Push Notifications)
+    vapid_public_key: str | None = None
+    vapid_private_key: str | None = None
+    vapid_subject: str | None = None
+
     # API Configuration
     api_v1_prefix: str = "/api/v1"
     project_name: str = "Manual Agent Backend"

@@ -76,6 +76,31 @@ git commit -m "<type>: <subject>"
 
 フロントエンドは `frontend/.env.local` を使用。
 
+### Phase 5: Push通知用環境変数
+
+バックエンド `.env`:
+- `VAPID_PUBLIC_KEY` - VAPID公開鍵
+- `VAPID_PRIVATE_KEY` - VAPID秘密鍵（秘匿）
+- `VAPID_SUBJECT` - mailto:xxx または https://xxx
+
+フロントエンド `frontend/.env.local`:
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY` - VAPID公開鍵（フロントエンドで使用）
+
+## Push通知（Phase 5）
+
+```bash
+# VAPID鍵生成
+uv run python scripts/generate-vapid-keys.py
+
+# テスト通知送信（バックエンドAPI、要認証）
+curl -X POST http://localhost:8000/api/v1/notifications/test \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "your-user-id"}'
+
+# メンテナンスリマインド送信（定期実行用）
+curl -X POST http://localhost:8000/api/v1/notifications/reminders
+```
+
 ## Lint / Format
 
 ```bash

@@ -1,5 +1,6 @@
 """Service for managing appliances (shared and user-owned)."""
 
+from datetime import UTC
 from uuid import UUID
 
 from app.schemas.appliance import (
@@ -203,6 +204,10 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
     Raises:
         ApplianceServiceError: If database operation fails
     """
+    from datetime import datetime
+
+    from app.schemas.appliance import NextMaintenanceInfo
+
     client = get_supabase_client()
     if not client:
         raise ApplianceServiceError("Supabase client not configured")
@@ -219,6 +224,34 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
     appliances = []
     for row in result.data:
         shared = row.get("shared_appliances", {})
+
+        # Get next upcoming maintenance for this appliance
+        next_maintenance = None
+        maintenance_result = (
+            client.table("maintenance_schedules")
+            .select("task_name, next_due_at, importance")
+            .eq("user_appliance_id", row["id"])
+            .not_.is_("next_due_at", "null")
+            .order("next_due_at", desc=False)
+            .limit(1)
+            .execute()
+        )
+
+        if maintenance_result.data:
+            maintenance = maintenance_result.data[0]
+            next_due_at = datetime.fromisoformat(
+                maintenance["next_due_at"].replace("Z", "+00:00")
+            )
+            now = datetime.now(UTC)
+            days_until_due = (next_due_at - now).days
+
+            next_maintenance = NextMaintenanceInfo(
+                task_name=maintenance["task_name"],
+                next_due_at=next_due_at,
+                importance=maintenance["importance"],
+                days_until_due=days_until_due,
+            )
+
         appliances.append(
             UserApplianceWithDetails(
                 id=row["id"],
@@ -233,6 +266,7 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
                 category=shared.get("category", ""),
                 manual_source_url=shared.get("manual_source_url"),
                 stored_pdf_path=shared.get("stored_pdf_path"),
+                next_maintenance=next_maintenance,
             )
         )
 

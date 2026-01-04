@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import type {
   UserApplianceWithDetails,
   MaintenanceSchedule,
+  MaintenanceLog,
 } from "@/types/appliance";
 
 interface ApplianceDetailPageProps {
@@ -32,6 +33,18 @@ export default function ApplianceDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Completion modal state
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] =
+    useState<MaintenanceSchedule | null>(null);
+  const [completionNotes, setCompletionNotes] = useState("");
+  const [isCompleting, setIsCompleting] = useState(false);
+
+  // History modal state
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyLogs, setHistoryLogs] = useState<MaintenanceLog[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // Fetch appliance details
   useEffect(() => {
@@ -103,6 +116,97 @@ export default function ApplianceDetailPage({
       setError(err instanceof Error ? err.message : "削除に失敗しました");
       setIsDeleting(false);
       setShowDeleteModal(false);
+    }
+  };
+
+  // Fetch maintenance schedules
+  const fetchSchedules = async () => {
+    const supabase = createClient();
+    if (supabase) {
+      const { data: schedulesData, error: schedulesError } = await supabase
+        .from("maintenance_schedules")
+        .select("*")
+        .eq("user_appliance_id", id)
+        .order("next_due_at", { ascending: true });
+
+      if (!schedulesError && schedulesData) {
+        setSchedules(schedulesData);
+      }
+    }
+  };
+
+  // Open completion modal
+  const openCompleteModal = (schedule: MaintenanceSchedule) => {
+    setSelectedSchedule(schedule);
+    setCompletionNotes("");
+    setShowCompleteModal(true);
+  };
+
+  // Handle completion
+  const handleComplete = async () => {
+    if (!selectedSchedule) return;
+
+    setIsCompleting(true);
+    try {
+      const response = await fetch(
+        `/api/appliances/maintenance-schedules/${selectedSchedule.id}/complete`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            notes: completionNotes || undefined,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "完了記録に失敗しました");
+      }
+
+      // Refresh schedules
+      await fetchSchedules();
+
+      // Close modal
+      setShowCompleteModal(false);
+      setSelectedSchedule(null);
+      setCompletionNotes("");
+    } catch (err) {
+      console.error("Complete error:", err);
+      setError(
+        err instanceof Error ? err.message : "完了記録に失敗しました"
+      );
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  // Fetch history
+  const fetchHistory = async (scheduleId: string) => {
+    setIsLoadingHistory(true);
+    try {
+      const response = await fetch(
+        `/api/appliances/maintenance-schedules/${scheduleId}/logs`
+      );
+
+      if (!response.ok) {
+        throw new Error("履歴の取得に失敗しました");
+      }
+
+      const data = await response.json();
+      // Handle both array response and object with logs property
+      const logs: MaintenanceLog[] = Array.isArray(data) ? data : data.logs || [];
+      setHistoryLogs(logs);
+      setShowHistoryModal(true);
+    } catch (err) {
+      console.error("Fetch history error:", err);
+      setError(
+        err instanceof Error ? err.message : "履歴の取得に失敗しました"
+      );
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
 
@@ -375,7 +479,7 @@ export default function ApplianceDetailPage({
                     key={schedule.id}
                     className="p-4 bg-gray-50 rounded-lg border border-gray-100"
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
                       <div className="flex-1">
                         <h4 className="font-medium text-gray-900">
                           {schedule.task_name}
@@ -406,8 +510,22 @@ export default function ApplianceDetailPage({
                             </span>
                           )}
                         </div>
+                        {/* Last completed date */}
+                        {schedule.last_done_at && (
+                          <p className="text-xs text-gray-500 mt-2">
+                            最終完了: {formatDate(schedule.last_done_at)}
+                          </p>
+                        )}
+                        {/* History link */}
+                        <button
+                          onClick={() => fetchHistory(schedule.id)}
+                          disabled={isLoadingHistory}
+                          className="text-xs text-blue-600 hover:text-blue-700 mt-1 disabled:opacity-50"
+                        >
+                          履歴を表示
+                        </button>
                       </div>
-                      <div className="text-right flex-shrink-0">
+                      <div className="flex flex-col items-end gap-2 flex-shrink-0">
                         <span
                           className={`inline-block px-2 py-1 text-xs font-medium rounded ${statusColor}`}
                         >
@@ -419,9 +537,20 @@ export default function ApplianceDetailPage({
                                 ? "今日"
                                 : `あと${daysUntil}日`}
                         </span>
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-xs text-gray-400">
                           {formatDate(schedule.next_due_at)}
                         </p>
+                        <Button
+                          size="sm"
+                          onClick={() => openCompleteModal(schedule)}
+                          className={`mt-1 ${
+                            daysUntil !== null && daysUntil < 0
+                              ? "bg-red-600 hover:bg-red-700"
+                              : ""
+                          }`}
+                        >
+                          完了
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -461,6 +590,142 @@ export default function ApplianceDetailPage({
               className="flex-1 bg-red-600 hover:bg-red-700"
             >
               削除する
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Completion Modal */}
+      <Modal
+        isOpen={showCompleteModal}
+        onClose={() => {
+          if (!isCompleting) {
+            setShowCompleteModal(false);
+            setSelectedSchedule(null);
+            setCompletionNotes("");
+          }
+        }}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-gray-900 mb-4">
+            メンテナンスを完了する
+          </h3>
+          {selectedSchedule && (
+            <div className="mb-6">
+              <p className="text-gray-600 mb-4">
+                <span className="font-medium text-gray-900">
+                  {selectedSchedule.task_name}
+                </span>
+                <br />
+                を完了しますか？
+              </p>
+
+              {/* Notes input */}
+              <div>
+                <label
+                  htmlFor="completion-notes"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  メモ（任意）
+                </label>
+                <textarea
+                  id="completion-notes"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  placeholder="作業の内容や気づいた点などを記録できます"
+                  value={completionNotes}
+                  onChange={(e) => setCompletionNotes(e.target.value)}
+                  disabled={isCompleting}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCompleteModal(false);
+                setSelectedSchedule(null);
+                setCompletionNotes("");
+              }}
+              className="flex-1"
+              disabled={isCompleting}
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleComplete}
+              isLoading={isCompleting}
+              className="flex-1"
+            >
+              完了する
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* History Modal */}
+      <Modal
+        isOpen={showHistoryModal}
+        onClose={() => {
+          setShowHistoryModal(false);
+          setHistoryLogs([]);
+        }}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-gray-900 mb-4">完了履歴</h3>
+
+          {isLoadingHistory ? (
+            <div className="flex justify-center py-8">
+              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : historyLogs.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500">履歴がありません</p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {historyLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="p-3 bg-gray-50 rounded-lg border border-gray-100"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {formatDate(log.done_at)}
+                      </p>
+                      {log.notes && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          {log.notes}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-400">
+                      {new Date(log.done_at).toLocaleTimeString("ja-JP", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowHistoryModal(false);
+                setHistoryLogs([]);
+              }}
+              className="w-full"
+            >
+              閉じる
             </Button>
           </div>
         </div>

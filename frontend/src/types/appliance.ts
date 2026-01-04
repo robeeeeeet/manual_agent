@@ -111,6 +111,13 @@ export interface UserAppliance {
   updated_at: string;
 }
 
+export interface NextMaintenanceInfo {
+  task_name: string;
+  next_due_at: string;
+  importance: "high" | "medium" | "low";
+  days_until_due: number;
+}
+
 export interface UserApplianceWithDetails extends UserAppliance {
   // Shared appliance details (joined)
   maker: string;
@@ -118,6 +125,8 @@ export interface UserApplianceWithDetails extends UserAppliance {
   category: string;
   manual_source_url: string | null;
   stored_pdf_path: string | null;
+  // Next maintenance info (if any)
+  next_maintenance: NextMaintenanceInfo | null;
 }
 
 export interface UserApplianceCreate {
@@ -193,6 +202,32 @@ export interface MaintenanceScheduleInsert {
   next_due_at: string;
   source_page: string | null;
   importance: "high" | "medium" | "low";
+}
+
+export interface MaintenanceCompleteRequest {
+  notes?: string;
+}
+
+export interface MaintenanceLog {
+  id: string;
+  schedule_id: string;
+  done_at: string;
+  done_by_user_id: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface MaintenanceCompleteResponse {
+  success: boolean;
+  log: MaintenanceLog | null;
+  schedule: MaintenanceSchedule | null;
+  message: string | null;
+  error?: string;
+}
+
+export interface MaintenanceLogList {
+  logs: MaintenanceLog[];
+  total_count: number;
 }
 
 // ============================================================================

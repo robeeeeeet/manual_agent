@@ -14,6 +14,27 @@ const notoSansJP = Noto_Sans_JP({
 export const metadata: Metadata = {
   title: "説明書管理 - メンテナンスリマインドアプリ",
   description: "家電や住宅設備の説明書を管理し、メンテナンス項目をリマインドするWebアプリ",
+  manifest: "/manifest.json",
+  themeColor: "#3b82f6",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "説明書管理",
+  },
 };
 
 export default function RootLayout({

@@ -8,7 +8,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import appliances, health, manuals
+from app.api.routes import (
+    appliances,
+    health,
+    manuals,
+    notifications,
+    push_subscriptions,
+)
 from app.config import settings
 
 # Configure logging
@@ -81,6 +87,14 @@ app.include_router(
 )
 app.include_router(
     manuals.router,
+    prefix=settings.api_v1_prefix,
+)
+app.include_router(
+    push_subscriptions.router,
+    prefix=settings.api_v1_prefix,
+)
+app.include_router(
+    notifications.router,
     prefix=settings.api_v1_prefix,
 )
 

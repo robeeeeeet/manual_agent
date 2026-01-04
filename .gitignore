@@ -40,3 +40,13 @@ tests/phase0/archive/
 # OS
 .DS_Store
 Thumbs.db
+.git-filter-repo-replacements.txt
+
+# Next.js PWA
+frontend/public/sw.js
+frontend/public/workbox-*.js
+frontend/public/worker-*.js
+frontend/public/sw.js.map
+frontend/public/workbox-*.js.map
+frontend/public/worker-*.js.map
+backend/node_modules/

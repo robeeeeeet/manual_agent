@@ -67,7 +67,9 @@ manual_agent/
 ├── frontend/              # Next.js アプリケーション
 │   ├── src/app/           # App Router（ページ、APIルート）
 │   │   ├── api/           # BFF層 API Routes
-│   │   │   └── appliances/# 家電関連API（CRUD、説明書、メンテナンス）
+│   │   │   ├── appliances/# 家電関連API（CRUD、説明書、メンテナンス）
+│   │   │   ├── push/      # Push通知API（subscribe, unsubscribe等）
+│   │   │   └── notifications/ # 通知API（reminders等）
 │   │   ├── auth/callback/ # 認証コールバック
 │   │   ├── login/         # ログインページ
 │   │   ├── signup/        # 新規登録ページ
@@ -77,7 +79,9 @@ manual_agent/
 │   ├── src/components/    # UIコンポーネント
 │   │   ├── auth/          # 認証関連（AuthForm）
 │   │   ├── layout/        # Header, Footer
+│   │   ├── notification/  # 通知コンポーネント（NotificationPermission）
 │   │   └── ui/            # Button, Card, Modal
+│   ├── src/hooks/         # カスタムフック
 │   ├── src/types/         # 型定義（appliance.ts）
 │   ├── src/contexts/      # React Context（AuthContext）
 │   ├── src/lib/           # ユーティリティ
@@ -87,7 +91,7 @@ manual_agent/
 │   └── package.json
 ├── backend/               # FastAPI アプリケーション
 │   ├── app/
-│   │   ├── api/routes/    # APIルート（appliances, manuals）
+│   │   ├── api/routes/    # APIルート（appliances, manuals, notifications, push）
 │   │   ├── schemas/       # Pydanticスキーマ
 │   │   ├── services/      # ビジネスロジック
 │   │   │   ├── image_recognition.py     # 画像認識
@@ -96,6 +100,10 @@ manual_agent/
 │   │   │   ├── appliance_service.py     # 家電CRUD
 │   │   │   ├── pdf_storage.py           # PDFストレージ
 │   │   │   ├── maintenance_cache_service.py # メンテナンスキャッシュ
+│   │   │   ├── maintenance_log_service.py   # メンテナンス完了記録
+│   │   │   ├── push_subscription_service.py # Push購読管理
+│   │   │   ├── notification_service.py      # Push通知送信
+│   │   │   ├── maintenance_notification_service.py # リマインド通知
 │   │   │   ├── supabase_client.py       # Supabaseクライアント
 │   │   │   └── manufacturer_domain.py   # メーカードメイン
 │   │   └── main.py
@@ -132,6 +140,9 @@ uv run python tests/phase0/scripts/test_image_recognition.py <画像>
 uv run python tests/phase0/scripts/test_custom_search_api.py
 uv run python tests/phase0/scripts/test_maintenance_extraction.py
 
+# VAPID鍵生成（Phase 5: Push通知）
+cd backend && uv run python ../scripts/generate-vapid-keys.py
+
 # デプロイ（プロジェクトルートから実行）
 ./scripts/deploy-backend.sh          # ビルド & Cloud Run デプロイ
 ./scripts/deploy-backend.sh build    # ビルドのみ
@@ -151,10 +162,16 @@ SUPABASE_URL=                # Supabase URL
 SUPABASE_PUBLISHABLE_KEY=    # Supabase Publishable Key（sb_publishable_...）
 SUPABASE_SECRET_KEY=         # Supabase Secret Key（sb_secret_...）
 
+# Phase 5: Push通知（VAPID鍵）
+VAPID_PUBLIC_KEY=            # VAPID公開鍵（generate-vapid-keys.py で生成）
+VAPID_PRIVATE_KEY=           # VAPID秘密鍵（秘匿、バックエンドのみ使用）
+VAPID_SUBJECT=               # mailto:your-email@example.com または https://your-domain.com
+
 # frontend/.env.local に設定（フロントエンド用）
 BACKEND_URL=                         # バックエンドAPI URL（http://localhost:8000）
 NEXT_PUBLIC_SUPABASE_URL=            # Supabase URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= # Supabase Publishable Key
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=        # VAPID公開鍵（バックエンドと同じ値）
 ```
 
 ## 開発規約
@@ -206,22 +223,28 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= # Supabase Publishable Key
 
 ## 現在のステータス
 
-**Phase 3: 家電登録・説明書取得** ✅ 完了
+**Phase 5: 通知・PWA** 🔄 テスト中
 
-### 完了済み（Phase 0〜3）
+### 完了済み（Phase 0〜5）
 - ✅ Phase 0〜2: 基盤構築、デプロイ、認証
-- ✅ データベース設計（共有マスター方式）
-  - `shared_appliances`（家電マスター）+ `user_appliances`（所有関係）
-  - `shared_maintenance_items`（メンテナンス項目キャッシュ）
-- ✅ バックエンドAPI実装（家電CRUD、PDFストレージ、メンテナンスキャッシュ）
-- ✅ フロントエンドBFF層（家電登録・説明書・メンテナンス全フロー）
-- ✅ 家電一覧ページ、詳細画面、Modalコンポーネント、型定義
-- ✅ 家電登録画面（ラベル位置ガイド、手動入力、カテゴリ選択）
-- ✅ メンテナンス項目選択UI（チェックボックス式）
+- ✅ Phase 3: 家電登録・説明書取得
+  - データベース設計（共有マスター方式）
+  - バックエンドAPI実装（家電CRUD、PDFストレージ、メンテナンスキャッシュ）
+  - 家電登録画面、一覧・詳細ページ
+- ✅ Phase 4: メンテナンス管理
+  - メンテナンス完了記録API（バックエンド + BFF層）
+  - 履歴取得API（バックエンド + BFF層）
+  - 完了記録UI（完了ボタン、メモ入力モーダル）
+  - 履歴表示UI（履歴モーダル、日時・メモ表示）
+  - 家電一覧の次回メンテナンス表示（バッジ）
+- 🔄 Phase 5: 通知・PWA（テスト中）
+  - PWA対応（manifest.json, Service Worker, アイコン）
+  - Push通知基盤（購読管理、通知送信サービス）
+  - メンテナンスリマインド通知（期限当日・期限間近）
+  - 通知許可UIコンポーネント
 
 ### 次のフェーズ
-- Phase 4: メンテナンス管理（完了記録、次回作業日表示）
-- Phase 5: 通知・PWA
+- Phase 6: RAG・質問応答機能（マニュアルPDFのベクトル化、質問UI）
 
 **本番URL:** https://manual-agent-seven.vercel.app/
 
@@ -239,3 +262,5 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= # Supabase Publishable Key
 7. **デプロイ構成**: Vercel（Next.js最適化）+ Cloud Run（無料枠大、自動スケール）+ GitHub Actions（CI/CD）
 8. **共有マスター方式**: 同一メーカー・型番の家電は`shared_appliances`で共有し、ユーザー所有関係は`user_appliances`で管理
 9. **メンテナンスキャッシュ**: LLM抽出結果を`shared_maintenance_items`にキャッシュし、2人目以降のLLMコスト・処理時間を削減
+10. **PWA対応**: next-pwaによるService Worker管理、Web Push API（pywebpush）によるプッシュ通知
+11. **VAPID認証**: Web Push通知のセキュアな送信者認証（公開鍵/秘密鍵ペア）

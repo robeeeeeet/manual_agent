@@ -81,9 +81,9 @@ manual_agent/
 
 ## 現在のステータス
 
-**Phase 3: 家電登録・説明書取得** ✅ 完了
+**Phase 5: 通知・PWA** 🔄 テスト中
 
-### 実装済み機能（Phase 0〜3）
+### 実装済み機能（Phase 0〜5）
 - 共有マスター方式のデータベース設計（shared_appliances / user_appliances）
 - メンテナンス項目キャッシュシステム（shared_maintenance_items）
 - 家電CRUD API（バックエンド + BFF層）
@@ -93,12 +93,20 @@ manual_agent/
 - 家電詳細ページ（/appliances/[id]）
 - 家電登録画面（ラベル位置ガイド、手動入力、カテゴリ選択）
 - メンテナンス項目選択UI（チェックボックス式）
+- メンテナンス完了記録API（バックエンド + BFF層）
+- 履歴取得API（バックエンド + BFF層）
+- 完了記録UI（完了ボタン、メモ入力モーダル）
+- 履歴表示UI（履歴モーダル、日時・メモ表示）
+- 家電一覧の次回メンテナンス表示（バッジ）
 - フロントエンド型定義（src/types/appliance.ts）
 - Modalコンポーネント
+- **PWA対応（manifest.json, Service Worker, アイコン）**
+- **Push通知基盤（購読管理、通知送信サービス）**
+- **メンテナンスリマインド通知（期限当日・期限間近の通知）**
+- **通知許可UIコンポーネント（NotificationPermission）**
 
 ### 次のフェーズ
-- Phase 4: メンテナンス管理（完了記録、次回作業日表示）
-- Phase 5: 通知・PWA
+- Phase 6: RAG・質問応答機能（マニュアルPDFのベクトル化、質問UI）
 
 ## 重要な設計判断
 

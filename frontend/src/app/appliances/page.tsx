@@ -57,6 +57,45 @@ export default function AppliancesPage() {
     });
   };
 
+  // Get maintenance badge styling based on days until due
+  const getMaintenanceBadgeStyle = (daysUntilDue: number) => {
+    if (daysUntilDue < 0) {
+      // Overdue
+      return {
+        bg: "bg-red-100",
+        text: "text-red-700",
+        icon: "⚠️",
+      };
+    } else if (daysUntilDue <= 7) {
+      // Due soon (within 7 days)
+      return {
+        bg: "bg-amber-100",
+        text: "text-amber-700",
+        icon: "⚠️",
+      };
+    } else {
+      // Not urgent
+      return {
+        bg: "bg-green-100",
+        text: "text-green-700",
+        icon: "✓",
+      };
+    }
+  };
+
+  // Format maintenance due text
+  const formatMaintenanceDue = (daysUntilDue: number): string => {
+    if (daysUntilDue < 0) {
+      return `${Math.abs(daysUntilDue)}日超過`;
+    } else if (daysUntilDue === 0) {
+      return "今日";
+    } else if (daysUntilDue === 1) {
+      return "明日";
+    } else {
+      return `${daysUntilDue}日後`;
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="flex justify-center items-center min-h-64">
@@ -177,9 +216,42 @@ export default function AppliancesPage() {
                           {appliance.category}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-600 mb-2">
                         {appliance.maker} {appliance.model_number}
                       </p>
+
+                      {/* Next maintenance info */}
+                      {appliance.next_maintenance ? (
+                        <div
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium ${
+                            getMaintenanceBadgeStyle(
+                              appliance.next_maintenance.days_until_due
+                            ).bg
+                          } ${
+                            getMaintenanceBadgeStyle(
+                              appliance.next_maintenance.days_until_due
+                            ).text
+                          }`}
+                        >
+                          <span>
+                            {
+                              getMaintenanceBadgeStyle(
+                                appliance.next_maintenance.days_until_due
+                              ).icon
+                            }
+                          </span>
+                          <span>
+                            次回メンテ:{" "}
+                            {formatMaintenanceDue(
+                              appliance.next_maintenance.days_until_due
+                            )}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-gray-100 text-gray-500">
+                          メンテナンス未設定
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex flex-col items-end gap-2">

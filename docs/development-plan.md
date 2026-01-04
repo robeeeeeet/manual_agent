@@ -229,16 +229,77 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
 
 ---
 
-### Phase 4: メンテナンス管理
-- [ ] 完了記録機能（メンテナンス項目の「完了」ボタン）
-- [ ] 次回実施日の更新（完了時に `last_done_at` 更新 → `next_due_at` 再計算）
-- [ ] 家電一覧画面に次回作業日表示
-- [ ] 完了履歴の記録・表示
+### Phase 4: メンテナンス管理 ✅ 完了
 
-### Phase 5: 通知・PWA
-- [ ] PWA Push 通知実装
-- [ ] Service Worker 設定
-- [ ] レスポンシブ最適化
+#### 4-1. バックエンドAPI実装 ✅ 完了
+- [x] メンテナンス完了記録サービス（`maintenance_log_service.py`）
+  - [x] `complete_maintenance()` - 完了記録・次回日再計算
+  - [x] `get_maintenance_logs()` - 履歴取得（ページネーション対応）
+  - [x] `get_upcoming_maintenance()` - 期限間近の項目取得
+  - [x] `get_appliance_next_maintenance()` - 家電別次回メンテナンス取得
+- [x] APIルート追加（`appliances.py`）
+  - [x] `POST /api/v1/appliances/schedules/{schedule_id}/complete`
+  - [x] `GET /api/v1/appliances/schedules/{schedule_id}/logs`
+  - [x] `GET /api/v1/appliances/maintenance/upcoming`
+- [x] Pydanticスキーマ追加（`appliance.py`）
+  - [x] `MaintenanceCompleteRequest`, `MaintenanceLog`, `MaintenanceLogList`, `MaintenanceCompleteResponse`
+
+#### 4-2. フロントエンドBFF層実装 ✅ 完了
+- [x] `/api/appliances/maintenance-schedules/[id]/complete` - 完了記録API
+- [x] `/api/appliances/maintenance-schedules/[id]/logs` - 履歴取得API
+
+#### 4-3. フロントエンドUI ✅ 完了
+- [x] 型定義更新（`MaintenanceLog`, `MaintenanceCompleteResponse`等）
+- [x] 家電詳細画面（`/appliances/[id]`）
+  - [x] メンテナンス項目に「完了」ボタン追加
+  - [x] 完了確認モーダル（メモ入力対応）
+  - [x] 最終完了日表示（`last_done_at`）
+  - [x] 履歴表示モーダル（「履歴を表示」ボタン）
+- [x] 家電一覧画面（`/appliances`）
+  - [x] 次回メンテナンス日バッジ表示
+  - [x] 色分け表示（期限切れ: 赤、間近: 黄、余裕あり: 緑）
+
+### Phase 5: 通知・PWA 🔄 テスト中
+
+#### 5-1. PWA基盤 ✅ 完了
+- [x] PWA設定
+  - [x] `manifest.json`（アプリ名、アイコン、テーマカラー）
+  - [x] Service Worker（`sw.js`、`custom-sw.js`）
+  - [x] PWAアイコン生成（192x192, 512x512, apple-touch-icon）
+- [x] next-pwa 設定
+  - [x] `next.config.ts` でPWA有効化
+  - [x] 開発時は無効化設定
+
+#### 5-2. Push通知基盤 ✅ 完了
+- [x] バックエンドサービス
+  - [x] `push_subscription_service.py` - 購読管理（subscribe/unsubscribe）
+  - [x] `notification_service.py` - Web Push送信（pywebpush）
+  - [x] `maintenance_notification_service.py` - メンテナンスリマインド
+  - [x] `push_subscriptions` テーブル（Supabase）
+- [x] APIルート追加
+  - [x] `POST /api/v1/push/subscribe` - 購読登録
+  - [x] `POST /api/v1/push/unsubscribe` - 購読解除
+  - [x] `GET /api/v1/push/vapid-public-key` - VAPID公開鍵取得
+  - [x] `POST /api/v1/notifications/test` - テスト通知送信
+  - [x] `POST /api/v1/notifications/reminders` - リマインド送信
+
+#### 5-3. フロントエンド実装 ✅ 完了
+- [x] BFF層 API Routes
+  - [x] `/api/push/subscribe` - 購読登録
+  - [x] `/api/push/unsubscribe` - 購読解除
+  - [x] `/api/push/vapid-public-key` - VAPID公開鍵取得
+  - [x] `/api/push/test` - テスト通知送信
+  - [x] `/api/notifications/reminders` - リマインド送信
+- [x] 通知UIコンポーネント
+  - [x] `NotificationPermission.tsx` - 通知許可リクエストUI
+- [x] Service Worker登録（`serviceWorker.ts`）
+- [x] Hooksディレクトリ（`src/hooks/`）
+
+#### 5-4. VAPID鍵・テスト 🔄 テスト中
+- [x] VAPID鍵生成スクリプト（`scripts/generate-vapid-keys.py`）
+- [ ] 本番環境VAPID鍵設定
+- [ ] E2Eテスト（通知許可→購読→通知受信フロー）
+- [ ] 定期リマインド送信の自動化（Cronジョブ等）
 
 ### Phase 6: RAG・質問応答機能
 - [ ] マニュアル PDF のベクトル化
@@ -255,7 +316,7 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
 
 ## 現在のステータス
 
-**現在のフェーズ**: Phase 4（メンテナンス管理）⚪ 未着手
+**現在のフェーズ**: Phase 5（通知・PWA）🔄 進行中
 
 ### 進捗サマリー
 
@@ -267,8 +328,8 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
 | Phase 2 | ✅ 完了 | Supabase Auth連携、ログイン/登録画面、ルート保護 |
 | Phase 3 | ✅ 完了 | 家電登録・説明書取得・詳細画面・メンテナンス項目選択UI |
 | Phase 3.5 | ✅ 完了 | **📱 初回リリース完了！** https://manual-agent-seven.vercel.app/ |
-| Phase 4 | ⚪ 未着手 | メンテナンス管理 |
-| Phase 5 | ⚪ 未着手 | 通知・PWA |
+| Phase 4 | ✅ 完了 | メンテナンス完了記録・履歴表示・次回作業日表示 |
+| Phase 5 | 🔄 テスト中 | PWA・Push通知実装完了、本番テスト待ち |
 | Phase 6+ | ⚪ 未着手 | RAG・拡張機能 |
 
 ---
@@ -289,11 +350,17 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
 
 ## 次のステップ
 
-Phase 3 が完了したため、Phase 4（メンテナンス管理）に進む：
+Phase 5（通知・PWA）の実装が完了し、テスト段階に入っている。残りタスクは以下の通り：
 
-### Phase 4: メンテナンス管理
+### Phase 5: 通知・PWA（残りタスク）
 
-1. **完了記録機能** - メンテナンス項目の「完了」ボタンと履歴記録
-2. **次回実施日の更新** - 完了時に `last_done_at` 更新 → `next_due_at` 再計算
-3. **家電一覧の次回作業日表示** - 一覧画面に直近のメンテナンス期限を表示
-4. **通知準備** - リマインド対象の抽出ロジック（Phase 5の準備）
+1. **本番環境VAPID鍵設定** - Cloud RunのSecret Managerに設定
+2. **E2Eテスト** - 本番ビルドで通知許可→購読→通知送信のフロー確認
+3. **定期リマインド自動化** - Cloud Scheduler等で毎朝リマインドAPIを呼び出し
+
+### Phase 6 への準備
+
+Phase 5完了後は、Phase 6（RAG・質問応答機能）に移行：
+- マニュアルPDFのベクトル化（pgvector）
+- LangChainによるRAGチェーン実装
+- 家電詳細画面への質問UI追加

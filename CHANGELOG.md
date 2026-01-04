@@ -9,6 +9,70 @@
 
 ### Added
 
+#### Phase 5: 通知・PWA 🔄 テスト中
+
+**PWA基盤**
+- `manifest.json`: アプリ名、アイコン、テーマカラー設定
+- Service Worker（`sw.js`、`custom-sw.js`）
+- PWAアイコン（192x192, 512x512, apple-touch-icon）
+- next-pwa 設定（本番時のみ有効）
+
+**バックエンドサービス**
+- `push_subscription_service.py`: Push購読管理（subscribe/unsubscribe）
+- `notification_service.py`: Web Push送信（pywebpush）
+- `maintenance_notification_service.py`: メンテナンスリマインド通知
+- `push_subscriptions` テーブル（Supabase）
+
+**バックエンドAPI**
+- `POST /api/v1/push/subscribe` - Push購読登録
+- `POST /api/v1/push/unsubscribe` - Push購読解除
+- `GET /api/v1/push/vapid-public-key` - VAPID公開鍵取得
+- `POST /api/v1/notifications/test` - テスト通知送信
+- `POST /api/v1/notifications/reminders` - リマインド送信
+
+**フロントエンドBFF層**
+- `/api/push/subscribe` - 購読登録
+- `/api/push/unsubscribe` - 購読解除
+- `/api/push/vapid-public-key` - VAPID公開鍵取得
+- `/api/push/test` - テスト通知送信
+- `/api/notifications/reminders` - リマインド送信
+
+**フロントエンドUI**
+- `NotificationPermission.tsx`: 通知許可リクエストUI
+- `serviceWorker.ts`: Service Worker登録ユーティリティ
+- `src/hooks/` ディレクトリ
+
+**ユーティリティ**
+- `scripts/generate-vapid-keys.py`: VAPID鍵生成スクリプト
+
+#### Phase 4: メンテナンス管理 ✅
+
+**バックエンドサービス**
+- `maintenance_log_service.py`: メンテナンス完了記録・履歴取得
+  - `complete_maintenance()` - 完了記録・次回日再計算
+  - `get_maintenance_logs()` - 履歴取得（ページネーション対応）
+  - `get_upcoming_maintenance()` - 期限間近の項目取得
+  - `get_appliance_next_maintenance()` - 家電別次回メンテナンス取得
+
+**バックエンドAPI**
+- `POST /api/v1/appliances/schedules/{schedule_id}/complete` - メンテナンス完了記録
+- `GET /api/v1/appliances/schedules/{schedule_id}/logs` - 履歴取得
+- `GET /api/v1/appliances/maintenance/upcoming` - 期限間近のメンテナンス取得
+
+**フロントエンドBFF層**
+- `/api/appliances/maintenance-schedules/[id]/complete` - 完了記録API
+- `/api/appliances/maintenance-schedules/[id]/logs` - 履歴取得API
+
+**フロントエンドUI**
+- 家電詳細画面（`/appliances/[id]`）
+  - メンテナンス項目に「完了」ボタン追加
+  - 完了確認モーダル（メモ入力対応）
+  - 最終完了日表示（`last_done_at`）
+  - 履歴表示モーダル（「履歴を表示」ボタン）
+- 家電一覧画面（`/appliances`）
+  - 次回メンテナンス日バッジ表示
+  - 色分け表示（期限切れ: 赤、間近: 黄、余裕あり: 緑）
+
 #### Phase 2: 認証機能 ✅
 - Supabase Auth連携（@supabase/ssr）
 - ログイン/新規登録画面（AuthFormコンポーネント）
@@ -16,7 +80,7 @@
 - ミドルウェアによるルート保護
 - メール確認コールバック処理
 
-#### Phase 3: 家電登録・説明書取得 🚧
+#### Phase 3: 家電登録・説明書取得 ✅
 
 **データベース**
 - `shared_appliances` テーブル: 家電マスターデータ（メーカー・型番・説明書情報）
@@ -87,6 +151,11 @@
 - **再検索機能**: `excluded_urls`, `skip_domain_filter`, `cached_candidates` パラメータで再検索をサポート
 - **メーカードメイン学習**: PDFが見つかったドメインを記録し、次回検索で優先的に使用
 - **並行検索制限**: `max_concurrent_searches` (デフォルト5) で同時検索数を制限
+- **メンテナンス完了記録**: 完了時にメモを記録し、次回日を自動再計算
+- **次回メンテナンス表示**: 期限までの日数に応じた色分けバッジ（赤:期限切れ、黄:7日以内、緑:余裕あり）
+- **PWA対応**: next-pwaによるService Worker管理、オフライン対応の基盤
+- **Web Push通知**: pywebpush + VAPID認証によるセキュアなPush通知配信
+- **メンテナンスリマインド**: 期限当日・期限間近の項目を自動で通知
 
 ---
 

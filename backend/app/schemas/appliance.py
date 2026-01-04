@@ -79,6 +79,17 @@ class UserAppliance(UserApplianceBase):
     model_config = {"from_attributes": True}
 
 
+class NextMaintenanceInfo(BaseModel):
+    """Next maintenance information for an appliance"""
+
+    task_name: str = Field(..., description="Task name")
+    next_due_at: datetime = Field(..., description="Next due timestamp")
+    importance: Literal["high", "medium", "low"] = Field(
+        ..., description="Importance level"
+    )
+    days_until_due: int = Field(..., description="Days until due (negative if overdue)")
+
+
 class UserApplianceWithDetails(UserAppliance):
     """User appliance with shared appliance details (joined view)"""
 
@@ -88,6 +99,11 @@ class UserApplianceWithDetails(UserAppliance):
     category: str = Field(..., description="Product category")
     manual_source_url: str | None = Field(None, description="Manual source URL")
     stored_pdf_path: str | None = Field(None, description="Stored PDF path")
+
+    # 次回メンテナンス情報（最も近い期限）
+    next_maintenance: NextMaintenanceInfo | None = Field(
+        None, description="Next upcoming maintenance task (if any)"
+    )
 
 
 class UserApplianceUpdate(BaseModel):
@@ -425,6 +441,66 @@ class MaintenanceExtractionResponse(BaseModel):
     raw_response: str | None = Field(
         None, description="Raw LLM response if JSON parse failed"
     )
+
+
+# ============================================================================
+# Maintenance Log Schemas (完了記録)
+# ============================================================================
+class MaintenanceCompleteRequest(BaseModel):
+    """Request to mark a maintenance schedule as complete"""
+
+    notes: str | None = Field(None, description="Optional notes about the completion")
+    done_at: datetime | None = Field(
+        None, description="When the maintenance was done (defaults to now)"
+    )
+
+
+class MaintenanceLog(BaseModel):
+    """Schema for maintenance log response"""
+
+    id: UUID = Field(..., description="Unique identifier")
+    schedule_id: UUID = Field(..., description="Maintenance schedule ID")
+    done_at: datetime = Field(..., description="When maintenance was completed")
+    done_by_user_id: UUID = Field(..., description="User who completed the maintenance")
+    notes: str | None = Field(None, description="Notes about the completion")
+    created_at: datetime = Field(..., description="Record creation timestamp")
+
+    model_config = {"from_attributes": True}
+
+
+class MaintenanceLogList(BaseModel):
+    """List of maintenance logs with pagination info"""
+
+    logs: list[MaintenanceLog] = Field(..., description="List of maintenance logs")
+    total_count: int = Field(..., description="Total number of logs")
+
+
+class MaintenanceCompleteResponse(BaseModel):
+    """Response from completing a maintenance task"""
+
+    success: bool = Field(..., description="Whether the completion was successful")
+    log: MaintenanceLog | None = Field(None, description="The created maintenance log")
+    schedule: MaintenanceSchedule | None = Field(
+        None, description="The updated maintenance schedule"
+    )
+    message: str | None = Field(None, description="Additional message")
+    error: str | None = Field(None, description="Error message if failed")
+
+
+class UpcomingMaintenanceItem(BaseModel):
+    """Maintenance schedule with appliance info for upcoming list"""
+
+    id: UUID = Field(..., description="Schedule ID")
+    task_name: str = Field(..., description="Task name")
+    description: str | None = Field(None, description="Task description")
+    next_due_at: datetime | None = Field(None, description="Next due date")
+    importance: Literal["high", "medium", "low"] = Field(
+        ..., description="Importance level"
+    )
+    appliance_name: str = Field(..., description="User's appliance name")
+    appliance_id: UUID = Field(..., description="User appliance ID")
+    maker: str = Field(..., description="Manufacturer name")
+    model_number: str = Field(..., description="Model number")
 
 
 # Error Response Schema

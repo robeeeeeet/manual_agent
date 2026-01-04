@@ -13,6 +13,9 @@ from app.config import settings
 from app.schemas.appliance import (
     ErrorResponse,
     ImageRecognitionResponse,
+    MaintenanceCompleteRequest,
+    MaintenanceCompleteResponse,
+    MaintenanceLogList,
     UserApplianceCreate,
     UserApplianceUpdate,
     UserApplianceWithDetails,
@@ -29,6 +32,11 @@ from app.services.appliance_service import (
 )
 from app.services.image_conversion import convert_heic_to_jpeg, is_heic_file
 from app.services.image_recognition import analyze_appliance_image
+from app.services.maintenance_log_service import (
+    complete_maintenance,
+    get_maintenance_logs,
+    get_upcoming_maintenance,
+)
 
 router = APIRouter(prefix="/appliances", tags=["appliances"])
 
@@ -503,6 +511,231 @@ async def delete_appliance(
             detail={
                 "error": "Failed to delete appliance",
                 "code": "DELETE_ERROR",
+                "details": str(e),
+            },
+        ) from e
+
+
+# ============================================================================
+# Maintenance Completion Endpoints
+# ============================================================================
+
+
+@router.post(
+    "/schedules/{schedule_id}/complete",
+    response_model=MaintenanceCompleteResponse,
+    responses={
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="Complete a maintenance task",
+    description="Mark a maintenance schedule as complete and update next due date",
+)
+async def complete_maintenance_task(
+    schedule_id: UUID,
+    request: MaintenanceCompleteRequest,
+    x_user_id: Annotated[str | None, Header()] = None,
+):
+    """
+    Mark a maintenance task as complete.
+
+    This endpoint:
+    1. Creates a maintenance log entry
+    2. Updates last_done_at on the schedule
+    3. Recalculates next_due_at based on interval
+
+    Args:
+        schedule_id: Maintenance schedule UUID
+        request: Completion details (optional notes and done_at)
+        x_user_id: User's UUID from header (set by BFF)
+
+    Returns:
+        MaintenanceCompleteResponse with log and updated schedule
+
+    Raises:
+        HTTPException: If completion fails
+    """
+    user_id = _get_user_id_from_header(x_user_id)
+
+    result = await complete_maintenance(
+        schedule_id=str(schedule_id),
+        user_id=str(user_id),
+        notes=request.notes,
+        done_at=request.done_at,
+    )
+
+    if "error" in result:
+        if result["error"] == "Schedule not found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "Schedule not found",
+                    "code": "NOT_FOUND",
+                    "details": result["error"],
+                },
+            )
+        if result["error"] == "Not authorized to complete this maintenance":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "Not authorized",
+                    "code": "FORBIDDEN",
+                    "details": result["error"],
+                },
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "Failed to complete maintenance",
+                "code": "COMPLETION_ERROR",
+                "details": result["error"],
+            },
+        )
+
+    return MaintenanceCompleteResponse(
+        success=True,
+        log=result.get("log"),
+        schedule=result.get("schedule"),
+        message="Maintenance task completed successfully",
+    )
+
+
+@router.get(
+    "/schedules/{schedule_id}/logs",
+    response_model=MaintenanceLogList,
+    responses={
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="Get maintenance logs",
+    description="Get completion history for a maintenance schedule",
+)
+async def get_maintenance_task_logs(
+    schedule_id: UUID,
+    limit: int = 10,
+    offset: int = 0,
+    x_user_id: Annotated[str | None, Header()] = None,
+):
+    """
+    Get completion history for a maintenance schedule.
+
+    Args:
+        schedule_id: Maintenance schedule UUID
+        limit: Maximum number of logs to return (default 10)
+        offset: Number of logs to skip (default 0)
+        x_user_id: User's UUID from header (set by BFF)
+
+    Returns:
+        MaintenanceLogList with logs and total count
+
+    Raises:
+        HTTPException: If retrieval fails
+    """
+    user_id = _get_user_id_from_header(x_user_id)
+
+    result = await get_maintenance_logs(
+        schedule_id=str(schedule_id),
+        user_id=str(user_id),
+        limit=limit,
+        offset=offset,
+    )
+
+    if "error" in result and result["error"]:
+        if result["error"] == "Schedule not found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "Schedule not found",
+                    "code": "NOT_FOUND",
+                    "details": result["error"],
+                },
+            )
+        if result["error"] == "Not authorized":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "Not authorized",
+                    "code": "FORBIDDEN",
+                    "details": result["error"],
+                },
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "Failed to get maintenance logs",
+                "code": "FETCH_ERROR",
+                "details": result["error"],
+            },
+        )
+
+    return MaintenanceLogList(
+        logs=result.get("logs", []),
+        total_count=result.get("total_count", 0),
+    )
+
+
+@router.get(
+    "/maintenance/upcoming",
+    responses={
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="Get upcoming maintenance tasks",
+    description="Get maintenance tasks due within the specified number of days",
+)
+async def get_upcoming_maintenance_tasks(
+    days: int = 7,
+    x_user_id: Annotated[str | None, Header()] = None,
+):
+    """
+    Get upcoming maintenance tasks.
+
+    Args:
+        days: Number of days to look ahead (default 7)
+        x_user_id: User's UUID from header (set by BFF)
+
+    Returns:
+        List of upcoming maintenance schedules with appliance info
+
+    Raises:
+        HTTPException: If retrieval fails
+    """
+    user_id = _get_user_id_from_header(x_user_id)
+
+    try:
+        schedules = await get_upcoming_maintenance(
+            user_id=str(user_id),
+            days_ahead=days,
+        )
+
+        # Transform to include appliance info at top level
+        result = []
+        for schedule in schedules:
+            user_appliance = schedule.get("user_appliances", {})
+            shared_appliance = user_appliance.get("shared_appliances", {})
+
+            result.append({
+                "id": schedule["id"],
+                "task_name": schedule["task_name"],
+                "description": schedule.get("description"),
+                "next_due_at": schedule.get("next_due_at"),
+                "importance": schedule.get("importance", "medium"),
+                "appliance_name": user_appliance.get("name", ""),
+                "appliance_id": user_appliance.get("id"),
+                "maker": shared_appliance.get("maker", ""),
+                "model_number": shared_appliance.get("model_number", ""),
+            })
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "Failed to get upcoming maintenance",
+                "code": "FETCH_ERROR",
                 "details": str(e),
             },
         ) from e
