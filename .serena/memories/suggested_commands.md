@@ -95,10 +95,22 @@ uv run python scripts/generate-vapid-keys.py
 # テスト通知送信（バックエンドAPI、要認証）
 curl -X POST http://localhost:8000/api/v1/notifications/test \
   -H "Content-Type: application/json" \
-  -d '{"user_id": "your-user-id"}'
+  -H "X-User-ID: your-user-id"
 
 # メンテナンスリマインド送信（定期実行用）
 curl -X POST http://localhost:8000/api/v1/notifications/reminders
+```
+
+### テスト通知の許可ユーザー設定
+
+テスト通知は環境変数でホワイトリスト管理されたユーザーのみ利用可能:
+
+```bash
+# バックエンド .env
+ALLOWED_TEST_NOTIFICATION_USERS=user1@example.com,user2@example.com
+
+# フロントエンド frontend/.env.local
+NEXT_PUBLIC_ALLOWED_TEST_NOTIFICATION_USERS=user1@example.com,user2@example.com
 ```
 
 ## Lint / Format

@@ -103,7 +103,8 @@ manual_agent/
 - **PWA対応（manifest.json, Service Worker, アイコン）**
 - **Push通知基盤（購読管理、通知送信サービス）**
 - **メンテナンスリマインド通知（期限当日・期限間近の通知）**
-- **通知許可UIコンポーネント（NotificationPermission）**
+- **通知許可UIコンポーネント（NotificationPermission、テスト通知ボタン）**
+- **テスト通知機能（許可ユーザーのみ、環境変数でホワイトリスト管理）**
 
 ### 次のフェーズ
 - Phase 6: RAG・質問応答機能（マニュアルPDFのベクトル化、質問UI）
@@ -115,6 +116,6 @@ manual_agent/
 3. **カテゴリ**: 事前定義リスト + 自由入力の両対応
 4. **認証・DB・ストレージ**: Supabaseで一元管理
 5. **HEIC対応**: サーバーサイド変換（pillow-heif）でiPhone写真に対応
-6. **認証フロー**: @supabase/ssr + ミドルウェアによるルート保護
+6. **認証フロー**: @supabase/ssr + ミドルウェアによるルート保護、サインアップ時はOTPコード方式（PWA対応のためメールリンク方式から変更）
 7. **共有マスター方式**: 同一メーカー・型番の家電は`shared_appliances`で共有し、ユーザー所有関係は`user_appliances`で管理
 8. **メンテナンスキャッシュ**: LLM抽出結果を`shared_maintenance_items`にキャッシュし、2人目以降のコスト・時間を削減
