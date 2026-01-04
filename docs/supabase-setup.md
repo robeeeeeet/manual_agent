@@ -194,6 +194,40 @@ manuals/{manufacturer}/{model_number}.pdf
 | Site URL | `https://your-domain.com` |
 | Redirect URLs | `https://your-domain.com/**` |
 
+### Step 7.1: メールテンプレート設定（OTPコード方式）
+
+PWA対応のため、サインアップ確認はメールリンク方式ではなく **OTPコード方式** を使用しています。
+（メールリンクはSafariで開かれるため、PWAアプリに戻れない問題を回避）
+
+1. 左メニュー「Authentication」→「Email Templates」
+2. 「Confirm signup」テンプレートを編集
+
+**Subject:**
+```
+アカウント確認コード
+```
+
+**Body:**
+```html
+<h2>アカウント確認コード</h2>
+
+<p>説明書管理アプリへの登録ありがとうございます。</p>
+
+<p>以下の確認コードをアプリに入力してください：</p>
+
+<p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; background-color: #f3f4f6; border-radius: 8px;">
+{{ .Token }}
+</p>
+
+<p style="color: #6b7280; font-size: 14px;">
+このコードは24時間有効です。<br>
+心当たりがない場合は、このメールを無視してください。
+</p>
+```
+
+> **重要**: `{{ .Token }}` がOTPコード（6〜8桁の数字）に置換されます。
+> OTPの桁数は「Authentication」→「Providers」→「Email」→「Email OTP Length」で設定できます。
+
 ### Step 8: 環境変数設定
 
 #### バックエンド用（プロジェクトルート `.env`）
