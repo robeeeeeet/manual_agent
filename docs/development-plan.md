@@ -290,10 +290,20 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
   - [x] `/api/push/vapid-public-key` - VAPID公開鍵取得
   - [x] `/api/push/test` - テスト通知送信
   - [x] `/api/notifications/reminders` - リマインド送信
+  - [x] `/api/notifications/test` - テスト通知送信（許可ユーザーのみ）
 - [x] 通知UIコンポーネント
-  - [x] `NotificationPermission.tsx` - 通知許可リクエストUI
+  - [x] `NotificationPermission.tsx` - 通知許可リクエストUI（テスト通知ボタン追加）
 - [x] Service Worker登録（`serviceWorker.ts`）
 - [x] Hooksディレクトリ（`src/hooks/`）
+
+#### 5-3.5. 認証フロー改善（PWA対応） ✅ 完了
+- [x] OTPコード方式への変更
+  - [x] `AuthForm.tsx` - OTPコード入力フォーム追加
+  - [x] `AuthContext.tsx` - `verifyOtp()` メソッド追加
+  - [x] Supabaseメールテンプレート設定手順（`docs/supabase-setup.md`）
+- [x] テスト通知機能
+  - [x] `/api/notifications/test` BFFルート
+  - [x] 環境変数 `ALLOWED_TEST_NOTIFICATION_USERS` でホワイトリスト管理
 
 #### 5-4. VAPID鍵・テスト 🔄 テスト中
 - [x] VAPID鍵生成スクリプト（`scripts/generate-vapid-keys.py`）

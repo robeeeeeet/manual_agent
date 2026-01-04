@@ -172,6 +172,10 @@ BACKEND_URL=                         # バックエンドAPI URL（http://localh
 NEXT_PUBLIC_SUPABASE_URL=            # Supabase URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= # Supabase Publishable Key
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=        # VAPID公開鍵（バックエンドと同じ値）
+NEXT_PUBLIC_ALLOWED_TEST_NOTIFICATION_USERS=  # テスト通知許可ユーザー（カンマ区切りメールアドレス）
+
+# バックエンド用（テスト通知API制限）
+ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カンマ区切りメールアドレス）
 ```
 
 ## 開発規約
@@ -242,6 +246,8 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=        # VAPID公開鍵（バックエンドと同
   - Push通知基盤（購読管理、通知送信サービス）
   - メンテナンスリマインド通知（期限当日・期限間近）
   - 通知許可UIコンポーネント
+  - テスト通知送信機能（許可ユーザーのみ）
+  - サインアップ時OTPコード方式（PWA対応のためメールリンクから変更）
 
 ### 次のフェーズ
 - Phase 6: RAG・質問応答機能（マニュアルPDFのベクトル化、質問UI）
@@ -264,3 +270,4 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=        # VAPID公開鍵（バックエンドと同
 9. **メンテナンスキャッシュ**: LLM抽出結果を`shared_maintenance_items`にキャッシュし、2人目以降のLLMコスト・処理時間を削減
 10. **PWA対応**: next-pwaによるService Worker管理、Web Push API（pywebpush）によるプッシュ通知
 11. **VAPID認証**: Web Push通知のセキュアな送信者認証（公開鍵/秘密鍵ペア）
+12. **OTPコード認証**: サインアップ時のメール確認はOTPコード方式（PWAではメールリンクがSafariで開かれる問題を回避）

@@ -38,9 +38,20 @@
 - `/api/notifications/reminders` - リマインド送信
 
 **フロントエンドUI**
-- `NotificationPermission.tsx`: 通知許可リクエストUI
+- `NotificationPermission.tsx`: 通知許可リクエストUI（テスト通知ボタン追加）
 - `serviceWorker.ts`: Service Worker登録ユーティリティ
 - `src/hooks/` ディレクトリ
+- `AuthForm.tsx`: OTPコード入力フォーム追加
+
+**認証フロー**
+- サインアップ時のメール確認をOTPコード方式に変更（PWA対応）
+  - メールリンクではなく6〜8桁の確認コードを入力
+  - `AuthContext.verifyOtp()` メソッド追加
+  - Supabaseメールテンプレートの設定手順追加（`docs/supabase-setup.md`）
+
+**テスト通知機能**
+- `/api/notifications/test` BFFルート: 許可ユーザーのみテスト通知送信可能
+- `ALLOWED_TEST_NOTIFICATION_USERS` 環境変数でホワイトリスト管理
 
 **ユーティリティ**
 - `scripts/generate-vapid-keys.py`: VAPID鍵生成スクリプト
@@ -156,6 +167,8 @@
 - **PWA対応**: next-pwaによるService Worker管理、オフライン対応の基盤
 - **Web Push通知**: pywebpush + VAPID認証によるセキュアなPush通知配信
 - **メンテナンスリマインド**: 期限当日・期限間近の項目を自動で通知
+- **OTPコード認証**: PWA対応のため、メール確認をリンク方式からOTPコード方式に変更（Safariでリンクが開かれる問題を回避）
+- **テスト通知**: 環境変数でホワイトリスト管理されたユーザーのみテスト通知を送信可能
 
 ---
 
