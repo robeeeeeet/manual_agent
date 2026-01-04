@@ -25,14 +25,14 @@
 
 **バックエンドAPI**
 - `POST /api/v1/push/subscribe` - Push購読登録
-- `POST /api/v1/push/unsubscribe` - Push購読解除
-- `GET /api/v1/push/vapid-public-key` - VAPID公開鍵取得
+- `DELETE /api/v1/push/unsubscribe` - Push購読解除
 - `POST /api/v1/notifications/test` - テスト通知送信
-- `POST /api/v1/notifications/reminders` - リマインド送信
+- `POST /api/v1/notifications/reminders/send` - リマインド送信（全ユーザー/任意ユーザー）
+- `POST /api/v1/notifications/reminders/my` - リマインド送信（自分のみ・簡易）
 
 **フロントエンドBFF層**
 - `/api/push/subscribe` - 購読登録
-- `/api/push/unsubscribe` - 購読解除
+- `/api/push/unsubscribe` - 購読解除（DELETE）
 - `/api/push/vapid-public-key` - VAPID公開鍵取得
 - `/api/push/test` - テスト通知送信
 - `/api/notifications/reminders` - リマインド送信

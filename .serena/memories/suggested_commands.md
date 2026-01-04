@@ -90,7 +90,7 @@ git commit -m "<type>: <subject>"
 
 ```bash
 # VAPID鍵生成
-uv run python scripts/generate-vapid-keys.py
+cd backend && uv run python ../scripts/generate-vapid-keys.py
 
 # テスト通知送信（バックエンドAPI、要認証）
 curl -X POST http://localhost:8000/api/v1/notifications/test \
@@ -98,7 +98,9 @@ curl -X POST http://localhost:8000/api/v1/notifications/test \
   -H "X-User-ID: your-user-id"
 
 # メンテナンスリマインド送信（定期実行用）
-curl -X POST http://localhost:8000/api/v1/notifications/reminders
+curl -X POST http://localhost:8000/api/v1/notifications/reminders/send \
+  -H "Content-Type: application/json" \
+  -H "X-User-ID: your-user-id"
 ```
 
 ### テスト通知の許可ユーザー設定

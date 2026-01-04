@@ -278,10 +278,10 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
   - [x] `push_subscriptions` テーブル（Supabase）
 - [x] APIルート追加
   - [x] `POST /api/v1/push/subscribe` - 購読登録
-  - [x] `POST /api/v1/push/unsubscribe` - 購読解除
-  - [x] `GET /api/v1/push/vapid-public-key` - VAPID公開鍵取得
+  - [x] `DELETE /api/v1/push/unsubscribe` - 購読解除
   - [x] `POST /api/v1/notifications/test` - テスト通知送信
-  - [x] `POST /api/v1/notifications/reminders` - リマインド送信
+  - [x] `POST /api/v1/notifications/reminders/send` - リマインド送信（全ユーザー/任意ユーザー）
+  - [x] `POST /api/v1/notifications/reminders/my` - リマインド送信（自分のみ・簡易）
 
 #### 5-3. フロントエンド実装 ✅ 完了
 - [x] BFF層 API Routes
@@ -365,7 +365,7 @@ Phase 5（通知・PWA）の主要機能は完了。残りは定期リマイン�
 ### Phase 5: 通知・PWA（残りタスク）
 
 1. **定期リマインド自動化** - Cloud Scheduler等で毎朝リマインドAPIを呼び出し
-   - `/api/v1/notifications/reminders` を定期実行
+   - `/api/v1/notifications/reminders/send` を定期実行
    - 期限当日・期限間近の項目をユーザーにPush通知
 
 ### Phase 6 への準備

@@ -276,7 +276,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 | 6 | Storage バケット作成（manuals） | ⬜ |
 | 7 | Storage RLSポリシー設定 | ⬜ |
 | 8 | Auth URL設定確認 | ⬜ |
-| 9 | backend/.env 設定 | ⬜ |
+| 9 | プロジェクトルート `.env` 設定 | ⬜ |
 | 10 | frontend/.env.local 設定 | ⬜ |
 
 ## 動作確認
@@ -361,7 +361,7 @@ curl http://localhost:8000/health/supabase
 ### Storageにアップロードできない
 
 - バケットのRLSポリシーが設定されているか確認
-- ファイルパスが `{user_id}/...` 形式になっているか確認
+- ファイルパスが `{manufacturer}/{model_number}.pdf` 形式になっているか確認
 
 ### 環境変数が読み込まれない
 
