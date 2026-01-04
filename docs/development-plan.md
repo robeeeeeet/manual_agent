@@ -305,10 +305,10 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
   - [x] `/api/notifications/test` BFFルート
   - [x] 環境変数 `ALLOWED_TEST_NOTIFICATION_USERS` でホワイトリスト管理
 
-#### 5-4. VAPID鍵・テスト 🔄 テスト中
+#### 5-4. VAPID鍵・テスト ✅ 完了（定期リマインド未実装）
 - [x] VAPID鍵生成スクリプト（`scripts/generate-vapid-keys.py`）
-- [ ] 本番環境VAPID鍵設定
-- [ ] E2Eテスト（通知許可→購読→通知受信フロー）
+- [x] 本番環境VAPID鍵設定（Secret Manager登録済み）
+- [x] E2Eテスト（通知許可→購読→通知受信フロー）
 - [ ] 定期リマインド送信の自動化（Cronジョブ等）
 
 ### Phase 6: RAG・質問応答機能
@@ -339,7 +339,7 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
 | Phase 3 | ✅ 完了 | 家電登録・説明書取得・詳細画面・メンテナンス項目選択UI |
 | Phase 3.5 | ✅ 完了 | **📱 初回リリース完了！** https://manual-agent-seven.vercel.app/ |
 | Phase 4 | ✅ 完了 | メンテナンス完了記録・履歴表示・次回作業日表示 |
-| Phase 5 | 🔄 テスト中 | PWA・Push通知実装完了、本番テスト待ち |
+| Phase 5 | 🔄 残り1件 | PWA・Push通知完了、定期リマインド自動化のみ未実装 |
 | Phase 6+ | ⚪ 未着手 | RAG・拡張機能 |
 
 ---
@@ -360,17 +360,17 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
 
 ## 次のステップ
 
-Phase 5（通知・PWA）の実装が完了し、テスト段階に入っている。残りタスクは以下の通り：
+Phase 5（通知・PWA）の主要機能は完了。残りは定期リマインドの自動化のみ：
 
 ### Phase 5: 通知・PWA（残りタスク）
 
-1. **本番環境VAPID鍵設定** - Cloud RunのSecret Managerに設定
-2. **E2Eテスト** - 本番ビルドで通知許可→購読→通知送信のフロー確認
-3. **定期リマインド自動化** - Cloud Scheduler等で毎朝リマインドAPIを呼び出し
+1. **定期リマインド自動化** - Cloud Scheduler等で毎朝リマインドAPIを呼び出し
+   - `/api/v1/notifications/reminders` を定期実行
+   - 期限当日・期限間近の項目をユーザーにPush通知
 
 ### Phase 6 への準備
 
-Phase 5完了後は、Phase 6（RAG・質問応答機能）に移行：
+定期リマインド実装後は、Phase 6（RAG・質問応答機能）に移行：
 - マニュアルPDFのベクトル化（pgvector）
 - LangChainによるRAGチェーン実装
 - 家電詳細画面への質問UI追加
