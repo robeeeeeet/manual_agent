@@ -35,9 +35,9 @@ export function usePushNotification(): UsePushNotificationResult {
     if (supported) {
       setPermission(Notification.permission);
 
-      // Service Worker登録
+      // Service Worker登録（custom-sw.jsはnext-pwa設定と一致させる）
       navigator.serviceWorker
-        .register("/sw.js")
+        .register("/custom-sw.js")
         .then((reg) => {
           setRegistration(reg);
           // 購読状態確認
