@@ -88,6 +88,35 @@ cd backend && uv run ruff check app/ --fix # 自動修正
 cd frontend && npm run lint
 ```
 
+## Supabase CLI
+
+```bash
+# マイグレーション状況確認
+cd backend && npx supabase migration list
+
+# 新しいマイグレーション作成
+cd backend && npx supabase migration new <name>
+
+# リモートDBにマイグレーション適用
+cd backend && npx supabase db push
+
+# 適用済みとしてマーク（ダッシュボードで直接実行した場合）
+cd backend && npx supabase migration repair <version> --status applied
+
+# リモートDBとの差分確認
+cd backend && npx supabase db diff
+
+# プロジェクト一覧
+npx supabase projects list
+
+# TypeScript型生成
+cd backend && npx supabase gen types typescript --project-id nuuukueocvvdoynqkmol > ../frontend/src/types/database.ts
+```
+
+**プロジェクト情報:**
+- Reference ID: `nuuukueocvvdoynqkmol`
+- リージョン: Northeast Asia (Tokyo)
+
 ## デプロイ
 
 ```bash

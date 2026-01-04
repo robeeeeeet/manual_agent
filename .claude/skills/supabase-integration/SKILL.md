@@ -1,6 +1,6 @@
 ---
 name: supabase-integration
-description: Supabase統合（PostgreSQL, Auth, Storage, pgvector）。"テーブル作成", "スキーマ設計", "認証設定", "ストレージバケット", "ベクトル検索", "RLS設定", "マイグレーション", "Supabase client"などで使用。データベース設計とバックエンド連携パターンを参照。
+description: Supabase統合（PostgreSQL, Auth, Storage, pgvector）。"テーブル作成", "スキーマ設計", "認証設定", "ストレージバケット", "ベクトル検索", "RLS設定", "マイグレーション", "Supabase client", "supabase CLI", "db push", "migration"などで使用。データベース設計とバックエンド連携パターンを参照。
 ---
 
 # Supabase 統合
@@ -287,3 +287,129 @@ const { data, error } = await supabase
   .select('*')
   .order('next_due_at')
 ```
+
+## Supabase CLI
+
+### セットアップ
+
+本プロジェクトでは `npx` 経由でSupabase CLIを使用（グローバルインストール不要）。
+
+```bash
+# バージョン確認
+npx supabase --version
+
+# ログイン（ブラウザ認証）
+npx supabase login
+
+# プロジェクト初期化（初回のみ）
+cd backend && npx supabase init
+
+# リモートプロジェクトにリンク
+npx supabase link --project-ref <project-ref>
+```
+
+### プロジェクト情報
+
+```
+プロジェクト名: manual-agent
+Reference ID: nuuukueocvvdoynqkmol
+リージョン: Northeast Asia (Tokyo)
+```
+
+### マイグレーション管理
+
+```bash
+# マイグレーション状況確認
+npx supabase migration list
+
+# 新しいマイグレーション作成
+npx supabase migration new <name>
+# → supabase/migrations/<timestamp>_<name>.sql が作成される
+
+# リモートDBにマイグレーション適用
+npx supabase db push
+
+# 特定マイグレーションを「適用済み」としてマーク
+# （ダッシュボードで直接SQL実行した場合に使用）
+npx supabase migration repair <version> --status applied
+
+# リモートDBとの差分確認
+npx supabase db diff
+```
+
+### マイグレーションファイル規約
+
+```
+supabase/migrations/
+├── 00001_initial_schema.sql      # 初期スキーマ
+├── 00002_manufacturer_domains.sql # 機能追加
+└── ...
+```
+
+**命名規則:** `<番号>_<機能名>.sql`
+
+**テンプレート:**
+
+```sql
+-- ============================================================================
+-- <機能名>
+-- ============================================================================
+-- 作成日: YYYY-MM-DD
+-- 概要: <概要説明>
+-- ============================================================================
+
+-- テーブル作成
+CREATE TABLE example (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    -- ⚠️ uuid_generate_v4() ではなく gen_random_uuid() を使用
+    name TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- インデックス
+CREATE INDEX idx_example_name ON example(name);
+
+-- トリガー（updated_at自動更新）
+CREATE TRIGGER update_example_updated_at
+    BEFORE UPDATE ON example
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- RLS
+ALTER TABLE example ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Policy name"
+    ON example FOR SELECT
+    TO authenticated
+    USING (true);
+```
+
+### その他のコマンド
+
+```bash
+# プロジェクト一覧
+npx supabase projects list
+
+# シークレット管理
+npx supabase secrets list
+npx supabase secrets set KEY=value
+
+# Edge Functions
+npx supabase functions new <name>
+npx supabase functions deploy <name>
+
+# ローカル開発（Docker必要）
+npx supabase start
+npx supabase stop
+npx supabase status
+```
+
+### トラブルシューティング
+
+| エラー | 原因 | 解決策 |
+|-------|------|--------|
+| `uuid_generate_v4() does not exist` | uuid-ossp拡張の問題 | `gen_random_uuid()` を使用 |
+| `relation already exists` | テーブルが既存 | `migration repair` で適用済みマーク |
+| `Cannot find project ref` | リンク未設定 | `supabase link` を実行 |
+| `permission denied` | RLS違反 | ポリシー確認、または secret_key 使用 |

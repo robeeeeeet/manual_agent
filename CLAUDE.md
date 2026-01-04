@@ -69,26 +69,40 @@ manual_agent/
 ├── frontend/              # Next.js アプリケーション
 │   ├── src/app/           # App Router（ページ、APIルート）
 │   │   ├── api/           # BFF層 API Routes
+│   │   │   └── appliances/# 家電関連API（CRUD、説明書、メンテナンス）
 │   │   ├── auth/callback/ # 認証コールバック
 │   │   ├── login/         # ログインページ
 │   │   ├── signup/        # 新規登録ページ
-│   │   └── register/      # 家電登録ページ
+│   │   ├── register/      # 家電登録ページ
+│   │   └── appliances/    # 家電一覧ページ
 │   ├── src/components/    # UIコンポーネント
 │   │   ├── auth/          # 認証関連（AuthForm）
 │   │   ├── layout/        # Header, Footer
-│   │   └── ui/            # Button, Card
+│   │   └── ui/            # Button, Card, Modal
+│   ├── src/types/         # 型定義（appliance.ts）
 │   ├── src/contexts/      # React Context（AuthContext）
 │   ├── src/lib/           # ユーティリティ
-│   │   └── supabase/      # Supabaseクライアント
+│   │   ├── supabase/      # Supabaseクライアント
+│   │   └── api.ts         # バックエンドAPIクライアント
 │   ├── src/middleware.ts  # Next.js ミドルウェア（ルート保護）
 │   └── package.json
 ├── backend/               # FastAPI アプリケーション
 │   ├── app/
-│   │   ├── api/routes/    # APIルート
+│   │   ├── api/routes/    # APIルート（appliances, manuals）
 │   │   ├── schemas/       # Pydanticスキーマ
-│   │   ├── services/      # ビジネスロジック（AI処理）
+│   │   ├── services/      # ビジネスロジック
+│   │   │   ├── image_recognition.py     # 画像認識
+│   │   │   ├── manual_search.py         # 説明書検索
+│   │   │   ├── maintenance_extraction.py # メンテナンス抽出
+│   │   │   ├── appliance_service.py     # 家電CRUD
+│   │   │   ├── pdf_storage.py           # PDFストレージ
+│   │   │   ├── maintenance_cache_service.py # メンテナンスキャッシュ
+│   │   │   ├── supabase_client.py       # Supabaseクライアント
+│   │   │   └── manufacturer_domain.py   # メーカードメイン
 │   │   └── main.py
 │   ├── supabase/          # DBスキーマ・マイグレーション
+│   │   ├── SCHEMA.md      # データベーススキーマ設計書
+│   │   └── migrations/    # マイグレーションファイル
 │   ├── Dockerfile         # Cloud Run 用
 │   └── pyproject.toml
 ├── tests/phase0/          # Phase 0 検証スクリプト（Python）
@@ -193,27 +207,34 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= # Supabase Publishable Key
 
 ## 現在のステータス
 
-**Phase 2: 認証** ✅ 完了
+**Phase 3: 家電登録・説明書取得** 🚧 進行中
 
-Phase 0〜2 が完了：
-- ✅ FastAPI バックエンド（画像認識、説明書検索、メンテナンス抽出API、HEIC変換）
-- ✅ Next.js 16 フロントエンド（家電登録画面、BFF層、HEIC対応）
-- ✅ Supabase 設定（DBスキーマ、Auth、Storage、接続テスト）
-- ✅ Vercel デプロイ → https://manual-agent-seven.vercel.app/
-- ✅ Cloud Run デプロイ
-- ✅ GitHub Actions CI/CD パイプライン
-- ✅ Supabase Auth連携（ログイン/新規登録画面、認証状態管理、ルート保護）
+### 完了済み
+- ✅ Phase 0〜2: 基盤構築、デプロイ、認証
+- ✅ データベース設計リファクタリング（共有マスター方式）
+  - `shared_appliances`（家電マスター）+ `user_appliances`（所有関係）
+  - `shared_maintenance_items`（メンテナンス項目キャッシュ）
+- ✅ バックエンドAPI実装（家電CRUD、PDFストレージ、メンテナンスキャッシュ）
+- ✅ フロントエンドBFF層（家電登録・説明書・メンテナンス全フロー）
+- ✅ 家電一覧ページ、Modalコンポーネント、型定義
 
-**次のフェーズ:** Phase 3（家電登録・説明書取得）
+### 進行中
+- ⚪ 家電登録画面のUI完成（ラベル位置ガイド、手動入力、カテゴリ選択）
+- ⚪ 家電詳細画面
+- ⚪ メンテナンス項目選択UI
 
-詳細は `docs/development-plan.md` および `docs/deploy-setup.md` を参照。
+**本番URL:** https://manual-agent-seven.vercel.app/
+
+詳細は `docs/development-plan.md` および `backend/supabase/SCHEMA.md` を参照。
 
 ## 重要な設計判断
 
 1. **ハイブリッドアーキテクチャ**: フロントエンドは TypeScript (Next.js)、AIバックエンドは Python (LangChain/LangGraph)
 2. **AI優先アプローチ**: 手動入力よりAI自動認識を優先
-3. **PDF保存方式**: リンク保存ではなくPDFダウンロード保存
+3. **PDF保存方式**: リンク保存ではなくPDFダウンロード保存（Supabase Storage）
 4. **カテゴリ**: 事前定義リスト + 自由入力の両対応
 5. **Supabase採用**: 認証・DB・ストレージを一元管理、pgvector対応
 6. **LangChain/LangGraph採用**: 将来のRAG機能・複雑なエージェントフローに対応
 7. **デプロイ構成**: Vercel（Next.js最適化）+ Cloud Run（無料枠大、自動スケール）+ GitHub Actions（CI/CD）
+8. **共有マスター方式**: 同一メーカー・型番の家電は`shared_appliances`で共有し、ユーザー所有関係は`user_appliances`で管理
+9. **メンテナンスキャッシュ**: LLM抽出結果を`shared_maintenance_items`にキャッシュし、2人目以降のLLMコスト・処理時間を削減

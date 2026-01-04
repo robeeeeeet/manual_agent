@@ -7,76 +7,77 @@
 ## ER図（テキスト版）
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           auth.users (Supabase Auth)                     │
-│                                     ↓                                     │
-│                              ┌──────────────┐                            │
-│                              │    users     │                            │
-│                              ├──────────────┤                            │
-│                              │ id (PK)      │←─────┐                     │
-│                              │ email        │      │                     │
-│                              │ notify_time  │      │                     │
-│                              │ timezone     │      │                     │
-│                              └──────────────┘      │                     │
-│                                     ↓              │                     │
-│                              ┌──────────────┐      │                     │
-│                              │  appliances  │      │                     │
-│                              ├──────────────┤      │                     │
-│                              │ id (PK)      │      │                     │
-│                              │ user_id (FK) │──────┘                     │
-│                              │ name         │                            │
-│                              │ maker        │                            │
-│                              │ model_number │                            │
-│                              │ category     │                            │
-│                              │ manual_source_url │                       │
-│                              │ stored_pdf_path  │                        │
-│                              │ image_url    │                            │
-│                              └──────────────┘                            │
-│                                     ↓                                     │
-│                     ┌───────────────────────────────┐                    │
-│                     │   maintenance_schedules       │                    │
-│                     ├───────────────────────────────┤                    │
-│                     │ id (PK)                       │                    │
-│                     │ appliance_id (FK)             │                    │
-│                     │ task_name                     │                    │
-│                     │ description                   │                    │
-│                     │ interval_type (days/months/   │                    │
-│                     │                manual)        │                    │
-│                     │ interval_value                │                    │
-│                     │ last_done_at                  │                    │
-│                     │ next_due_at                   │                    │
-│                     │ source_page                   │                    │
-│                     │ importance (high/medium/low)  │                    │
-│                     └───────────────────────────────┘                    │
-│                                     ↓                                     │
-│                     ┌───────────────────────────────┐                    │
-│                     │   maintenance_logs            │                    │
-│                     ├───────────────────────────────┤                    │
-│                     │ id (PK)                       │                    │
-│                     │ schedule_id (FK)              │                    │
-│                     │ done_at                       │                    │
-│                     │ done_by_user_id (FK → users)  │                    │
-│                     │ notes                         │                    │
-│                     └───────────────────────────────┘                    │
-│                                                                           │
-│                     ┌───────────────────────────────┐                    │
-│                     │   push_subscriptions          │                    │
-│                     ├───────────────────────────────┤                    │
-│                     │ id (PK)                       │                    │
-│                     │ user_id (FK → users)          │                    │
-│                     │ endpoint (UNIQUE)             │                    │
-│                     │ p256dh_key                    │                    │
-│                     │ auth_key                      │                    │
-│                     └───────────────────────────────┘                    │
-│                                                                           │
-│                     ┌───────────────────────────────┐                    │
-│                     │   categories (master)         │                    │
-│                     ├───────────────────────────────┤                    │
-│                     │ id (PK, SERIAL)               │                    │
-│                     │ name (UNIQUE)                 │                    │
-│                     │ display_order                 │                    │
-│                     └───────────────────────────────┘                    │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           auth.users (Supabase Auth)                             │
+│                                     ↓                                            │
+│                              ┌──────────────┐                                   │
+│                              │    users     │                                   │
+│                              ├──────────────┤                                   │
+│                              │ id (PK)      │←──────────────┐                   │
+│                              │ email        │               │                   │
+│                              │ notify_time  │               │                   │
+│                              │ timezone     │               │                   │
+│                              └──────────────┘               │                   │
+│                                     │                       │                   │
+│           ┌─────────────────────────┼───────────────────────┘                   │
+│           │                         │                                           │
+│           ↓                         ↓                                           │
+│  ┌─────────────────────┐   ┌────────────────────┐                              │
+│  │  shared_appliances  │   │  user_appliances   │                              │
+│  │    (家電マスター)     │   │   (所有関係)        │                              │
+│  ├─────────────────────┤   ├────────────────────┤                              │
+│  │ id (PK)             │←──│ shared_appliance_id│                              │
+│  │ maker               │   │ id (PK)            │                              │
+│  │ model_number        │   │ user_id (FK)       │──→ users.id                  │
+│  │ category            │   │ name               │                              │
+│  │ manual_source_url   │   │ image_url          │                              │
+│  │ stored_pdf_path     │   └────────────────────┘                              │
+│  └─────────────────────┘            │                                           │
+│           │                         │                                           │
+│           ↓                         ↓                                           │
+│  ┌───────────────────────────┐   ┌────────────────────────────────┐            │
+│  │ shared_maintenance_items  │   │   maintenance_schedules        │            │
+│  │  (メンテ項目キャッシュ)     │   │   (ユーザースケジュール)         │            │
+│  ├───────────────────────────┤   ├────────────────────────────────┤            │
+│  │ id (PK)                   │←──│ shared_item_id (FK, nullable)  │            │
+│  │ shared_appliance_id (FK)  │   │ id (PK)                        │            │
+│  │ task_name                 │   │ user_appliance_id (FK)         │            │
+│  │ description               │   │ task_name                      │            │
+│  │ recommended_interval_type │   │ interval_type                  │            │
+│  │ recommended_interval_value│   │ interval_value                 │            │
+│  │ source_page               │   │ next_due_at                    │            │
+│  │ importance                │   │ importance                     │            │
+│  │ extracted_at              │   └────────────────────────────────┘            │
+│  └───────────────────────────┘            │                                     │
+│                                           ↓                                     │
+│                           ┌───────────────────────────────┐                     │
+│                           │   maintenance_logs            │                     │
+│                           ├───────────────────────────────┤                     │
+│                           │ id (PK)                       │                     │
+│                           │ schedule_id (FK)              │                     │
+│                           │ done_at                       │                     │
+│                           │ done_by_user_id (FK → users)  │                     │
+│                           │ notes                         │                     │
+│                           └───────────────────────────────┘                     │
+│                                                                                  │
+│                           ┌───────────────────────────────┐                     │
+│                           │   push_subscriptions          │                     │
+│                           ├───────────────────────────────┤                     │
+│                           │ id (PK)                       │                     │
+│                           │ user_id (FK → users)          │                     │
+│                           │ endpoint (UNIQUE)             │                     │
+│                           │ p256dh_key                    │                     │
+│                           │ auth_key                      │                     │
+│                           └───────────────────────────────┘                     │
+│                                                                                  │
+│                           ┌───────────────────────────────┐                     │
+│                           │   categories (master)         │                     │
+│                           ├───────────────────────────────┤                     │
+│                           │ id (PK, SERIAL)               │                     │
+│                           │ name (UNIQUE)                 │                     │
+│                           │ display_order                 │                     │
+│                           └───────────────────────────────┘                     │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## テーブル詳細
@@ -98,36 +99,87 @@
 
 **RLS**: 自分のレコードのみ参照・更新可能
 
-### 2. appliances
+### 2. shared_appliances（家電マスター）
 
-家電・住宅設備の情報を管理するテーブル。
+家電の共有マスターデータを管理するテーブル。同じメーカー・型番の家電は1レコードのみ。
 
 | カラム名 | 型 | NULL | デフォルト | 説明 |
 |---------|-----|------|-----------|------|
-| `id` | UUID | NOT NULL | uuid_generate_v4() | 家電ID（PK） |
-| `user_id` | UUID | NOT NULL | - | 所有者のユーザーID（FK → users） |
-| `name` | TEXT | NOT NULL | - | 家電の表示名（例: リビングのエアコン） |
+| `id` | UUID | NOT NULL | gen_random_uuid() | 家電マスターID（PK） |
 | `maker` | TEXT | NOT NULL | - | メーカー名（例: ダイキン） |
 | `model_number` | TEXT | NOT NULL | - | 型番（例: S40ZTEP） |
 | `category` | TEXT | NOT NULL | - | カテゴリ（例: エアコン・空調） |
-| `manual_source_url` | TEXT | NOT NULL | - | マニュアルの出典URL |
+| `manual_source_url` | TEXT | NULL | - | マニュアルの出典URL |
 | `stored_pdf_path` | TEXT | NULL | - | Supabase Storage のパス |
-| `image_url` | TEXT | NULL | - | 家電の画像URL |
 | `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
 | `updated_at` | TIMESTAMPTZ | NOT NULL | NOW() | 更新日時 |
 
-**インデックス**: `user_id`, `category`
+**制約**: `(maker, model_number)` はUNIQUE
 
-**RLS**: 自分の家電のみ参照・更新・削除可能
+**インデックス**: `maker`, `category`, `model_number`
 
-### 3. maintenance_schedules
+**RLS**: 全認証済みユーザーが閲覧可能、挿入・更新可能
 
-メンテナンススケジュールを管理するテーブル。
+### 3. user_appliances（ユーザー所有関係）
+
+ユーザーと家電マスターの所有関係を管理するテーブル。
 
 | カラム名 | 型 | NULL | デフォルト | 説明 |
 |---------|-----|------|-----------|------|
-| `id` | UUID | NOT NULL | uuid_generate_v4() | スケジュールID（PK） |
-| `appliance_id` | UUID | NOT NULL | - | 対象の家電ID（FK → appliances） |
+| `id` | UUID | NOT NULL | gen_random_uuid() | 所有関係ID（PK） |
+| `user_id` | UUID | NOT NULL | - | 所有者のユーザーID（FK → users） |
+| `shared_appliance_id` | UUID | NOT NULL | - | 家電マスターID（FK → shared_appliances） |
+| `name` | TEXT | NOT NULL | - | ユーザー固有の表示名（例: リビングのエアコン） |
+| `image_url` | TEXT | NULL | - | ユーザーがアップロードした画像URL |
+| `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
+| `updated_at` | TIMESTAMPTZ | NOT NULL | NOW() | 更新日時 |
+
+**制約**: `(user_id, name)` はUNIQUE（同一ユーザーで同じ表示名を防止）
+
+**インデックス**: `user_id`, `shared_appliance_id`
+
+**RLS**: 自分の所有関係のみ参照・更新・削除可能
+
+### 4. shared_maintenance_items（メンテナンス項目キャッシュ）
+
+家電マスターごとのメンテナンス項目を管理するテーブル。LLM抽出結果のキャッシュとして機能。
+
+| カラム名 | 型 | NULL | デフォルト | 説明 |
+|---------|-----|------|-----------|------|
+| `id` | UUID | NOT NULL | gen_random_uuid() | 項目ID（PK） |
+| `shared_appliance_id` | UUID | NOT NULL | - | 対象の家電マスターID（FK → shared_appliances） |
+| `task_name` | TEXT | NOT NULL | - | タスク名（例: フィルター清掃） |
+| `description` | TEXT | NULL | - | タスクの詳細説明 |
+| `recommended_interval_type` | TEXT | NOT NULL | - | 推奨周期タイプ: 'days', 'months', 'manual' |
+| `recommended_interval_value` | INTEGER | NULL | - | 推奨周期の値（manual の場合は null） |
+| `source_page` | TEXT | NULL | - | 根拠ページ番号 |
+| `importance` | TEXT | NOT NULL | 'medium' | 'high', 'medium', 'low' |
+| `extracted_at` | TIMESTAMPTZ | NOT NULL | NOW() | LLMで抽出した日時 |
+| `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
+
+**制約**:
+- `recommended_interval_type` は 'days', 'months', 'manual' のいずれか
+- `importance` は 'high', 'medium', 'low' のいずれか
+- `(shared_appliance_id, task_name)` はUNIQUE（重複抽出防止）
+
+**インデックス**: `shared_appliance_id`, `importance`
+
+**RLS**: 全認証済みユーザーが閲覧可能、挿入・更新可能（共有キャッシュのため）
+
+**設計メモ**:
+このテーブルはLLM抽出結果のキャッシュとして機能します。同じ家電（同一メーカー・型番）に対して
+メンテナンス項目を一度だけ抽出し、2人目以降のユーザーは即座に項目一覧を取得できます。
+これにより、LLMコストと処理時間を大幅に削減できます。
+
+### 5. maintenance_schedules
+
+メンテナンススケジュールを管理するテーブル。ユーザーが選択・登録した項目。
+
+| カラム名 | 型 | NULL | デフォルト | 説明 |
+|---------|-----|------|-----------|------|
+| `id` | UUID | NOT NULL | gen_random_uuid() | スケジュールID（PK） |
+| `user_appliance_id` | UUID | NOT NULL | - | 対象の所有関係ID（FK → user_appliances） |
+| `shared_item_id` | UUID | NULL | - | 元の共有項目への参照（FK → shared_maintenance_items） |
 | `task_name` | TEXT | NOT NULL | - | タスク名（例: フィルター清掃） |
 | `description` | TEXT | NULL | - | タスクの詳細説明 |
 | `interval_type` | TEXT | NOT NULL | - | 'days', 'months', 'manual' |
@@ -145,17 +197,23 @@
 - `interval_type = 'manual'` の場合、`interval_value` は NULL
 - `interval_type IN ('days', 'months')` の場合、`interval_value` は正の整数
 
-**インデックス**: `appliance_id`, `next_due_at`, `importance`
+**インデックス**: `user_appliance_id`, `shared_item_id`, `next_due_at`, `importance`
 
 **RLS**: 自分の家電のメンテナンスのみ参照・更新・削除可能
 
-### 4. maintenance_logs
+**設計メモ**:
+`shared_item_id` は元の共有メンテナンス項目への参照です。
+- 共有項目から選択した場合: `shared_item_id` に元のIDが設定される
+- ユーザーがカスタム項目を追加した場合: `shared_item_id` は NULL
+ユーザーは周期（interval_value）やタスク名を自由にカスタマイズ可能です。
+
+### 6. maintenance_logs
 
 メンテナンス実施記録を管理するテーブル。
 
 | カラム名 | 型 | NULL | デフォルト | 説明 |
 |---------|-----|------|-----------|------|
-| `id` | UUID | NOT NULL | uuid_generate_v4() | 記録ID（PK） |
+| `id` | UUID | NOT NULL | gen_random_uuid() | 記録ID（PK） |
 | `schedule_id` | UUID | NOT NULL | - | 対象のスケジュールID（FK → maintenance_schedules） |
 | `done_at` | TIMESTAMPTZ | NOT NULL | NOW() | 実施日時 |
 | `done_by_user_id` | UUID | NOT NULL | - | 実施者のユーザーID（FK → users） |
@@ -166,13 +224,13 @@
 
 **RLS**: 自分の記録のみ参照・更新・削除可能
 
-### 5. push_subscriptions
+### 7. push_subscriptions
 
 PWA プッシュ通知の購読設定を管理するテーブル。
 
 | カラム名 | 型 | NULL | デフォルト | 説明 |
 |---------|-----|------|-----------|------|
-| `id` | UUID | NOT NULL | uuid_generate_v4() | 購読ID（PK） |
+| `id` | UUID | NOT NULL | gen_random_uuid() | 購読ID（PK） |
 | `user_id` | UUID | NOT NULL | - | 購読者のユーザーID（FK → users） |
 | `endpoint` | TEXT | NOT NULL | - | プッシュサービスのエンドポイント（UNIQUE） |
 | `p256dh_key` | TEXT | NOT NULL | - | P-256 公開鍵（Base64） |
@@ -186,7 +244,7 @@ PWA プッシュ通知の購読設定を管理するテーブル。
 
 **RLS**: 自分の購読設定のみ参照・更新・削除可能
 
-### 6. categories
+### 8. categories
 
 カテゴリマスターテーブル（事前定義カテゴリ）。
 
@@ -220,32 +278,39 @@ PWA プッシュ通知の購読設定を管理するテーブル。
 | UPDATE | Users can update their own record | `auth.uid() = id` |
 | DELETE | Users can delete their own record | `auth.uid() = id` |
 
-### appliances
+### shared_appliances
 
 | 操作 | ポリシー名 | 条件 |
 |-----|----------|------|
-| SELECT | Users can view their own appliances | `auth.uid() = user_id` |
-| INSERT | Users can insert their own appliances | `auth.uid() = user_id` |
-| UPDATE | Users can update their own appliances | `auth.uid() = user_id` |
-| DELETE | Users can delete their own appliances | `auth.uid() = user_id` |
+| SELECT | Anyone can view shared appliances | `true`（認証済みユーザー） |
+| INSERT | Authenticated users can insert | `true`（認証済みユーザー） |
+| UPDATE | Authenticated users can update | `true`（認証済みユーザー） |
+| DELETE | - | 削除禁止（他ユーザー参照の可能性） |
+
+### user_appliances
+
+| 操作 | ポリシー名 | 条件 |
+|-----|----------|------|
+| SELECT | Users can view their own user_appliances | `auth.uid() = user_id` |
+| INSERT | Users can insert their own user_appliances | `auth.uid() = user_id` |
+| UPDATE | Users can update their own user_appliances | `auth.uid() = user_id` |
+| DELETE | Users can delete their own user_appliances | `auth.uid() = user_id` |
 
 ### maintenance_schedules
 
 | 操作 | ポリシー名 | 条件 |
 |-----|----------|------|
-| SELECT | Users can view maintenance schedules for their appliances | `appliances.user_id = auth.uid()` |
-| INSERT | Users can insert maintenance schedules for their appliances | `appliances.user_id = auth.uid()` |
-| UPDATE | Users can update maintenance schedules for their appliances | `appliances.user_id = auth.uid()` |
-| DELETE | Users can delete maintenance schedules for their appliances | `appliances.user_id = auth.uid()` |
+| SELECT | Users can view schedules for their appliances | `user_appliances.user_id = auth.uid()` |
+| INSERT | Users can insert schedules for their appliances | `user_appliances.user_id = auth.uid()` |
+| UPDATE | Users can update schedules for their appliances | `user_appliances.user_id = auth.uid()` |
+| DELETE | Users can delete schedules for their appliances | `user_appliances.user_id = auth.uid()` |
 
 ### maintenance_logs
 
 | 操作 | ポリシー名 | 条件 |
 |-----|----------|------|
-| SELECT | Users can view maintenance logs for their appliances | `appliances.user_id = auth.uid()` |
-| INSERT | Users can insert maintenance logs for their appliances | `done_by_user_id = auth.uid()` かつ `appliances.user_id = auth.uid()` |
-| UPDATE | Users can update their own maintenance logs | `done_by_user_id = auth.uid()` |
-| DELETE | Users can delete their own maintenance logs | `done_by_user_id = auth.uid()` |
+| SELECT | Users can view logs for their appliances | `user_appliances.user_id = auth.uid()` |
+| INSERT | Users can insert logs for their appliances | `done_by_user_id = auth.uid()` かつ `user_appliances.user_id = auth.uid()` |
 
 ### push_subscriptions
 
@@ -271,9 +336,12 @@ PWA プッシュ通知の購読設定を管理するテーブル。
 
 | テーブル | カラム | 理由 |
 |---------|--------|------|
-| `appliances` | `user_id` | ユーザーごとの家電一覧取得を高速化 |
-| `appliances` | `category` | カテゴリでのフィルタリングを高速化 |
-| `maintenance_schedules` | `appliance_id` | 家電ごとのメンテナンス一覧取得を高速化 |
+| `shared_appliances` | `maker` | メーカーでの検索を高速化 |
+| `shared_appliances` | `category` | カテゴリでのフィルタリングを高速化 |
+| `shared_appliances` | `model_number` | 型番での検索を高速化 |
+| `user_appliances` | `user_id` | ユーザーごとの家電一覧取得を高速化 |
+| `user_appliances` | `shared_appliance_id` | 家電マスターとの結合を高速化 |
+| `maintenance_schedules` | `user_appliance_id` | 家電ごとのメンテナンス一覧取得を高速化 |
 | `maintenance_schedules` | `next_due_at` | 期限が近いメンテナンスの検索を高速化 |
 | `maintenance_schedules` | `importance` | 重要度でのフィルタリングを高速化 |
 | `maintenance_logs` | `schedule_id` | スケジュールごとの実施記録取得を高速化 |
@@ -287,7 +355,8 @@ PWA プッシュ通知の購読設定を管理するテーブル。
 以下のテーブルで `UPDATE` 時に `updated_at` を自動更新：
 
 - `users`
-- `appliances`
+- `shared_appliances`
+- `user_appliances`
 - `maintenance_schedules`
 - `push_subscriptions`
 
@@ -298,7 +367,35 @@ PWA プッシュ通知の購読設定を管理するテーブル。
 | 拡張名 | 用途 |
 |-------|------|
 | `vector` | pgvector - Phase 6 RAG機能で使用予定 |
-| `uuid-ossp` | UUID生成（uuid_generate_v4()） |
+
+**注意**: UUID生成には `gen_random_uuid()` を使用（PostgreSQL 13+標準機能、拡張不要）
+
+## 設計の変更履歴
+
+### 2026-01-03: メンテナンス項目キャッシュ機能追加
+
+**追加されたもの**:
+- `shared_maintenance_items` テーブル: LLM抽出結果のキャッシュ
+- `maintenance_schedules.shared_item_id` カラム: 元の共有項目への参照
+
+**設計意図**:
+- 同じ家電のメンテナンス項目を複数ユーザーで共有
+- LLMコストの大幅削減（1家電1回のみ抽出）
+- 処理時間の短縮（2人目以降は即座に項目取得可能）
+
+### 2026-01-03: 共有マスター方式への移行
+
+**変更前**:
+- `appliances` テーブル: ユーザーごとに家電データを重複保持
+
+**変更後**:
+- `shared_appliances` テーブル: 家電マスターデータ（メーカー・型番・説明書情報）
+- `user_appliances` テーブル: ユーザーの所有関係（表示名・画像）
+
+**メリット**:
+- 同じ家電（同一メーカー・型番）の説明書PDFを複数ユーザーで共有可能
+- ストレージ容量の削減
+- 説明書更新時に全ユーザーに反映
 
 ## 将来の拡張予定
 
@@ -307,8 +404,8 @@ PWA プッシュ通知の購読設定を管理するテーブル。
 ```sql
 -- documents テーブル（将来実装）
 CREATE TABLE documents (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    appliance_id UUID NOT NULL REFERENCES appliances(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    shared_appliance_id UUID NOT NULL REFERENCES shared_appliances(id) ON DELETE CASCADE,
     page_number INTEGER NOT NULL,
     content TEXT NOT NULL,
     embedding VECTOR(1536),  -- OpenAI Embeddings
@@ -333,9 +430,9 @@ CREATE INDEX ON documents USING ivfflat (embedding vector_cosine_ops);
    - `auth.uid()` を使用してユーザー識別
    - 未認証ユーザーはデータにアクセスできない
 
-4. **Storage セキュリティ**（Phase 1 以降）
-   - `temp/` と `manuals/` バケットにRLSポリシーを設定
-   - ユーザーごとにディレクトリを分離
+4. **Storage セキュリティ**
+   - `manuals/` バケット: 共有PDF保存用
+   - `images/` バケット: ユーザー画像保存用
 
 ## 参考資料
 

@@ -1,0 +1,286 @@
+"""
+Maintenance item cache service.
+
+Provides caching for LLM-extracted maintenance items to avoid repeated API calls
+for the same appliance (same maker + model_number).
+"""
+
+from datetime import UTC, datetime
+
+from app.services.maintenance_extraction import extract_maintenance_items
+from app.services.supabase_client import get_supabase_client
+
+
+async def get_cached_maintenance_items(shared_appliance_id: str) -> list[dict] | None:
+    """
+    Get cached maintenance items for a shared appliance.
+
+    Args:
+        shared_appliance_id: UUID of the shared appliance
+
+    Returns:
+        List of maintenance items if cached, None if not found
+    """
+    client = get_supabase_client()
+    if not client:
+        return None
+
+    try:
+        response = (
+            client.table("shared_maintenance_items")
+            .select("*")
+            .eq("shared_appliance_id", shared_appliance_id)
+            .execute()
+        )
+
+        if response.data and len(response.data) > 0:
+            return response.data
+        return None
+
+    except Exception as e:
+        print(f"Error fetching cached maintenance items: {e}")
+        return None
+
+
+async def save_maintenance_items_to_cache(
+    shared_appliance_id: str,
+    items: list[dict],
+) -> list[dict]:
+    """
+    Save extracted maintenance items to cache.
+
+    Args:
+        shared_appliance_id: UUID of the shared appliance
+        items: List of maintenance items from LLM extraction
+
+    Returns:
+        List of saved items with their IDs
+    """
+    client = get_supabase_client()
+    if not client:
+        raise ValueError("Supabase client not available")
+
+    saved_items = []
+    now = datetime.now(UTC).isoformat()
+
+    for item in items:
+        # Convert frequency_days to proper interval type and value
+        frequency_days = item.get("frequency_days", 30)
+        interval_type, interval_value = _convert_frequency_days_to_interval(
+            frequency_days
+        )
+
+        # Convert LLM extraction format to DB format
+        db_item = {
+            "shared_appliance_id": shared_appliance_id,
+            "task_name": item.get("item_name", ""),
+            "description": item.get("description", ""),
+            "recommended_interval_type": interval_type,
+            "recommended_interval_value": interval_value,
+            "source_page": item.get("page_reference"),
+            "importance": item.get("importance", "medium"),
+            "extracted_at": now,
+        }
+
+        try:
+            response = (
+                client.table("shared_maintenance_items").insert(db_item).execute()
+            )
+            if response.data:
+                saved_items.append(response.data[0])
+        except Exception as e:
+            # Log error but continue with other items
+            print(f"Error saving maintenance item '{item.get('item_name')}': {e}")
+            # Try upsert if duplicate
+            if "duplicate key" in str(e).lower() or "23505" in str(e):
+                print("  -> Item already exists, skipping")
+
+    return saved_items
+
+
+def _convert_frequency_days_to_interval(frequency_days: int) -> tuple[str, int | None]:
+    """
+    Convert frequency in days to interval type and value.
+
+    Args:
+        frequency_days: Frequency in days (from LLM extraction)
+
+    Returns:
+        Tuple of (interval_type, interval_value)
+        - interval_type: 'days', 'months', 'years', or 'manual'
+        - interval_value: properly converted value or None for manual
+
+    Examples:
+        - 1 day → ('days', 1)
+        - 7 days → ('days', 7)
+        - 30 days → ('months', 1)
+        - 90 days → ('months', 3)
+        - 365 days → ('years', 1)
+        - 730 days → ('years', 2)
+    """
+    if frequency_days <= 0:
+        return ("manual", None)
+    elif frequency_days < 30:
+        return ("days", frequency_days)
+    elif frequency_days < 365:
+        # Convert days to months, rounding to nearest month
+        months = round(frequency_days / 30)
+        # Ensure at least 1 month
+        months = max(1, months)
+        return ("months", months)
+    else:
+        # Convert days to years, rounding to nearest year
+        years = round(frequency_days / 365)
+        # Ensure at least 1 year
+        years = max(1, years)
+        return ("years", years)
+
+
+async def get_or_extract_maintenance_items(
+    shared_appliance_id: str,
+    pdf_url: str | None = None,
+    manufacturer: str | None = None,
+    model_number: str | None = None,
+    category: str | None = None,
+) -> dict:
+    """
+    Get maintenance items from cache or extract from PDF.
+
+    This is the main entry point for getting maintenance items.
+    It first checks the cache, and if not found, extracts from PDF and caches.
+
+    Args:
+        shared_appliance_id: UUID of the shared appliance
+        pdf_url: URL of the PDF manual (required if not cached)
+        manufacturer: Manufacturer name (for extraction)
+        model_number: Model number (for extraction)
+        category: Product category (for extraction)
+
+    Returns:
+        dict with:
+        - items: list of maintenance items
+        - is_cached: whether items were from cache
+        - extracted_at: when items were extracted
+    """
+    # Check cache first
+    cached_items = await get_cached_maintenance_items(shared_appliance_id)
+
+    if cached_items:
+        # Return cached items
+        extracted_at = cached_items[0].get("extracted_at") if cached_items else None
+        return {
+            "shared_appliance_id": shared_appliance_id,
+            "items": cached_items,
+            "is_cached": True,
+            "extracted_at": extracted_at,
+        }
+
+    # Not cached - need to extract
+    if not pdf_url:
+        return {
+            "shared_appliance_id": shared_appliance_id,
+            "items": [],
+            "is_cached": False,
+            "extracted_at": None,
+            "error": "PDF URL required for extraction (no cache available)",
+        }
+
+    # Extract from PDF
+    extraction_result = await extract_maintenance_items(
+        pdf_source=pdf_url,
+        manufacturer=manufacturer,
+        model_number=model_number,
+        category=category,
+    )
+
+    if "error" in extraction_result:
+        return {
+            "shared_appliance_id": shared_appliance_id,
+            "items": [],
+            "is_cached": False,
+            "extracted_at": None,
+            "error": extraction_result.get("error"),
+            "raw_response": extraction_result.get("raw_response"),
+        }
+
+    # Save to cache
+    items = extraction_result.get("maintenance_items", [])
+    saved_items = await save_maintenance_items_to_cache(shared_appliance_id, items)
+
+    now = datetime.now(UTC).isoformat()
+    return {
+        "shared_appliance_id": shared_appliance_id,
+        "items": saved_items,
+        "is_cached": False,
+        "extracted_at": now,
+    }
+
+
+async def register_maintenance_schedules(
+    user_appliance_id: str,
+    selected_item_ids: list[str],
+) -> list[dict]:
+    """
+    Register selected maintenance items as user's schedules.
+
+    Args:
+        user_appliance_id: UUID of the user's appliance
+        selected_item_ids: List of shared_maintenance_item IDs to register
+
+    Returns:
+        List of created maintenance schedules
+    """
+    client = get_supabase_client()
+    if not client:
+        raise ValueError("Supabase client not available")
+
+    # Fetch selected shared items
+    response = (
+        client.table("shared_maintenance_items")
+        .select("*")
+        .in_("id", selected_item_ids)
+        .execute()
+    )
+
+    if not response.data:
+        return []
+
+    created_schedules = []
+    now = datetime.now(UTC)
+
+    for item in response.data:
+        # Calculate next_due_at based on interval
+        next_due_at = None
+        interval_type = item.get("recommended_interval_type")
+        interval_value = item.get("recommended_interval_value")
+
+        if interval_type == "days" and interval_value:
+            from datetime import timedelta
+
+            next_due_at = (now + timedelta(days=interval_value)).isoformat()
+        elif interval_type == "months" and interval_value:
+            from datetime import timedelta
+
+            # Approximate months as 30 days
+            next_due_at = (now + timedelta(days=interval_value * 30)).isoformat()
+
+        schedule = {
+            "user_appliance_id": user_appliance_id,
+            "shared_item_id": item["id"],
+            "task_name": item["task_name"],
+            "description": item.get("description"),
+            "interval_type": interval_type,
+            "interval_value": interval_value,
+            "source_page": item.get("source_page"),
+            "importance": item.get("importance", "medium"),
+            "next_due_at": next_due_at,
+        }
+
+        try:
+            result = client.table("maintenance_schedules").insert(schedule).execute()
+            if result.data:
+                created_schedules.append(result.data[0])
+        except Exception as e:
+            print(f"Error creating schedule for '{item['task_name']}': {e}")
+
+    return created_schedules

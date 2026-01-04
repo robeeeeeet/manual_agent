@@ -24,19 +24,6 @@ export interface RecognizeResponse {
   error?: string;
 }
 
-export interface SearchManualRequest {
-  manufacturer: string;
-  model_number: string;
-  official_domains?: string[];
-}
-
-export interface SearchManualResponse {
-  success: boolean;
-  pdf_url?: string;
-  method?: string;
-  reason?: string;
-}
-
 /**
  * Recognize appliance from image
  */
@@ -49,27 +36,6 @@ export async function recognizeAppliance(
   const response = await fetch(`${API_BASE}/appliances/recognize`, {
     method: "POST",
     body: formData,
-  });
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-
-  return response.json();
-}
-
-/**
- * Search for manual PDF
- */
-export async function searchManual(
-  request: SearchManualRequest
-): Promise<SearchManualResponse> {
-  const response = await fetch(`${API_BASE}/appliances/search-manual`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
   });
 
   if (!response.ok) {

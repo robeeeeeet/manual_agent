@@ -1,6 +1,8 @@
 """Manual PDF search service using Google Custom Search API and Gemini"""
 
+import asyncio
 import json
+import logging
 import tempfile
 import time
 from urllib.parse import urljoin
@@ -11,6 +13,23 @@ from google import genai
 from google.genai import types
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+# Semaphore to limit concurrent searches
+# Initialized lazily to avoid issues with event loop not running at import time
+_search_semaphore: asyncio.Semaphore | None = None
+
+
+def get_search_semaphore() -> asyncio.Semaphore:
+    """Get or create the search semaphore for limiting concurrent searches."""
+    global _search_semaphore
+    if _search_semaphore is None:
+        _search_semaphore = asyncio.Semaphore(settings.max_concurrent_searches)
+        logger.info(
+            f"Initialized search semaphore with max {settings.max_concurrent_searches} concurrent searches"
+        )
+    return _search_semaphore
 
 
 def get_gemini_client():
@@ -203,51 +222,6 @@ def verify_pdf_is_target(pdf_url: str, manufacturer: str, model_number: str) -> 
         return False
 
 
-async def search_pdf_direct(
-    manufacturer: str, model_number: str, official_domains: list[str]
-) -> dict:
-    """
-    Step 1: Direct PDF search using filetype:pdf
-
-    Args:
-        manufacturer: Manufacturer name
-        model_number: Model number
-        official_domains: List of official domains to search
-
-    Returns:
-        dict with success status and pdf_url if found
-    """
-    # Search each official domain
-    for domain in official_domains:
-        query = f"{manufacturer} {model_number} 取扱説明書 filetype:pdf site:{domain}"
-        print(f"Search: {query}")
-
-        results = custom_search(query, num_results=5)
-        print(f"Results: {len(results)} items")
-
-        for result in results:
-            link = result["link"]
-
-            # Judge by snippet
-            judgment = is_target_manual_by_snippet(result, manufacturer, model_number)
-
-            if judgment == "yes":
-                if verify_pdf(link):
-                    print(f"PDF found (confirmed): {link}")
-                    return {"success": True, "pdf_url": link, "method": "direct_search"}
-
-            elif judgment == "maybe":
-                if verify_pdf_is_target(link, manufacturer, model_number):
-                    print(f"PDF found (LLM verified): {link}")
-                    return {
-                        "success": True,
-                        "pdf_url": link,
-                        "method": "direct_search_verified",
-                    }
-
-    return {"success": False}
-
-
 def fetch_page_html(url: str, model_number: str = None) -> str:
     """Fetch page HTML and format for link extraction"""
     try:
@@ -342,113 +316,735 @@ def extract_pdf_with_llm(page_info: str, manufacturer: str, model_number: str) -
             response_text = response_text[start:end].strip()
 
         return json.loads(response_text)
+    except json.JSONDecodeError:
+        # LLMが不正なJSONを返した場合
+        return {
+            "found_pdf": None,
+            "explore_links": [],
+            "reason": "AI解析結果の処理に失敗しました。再度お試しください",
+        }
     except Exception as e:
-        return {"found_pdf": None, "explore_links": [], "reason": f"Error: {e}"}
+        error_str = str(e).lower()
+        if "api" in error_str or "quota" in error_str or "rate" in error_str:
+            reason = (
+                "API制限に達した可能性があります。しばらく待ってから再度お試しください"
+            )
+        elif "timeout" in error_str or "connection" in error_str:
+            reason = (
+                "ネットワーク接続に問題があります。接続を確認して再度お試しください"
+            )
+        elif "auth" in error_str or "key" in error_str or "credential" in error_str:
+            reason = "サービスの認証に問題があります。管理者にお問い合わせください"
+        else:
+            reason = "一時的なエラーが発生しました。再度お試しください"
+        return {"found_pdf": None, "explore_links": [], "reason": reason}
 
 
-async def search_manual_page(
-    manufacturer: str, model_number: str, official_domains: list[str]
-) -> dict:
+# Progress event types for SSE
+class SearchProgress:
+    """Progress event for SSE streaming"""
+
+    def __init__(
+        self,
+        step: str,
+        message: str,
+        detail: str = "",
+        current: int = 0,
+        total: int = 0,
+    ):
+        self.step = step
+        self.message = message
+        self.detail = detail
+        self.current = current
+        self.total = total
+
+    def to_dict(self):
+        return {
+            "type": "progress",
+            "step": self.step,
+            "message": self.message,
+            "detail": self.detail,
+            "current": self.current,
+            "total": self.total,
+        }
+
+
+async def search_manual_with_progress(
+    manufacturer: str,
+    model_number: str,
+    official_domains: list[str] | None = None,
+    excluded_urls: list[str] | None = None,
+    skip_domain_filter: bool = False,
+    cached_candidates: list[dict] | None = None,
+):
     """
-    Step 2: Search manual page and extract PDF
+    Search for manual PDF with progress updates (generator for SSE).
+
+    This function limits concurrent searches using a semaphore (default: 5 max).
+    When the limit is reached, new requests will wait until a slot is available.
+
+    Note: This function only searches for PDFs. Domain learning and PDF storage
+    should be performed separately after user confirms the result.
+    Use confirm_manual() for that purpose.
 
     Args:
         manufacturer: Manufacturer name
         model_number: Model number
-        official_domains: List of official domains
+        official_domains: List of official domains to prioritize in search
+        excluded_urls: List of PDF URLs to exclude from search results (for retry)
+        skip_domain_filter: Skip domain-based filtering for broader search (for retry)
+        cached_candidates: Cached PDF candidates from previous search (for retry)
 
-    Returns:
-        dict with success status and pdf_url if found
+    Yields:
+        SearchProgress events during search
+        Final result dict when complete (includes candidates for caching)
     """
-    for domain in official_domains:
-        query = f"{manufacturer} {model_number} 取扱説明書 site:{domain}"
-        print(f"Search: {query}")
+    semaphore = get_search_semaphore()
 
-        results = custom_search(query, num_results=5)
-        print(f"Results: {len(results)} items")
+    # Log queue status
+    available_slots = semaphore._value  # Number of available slots
+    if available_slots == 0:
+        logger.info(
+            f"[QUEUE] Search request queued - waiting for available slot "
+            f"(max concurrent: {settings.max_concurrent_searches})"
+        )
+        yield SearchProgress(
+            "queued",
+            "検索待機中...",
+            f"現在{settings.max_concurrent_searches}件の検索が実行中です",
+        )
 
-        visited = set()
+    async with semaphore:
+        logger.info(
+            f"[SEARCH] Acquired search slot - starting search for {manufacturer} {model_number}"
+        )
+        try:
+            async for event in _search_manual_with_progress_impl(
+                manufacturer=manufacturer,
+                model_number=model_number,
+                official_domains=official_domains,
+                excluded_urls=excluded_urls,
+                skip_domain_filter=skip_domain_filter,
+                cached_candidates=cached_candidates,
+            ):
+                yield event
+        finally:
+            logger.info(
+                f"[SEARCH] Released search slot - finished search for {manufacturer} {model_number}"
+            )
 
-        for result in results:
+
+async def _search_manual_with_progress_impl(
+    manufacturer: str,
+    model_number: str,
+    official_domains: list[str] | None = None,
+    excluded_urls: list[str] | None = None,
+    skip_domain_filter: bool = False,
+    cached_candidates: list[dict] | None = None,
+):
+    """
+    Internal implementation of search_manual_with_progress.
+
+    This function contains the actual search logic. It should not be called directly;
+    use search_manual_with_progress() instead which handles concurrency limiting.
+    """
+    from urllib.parse import urlparse
+
+    from app.services.manufacturer_domain import ManufacturerDomainService
+
+    domain_service = ManufacturerDomainService()
+
+    # Normalize excluded URLs set for fast lookup
+    excluded_url_set = set(excluded_urls or [])
+
+    # Candidate collection for retry caching
+    all_candidates: list[dict] = []
+    seen_candidate_urls: set[str] = set()
+
+    def add_candidate(
+        url: str,
+        source: str,
+        judgment: str,
+        title: str | None = None,
+        snippet: str | None = None,
+        verified: bool = False,
+        verification_failed_reason: str | None = None,
+        priority: int = 0,
+    ):
+        """Add a candidate to the collection if not already seen."""
+        if url in seen_candidate_urls:
+            return
+        seen_candidate_urls.add(url)
+        all_candidates.append(
+            {
+                "url": url,
+                "source": source,
+                "judgment": judgment,
+                "title": title,
+                "snippet": snippet,
+                "verified": verified,
+                "verification_failed_reason": verification_failed_reason,
+                "priority": priority,
+            }
+        )
+
+    def update_candidate(url: str, verified: bool, failed_reason: str | None = None):
+        """Update a candidate's verification status."""
+        for candidate in all_candidates:
+            if candidate["url"] == url:
+                candidate["verified"] = verified
+                candidate["verification_failed_reason"] = failed_reason
+                break
+
+    # Phase A: Process cached candidates first (for retry search)
+    if cached_candidates:
+        logger.info(f"[CACHE] Processing {len(cached_candidates)} cached candidates")
+        yield SearchProgress(
+            "cached_candidates",
+            "キャッシュ候補を確認中...",
+            f"{len(cached_candidates)}件の候補を検証します",
+        )
+
+        # Filter to processable candidates
+        # Include "pending" candidates (collected but not yet judged)
+        processable = [
+            c
+            for c in cached_candidates
+            if c["url"] not in excluded_url_set
+            and not c.get("verified", False)
+            and c.get("judgment") in ("yes", "maybe", "pending")
+        ]
+
+        # Sort by priority (lower = higher priority)
+        processable.sort(key=lambda x: x.get("priority", 0))
+
+        for idx, candidate in enumerate(processable):
+            url = candidate["url"]
+            judgment = candidate.get("judgment", "maybe")
+            domain = urlparse(url).netloc
+
+            yield SearchProgress(
+                "cached_candidate_check",
+                f"キャッシュ候補を検証中（{idx + 1}/{len(processable)}）",
+                f"{domain}",
+                idx + 1,
+                len(processable),
+            )
+
+            # Add to all_candidates to track processing
+            add_candidate(
+                url=url,
+                source=candidate.get("source", "google_search"),
+                judgment=judgment,
+                title=candidate.get("title"),
+                snippet=candidate.get("snippet"),
+                verified=False,
+                priority=candidate.get("priority", 0),
+            )
+
+            # For "pending" candidates, first judge by snippet
+            if judgment == "pending":
+                snippet_result = {
+                    "title": candidate.get("title", ""),
+                    "snippet": candidate.get("snippet", ""),
+                    "link": url,
+                }
+                judgment = await asyncio.to_thread(
+                    is_target_manual_by_snippet,
+                    snippet_result,
+                    manufacturer,
+                    model_number,
+                )
+                # Update the judgment in all_candidates
+                for c in all_candidates:
+                    if c["url"] == url:
+                        c["judgment"] = judgment
+                        break
+                logger.info(f"[CACHE] Judged pending candidate: {judgment} - {url}")
+
+            if judgment == "yes":
+                if await asyncio.to_thread(verify_pdf, url):
+                    update_candidate(url, True, None)
+                    logger.info(f"[CACHE] Found valid PDF from cached candidate: {url}")
+                    logger.info("[CACHE] Skipping Google search - using cached result")
+                    yield {
+                        "type": "result",
+                        "success": True,
+                        "pdf_url": url,
+                        "method": "cached_candidate",
+                        "candidates": all_candidates,
+                    }
+                    return
+                else:
+                    update_candidate(url, True, "http_error")
+            elif judgment == "maybe":
+                if await asyncio.to_thread(
+                    verify_pdf_is_target, url, manufacturer, model_number
+                ):
+                    update_candidate(url, True, None)
+                    logger.info(
+                        f"[CACHE] Found valid PDF from cached candidate (verified): {url}"
+                    )
+                    logger.info("[CACHE] Skipping Google search - using cached result")
+                    yield {
+                        "type": "result",
+                        "success": True,
+                        "pdf_url": url,
+                        "method": "cached_candidate_verified",
+                        "candidates": all_candidates,
+                    }
+                    return
+                else:
+                    update_candidate(url, True, "not_target")
+
+        # Also add all other cached candidates that weren't processed
+        for c in cached_candidates:
+            add_candidate(
+                url=c["url"],
+                source=c.get("source", "google_search"),
+                judgment=c.get("judgment", "pending"),
+                title=c.get("title"),
+                snippet=c.get("snippet"),
+                verified=c.get("verified", False),
+                verification_failed_reason=c.get("verification_failed_reason"),
+                priority=c.get("priority", 0),
+            )
+
+        logger.info(
+            f"[CACHE] All {len(processable)} processable candidates exhausted, "
+            "proceeding to Google search"
+        )
+        yield SearchProgress(
+            "cached_candidates_exhausted",
+            "キャッシュ候補を検証完了",
+            "新規検索を実行します",
+        )
+
+    # Step 0: Get learned domains (skip if skip_domain_filter is True)
+    logger.info("[GOOGLE] Starting Google Custom Search API call")
+    yield SearchProgress("init", "検索を開始しています...", "ドメイン情報を取得中")
+
+    if skip_domain_filter:
+        # For retry search, skip domain filtering entirely
+        official_domains = None
+        yield SearchProgress(
+            "domain",
+            "再検索モード",
+            "ドメインフィルタを無効化して検索します",
+        )
+    elif not official_domains:
+        official_domains = await domain_service.get_domains(manufacturer)
+        if official_domains:
+            yield SearchProgress(
+                "domain",
+                "登録済みドメインを発見",
+                f"サイト: {', '.join(official_domains)}",
+            )
+
+    # Step 1: Direct PDF search
+    yield SearchProgress(
+        "google_search", "Googleで説明書を検索中...", "PDF直接リンクを探しています"
+    )
+
+    # Build queries - only use domain filter if not skipping
+    queries = []
+    if official_domains and not skip_domain_filter:
+        for domain in official_domains:
+            queries.append(
+                f"{manufacturer} {model_number} 取扱説明書 filetype:pdf site:{domain}"
+            )
+    queries.append(f"{manufacturer} {model_number} 取扱説明書 filetype:pdf")
+
+    candidate_priority = 0  # Priority counter for candidates
+
+    for query_idx, query in enumerate(queries):
+        yield SearchProgress(
+            "google_search",
+            "Googleで説明書を検索中...",
+            f"クエリ {query_idx + 1}/{len(queries)}",
+            query_idx + 1,
+            len(queries),
+        )
+
+        # Run sync function in thread to avoid blocking event loop
+        results = await asyncio.to_thread(custom_search, query, 5)
+
+        # Filter to only PDF results, excluding previously found URLs
+        pdf_results = [
+            r
+            for r in results
+            if r["link"].lower().endswith(".pdf") and r["link"] not in excluded_url_set
+        ]
+        total_pdfs = len(pdf_results)
+
+        if total_pdfs == 0:
+            continue
+
+        for result_idx, result in enumerate(pdf_results):
+            pdf_url = result["link"]
+            pdf_domain = urlparse(pdf_url).netloc
+
+            # Progress: Checking result
+            yield SearchProgress(
+                "check_result",
+                f"検索結果を確認中（{result_idx + 1}/{total_pdfs}）",
+                f"{pdf_domain}",
+                result_idx + 1,
+                total_pdfs,
+            )
+
+            # Progress: Checking snippet
+            yield SearchProgress(
+                "check_snippet",
+                f"スニペットを判定中（{result_idx + 1}/{total_pdfs}）",
+                "AIで説明書の一致を確認中",
+                result_idx + 1,
+                total_pdfs,
+            )
+
+            # Judge by snippet (same logic as search_pdf_direct)
+            judgment = await asyncio.to_thread(
+                is_target_manual_by_snippet, result, manufacturer, model_number
+            )
+
+            # Add to candidates collection
+            add_candidate(
+                url=pdf_url,
+                source="google_search",
+                judgment=judgment,
+                title=result.get("title"),
+                snippet=result.get("snippet"),
+                verified=False,
+                priority=candidate_priority,
+            )
+            candidate_priority += 1
+
+            if judgment == "yes":
+                # Progress: Verifying PDF
+                yield SearchProgress(
+                    "verify_pdf",
+                    f"PDFを検証中（{result_idx + 1}/{total_pdfs}）",
+                    "ダウンロード可能か確認中",
+                    result_idx + 1,
+                    total_pdfs,
+                )
+                if await asyncio.to_thread(verify_pdf, pdf_url):
+                    update_candidate(pdf_url, True, None)
+                    # Collect remaining results as candidates before returning
+                    for remaining_idx in range(result_idx + 1, total_pdfs):
+                        remaining_result = pdf_results[remaining_idx]
+                        remaining_url = remaining_result["link"]
+                        add_candidate(
+                            url=remaining_url,
+                            source="google_search",
+                            judgment="pending",  # Not judged yet
+                            title=remaining_result.get("title"),
+                            snippet=remaining_result.get("snippet"),
+                            verified=False,
+                            priority=candidate_priority + remaining_idx,
+                        )
+                    yield {
+                        "type": "result",
+                        "success": True,
+                        "pdf_url": pdf_url,
+                        "method": "direct_search",
+                        "candidates": all_candidates,
+                    }
+                    return
+                else:
+                    update_candidate(pdf_url, True, "http_error")
+            elif judgment == "maybe":
+                # Progress: Verifying PDF content
+                yield SearchProgress(
+                    "verify_pdf_content",
+                    f"PDF内容を検証中（{result_idx + 1}/{total_pdfs}）",
+                    "説明書の型番を確認中",
+                    result_idx + 1,
+                    total_pdfs,
+                )
+                if await asyncio.to_thread(
+                    verify_pdf_is_target, pdf_url, manufacturer, model_number
+                ):
+                    update_candidate(pdf_url, True, None)
+                    # Collect remaining results as candidates before returning
+                    for remaining_idx in range(result_idx + 1, total_pdfs):
+                        remaining_result = pdf_results[remaining_idx]
+                        remaining_url = remaining_result["link"]
+                        add_candidate(
+                            url=remaining_url,
+                            source="google_search",
+                            judgment="pending",  # Not judged yet
+                            title=remaining_result.get("title"),
+                            snippet=remaining_result.get("snippet"),
+                            verified=False,
+                            priority=candidate_priority + remaining_idx,
+                        )
+                    yield {
+                        "type": "result",
+                        "success": True,
+                        "pdf_url": pdf_url,
+                        "method": "direct_search_verified",
+                        "candidates": all_candidates,
+                    }
+                    return
+                else:
+                    update_candidate(pdf_url, True, "not_target")
+            # judgment == "no": skip this result (already added to candidates)
+
+    # Step 2: Manual page search
+    yield SearchProgress("page_search", "公式ページを調査中...", "検索クエリを準備中")
+
+    queries = []
+    if official_domains and not skip_domain_filter:
+        for domain in official_domains:
+            queries.append(f"{manufacturer} {model_number} 取扱説明書 site:{domain}")
+    else:
+        queries.append(f"{manufacturer} {model_number} 取扱説明書")
+
+    visited = set()
+
+    for query_idx, query in enumerate(queries):
+        yield SearchProgress(
+            "page_search",
+            "Googleで公式ページを検索中...",
+            f"クエリ {query_idx + 1}/{len(queries)}",
+            query_idx + 1,
+            len(queries),
+        )
+
+        # Run sync function in thread to avoid blocking event loop
+        results = await asyncio.to_thread(custom_search, query, 5)
+        total_results = len(results)
+
+        if total_results == 0:
+            continue
+
+        yield SearchProgress(
+            "page_search_results",
+            "検索結果を取得しました",
+            f"{total_results}件の結果を確認します",
+            0,
+            total_results,
+        )
+
+        for idx, result in enumerate(results):
             page_url = result["link"]
             if page_url in visited:
                 continue
             visited.add(page_url)
 
-            # If direct PDF
+            domain = urlparse(page_url).netloc
+
+            # Progress: Checking result
+            yield SearchProgress(
+                "check_page_result",
+                f"検索結果を確認中（{idx + 1}/{total_results}）",
+                f"{domain}",
+                idx + 1,
+                total_results,
+            )
+
             if page_url.lower().endswith(".pdf"):
-                if verify_pdf(page_url):
-                    print(f"PDF found: {page_url}")
-                    return {
+                # Skip excluded URLs
+                if page_url in excluded_url_set:
+                    continue
+
+                # Add to candidates
+                add_candidate(
+                    url=page_url,
+                    source="page_extract",
+                    judgment="maybe",
+                    title=result.get("title"),
+                    snippet=result.get("snippet"),
+                    verified=False,
+                    priority=candidate_priority,
+                )
+                candidate_priority += 1
+
+                yield SearchProgress(
+                    "verify_page_pdf",
+                    f"PDFを検証中（{idx + 1}/{total_results}）",
+                    f"{domain}",
+                    idx + 1,
+                    total_results,
+                )
+                if await asyncio.to_thread(verify_pdf, page_url):
+                    update_candidate(page_url, True, None)
+                    yield {
+                        "type": "result",
                         "success": True,
                         "pdf_url": page_url,
                         "method": "page_search_direct",
+                        "candidates": all_candidates,
                     }
+                    return
+                else:
+                    update_candidate(page_url, True, "http_error")
+                continue
 
-            # Extract PDF from page
-            page_info = fetch_page_html(page_url, model_number)
+            # Progress: Fetching page
+            yield SearchProgress(
+                "page_fetch",
+                f"ページを取得中（{idx + 1}/{total_results}）",
+                f"{domain} からHTMLを取得中",
+                idx + 1,
+                total_results,
+            )
+
+            # Fetch and analyze page
+            page_info = await asyncio.to_thread(fetch_page_html, page_url, model_number)
             if page_info.startswith("Error"):
                 continue
 
-            llm_result = extract_pdf_with_llm(page_info, manufacturer, model_number)
+            # Progress: LLM extracting
+            yield SearchProgress(
+                "llm_extract",
+                f"AIでPDFリンクを抽出中（{idx + 1}/{total_results}）",
+                f"{domain} のページを解析中",
+                idx + 1,
+                total_results,
+            )
 
-            # Check if PDF found
+            llm_result = await asyncio.to_thread(
+                extract_pdf_with_llm, page_info, manufacturer, model_number
+            )
+
             found_pdf = llm_result.get("found_pdf")
-            if found_pdf and verify_pdf(found_pdf):
-                print(f"PDF found: {found_pdf}")
-                return {
-                    "success": True,
-                    "pdf_url": found_pdf,
-                    "method": "page_search_extract",
-                }
-
-            # Follow exploration links (depth 1)
-            for link in llm_result.get("explore_links", [])[:3]:
-                if link in visited:
-                    continue
-                visited.add(link)
-
-                sub_page_info = fetch_page_html(link, model_number)
-                if sub_page_info.startswith("Error"):
-                    continue
-
-                sub_result = extract_pdf_with_llm(
-                    sub_page_info, manufacturer, model_number
+            if found_pdf and found_pdf not in excluded_url_set:
+                # Add LLM-found PDF to candidates
+                add_candidate(
+                    url=found_pdf,
+                    source="page_extract",
+                    judgment="maybe",
+                    verified=False,
+                    priority=candidate_priority,
                 )
-                sub_pdf = sub_result.get("found_pdf")
-                if sub_pdf and verify_pdf(sub_pdf):
-                    print(f"PDF found: {sub_pdf}")
-                    return {
+                candidate_priority += 1
+
+                yield SearchProgress(
+                    "verify_extracted_pdf",
+                    f"抽出したPDFを検証中（{idx + 1}/{total_results}）",
+                    "ダウンロード可能か確認中",
+                    idx + 1,
+                    total_results,
+                )
+                if await asyncio.to_thread(verify_pdf, found_pdf):
+                    update_candidate(found_pdf, True, None)
+                    yield {
+                        "type": "result",
                         "success": True,
-                        "pdf_url": sub_pdf,
-                        "method": "page_search_deep",
+                        "pdf_url": found_pdf,
+                        "method": "page_search_extract",
+                        "candidates": all_candidates,
                     }
+                    return
+                else:
+                    update_candidate(found_pdf, True, "http_error")
 
-    return {"success": False, "reason": "not_found"}
+            # Collect explore_links as candidates (for future retry)
+            explore_links = llm_result.get("explore_links", [])
+            for el_idx, explore_link in enumerate(explore_links):
+                if explore_link not in excluded_url_set:
+                    add_candidate(
+                        url=explore_link,
+                        source="explore_link",
+                        judgment="pending",
+                        verified=False,
+                        priority=candidate_priority + 100 + el_idx,  # Lower priority
+                    )
 
+            # Follow exploration links (first 3)
+            explore_links_to_follow = explore_links[:3]
+            if explore_links_to_follow:
+                yield SearchProgress(
+                    "deep_search_init",
+                    "関連ページを探索中...",
+                    f"{len(explore_links_to_follow)}件のリンクを追跡します",
+                    0,
+                    len(explore_links_to_follow),
+                )
 
-async def search_manual(
-    manufacturer: str, model_number: str, official_domains: list[str] | None = None
-) -> dict:
-    """
-    Search for manual PDF using two-step strategy.
+                for link_idx, link in enumerate(explore_links_to_follow):
+                    if link in visited:
+                        continue
+                    visited.add(link)
 
-    Args:
-        manufacturer: Manufacturer name
-        model_number: Model number
-        official_domains: Optional list of official domains to search
+                    link_domain = urlparse(link).netloc
 
-    Returns:
-        dict with success status, pdf_url, and method if found
-    """
-    if not official_domains:
-        official_domains = []
+                    # Progress: Fetching sub page
+                    yield SearchProgress(
+                        "deep_search_fetch",
+                        f"関連ページを取得中（{link_idx + 1}/{len(explore_links_to_follow)}）",
+                        f"{link_domain}",
+                        link_idx + 1,
+                        len(explore_links_to_follow),
+                    )
 
-    # Step 1: Direct PDF search
-    result = await search_pdf_direct(manufacturer, model_number, official_domains)
-    if result.get("success"):
-        return result
+                    sub_page_info = await asyncio.to_thread(
+                        fetch_page_html, link, model_number
+                    )
+                    if sub_page_info.startswith("Error"):
+                        continue
 
-    # Step 2: Manual page search
-    result = await search_manual_page(manufacturer, model_number, official_domains)
-    return result
+                    # Progress: LLM extracting from sub page
+                    yield SearchProgress(
+                        "deep_search_extract",
+                        f"AIで解析中（{link_idx + 1}/{len(explore_links_to_follow)}）",
+                        f"{link_domain} のページを解析中",
+                        link_idx + 1,
+                        len(explore_links_to_follow),
+                    )
+
+                    sub_result = await asyncio.to_thread(
+                        extract_pdf_with_llm, sub_page_info, manufacturer, model_number
+                    )
+                    sub_pdf = sub_result.get("found_pdf")
+                    if sub_pdf and sub_pdf not in excluded_url_set:
+                        # Add deep-found PDF to candidates
+                        add_candidate(
+                            url=sub_pdf,
+                            source="page_extract",
+                            judgment="maybe",
+                            verified=False,
+                            priority=candidate_priority,
+                        )
+                        candidate_priority += 1
+
+                        yield SearchProgress(
+                            "deep_search_verify",
+                            f"PDFを検証中（{link_idx + 1}/{len(explore_links_to_follow)}）",
+                            "ダウンロード可能か確認中",
+                            link_idx + 1,
+                            len(explore_links_to_follow),
+                        )
+                        if await asyncio.to_thread(verify_pdf, sub_pdf):
+                            update_candidate(sub_pdf, True, None)
+                            yield {
+                                "type": "result",
+                                "success": True,
+                                "pdf_url": sub_pdf,
+                                "method": "page_search_deep",
+                                "candidates": all_candidates,
+                            }
+                            return
+                        else:
+                            update_candidate(sub_pdf, True, "http_error")
+
+                    # Also collect explore_links from sub-pages
+                    sub_explore_links = sub_result.get("explore_links", [])
+                    for sel_idx, sub_explore_link in enumerate(sub_explore_links):
+                        if sub_explore_link not in excluded_url_set:
+                            add_candidate(
+                                url=sub_explore_link,
+                                source="explore_link",
+                                judgment="pending",
+                                verified=False,
+                                priority=candidate_priority + 200 + sel_idx,
+                            )
+
+    yield {
+        "type": "result",
+        "success": False,
+        "reason": "メーカーサイトでPDFが見つかりませんでした。下記からPDFを手動アップロードできます",
+        "candidates": all_candidates,
+    }

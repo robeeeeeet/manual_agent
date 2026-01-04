@@ -1,18 +1,33 @@
 """Manual-related API routes"""
 
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 
 from app.config import settings
 from app.schemas.appliance import (
     ErrorResponse,
+    ExistingPdfCheckRequest,
+    ExistingPdfCheckResponse,
     MaintenanceExtractionResponse,
+    MaintenanceSchedule,
+    MaintenanceScheduleBulkCreate,
+    ManualConfirmRequest,
+    ManualConfirmResponse,
     ManualSearchRequest,
-    ManualSearchResponse,
+    SharedMaintenanceItemList,
+)
+from app.services.maintenance_cache_service import (
+    get_or_extract_maintenance_items,
+    register_maintenance_schedules,
 )
 from app.services.maintenance_extraction import extract_maintenance_items
-from app.services.manual_search import search_manual
+from app.services.manual_search import (
+    SearchProgress,
+    search_manual_with_progress,
+)
 
 router = APIRouter(prefix="/manuals", tags=["manuals"])
 
@@ -23,49 +38,54 @@ PdfFile = Annotated[
 
 
 @router.post(
-    "/search",
-    response_model=ManualSearchResponse,
-    responses={
-        400: {"model": ErrorResponse},
-        500: {"model": ErrorResponse},
-    },
-    summary="Search for manual PDF",
-    description="Search for manual PDF using manufacturer and model number",
+    "/search-stream",
+    summary="Search for manual PDF with progress streaming",
+    description="Search for manual PDF with real-time progress updates via SSE",
 )
-async def search_manual_pdf(request: ManualSearchRequest):
+async def search_manual_pdf_stream(request: ManualSearchRequest):
     """
-    Search for manual PDF by manufacturer and model number.
+    Search for manual PDF with progress updates via Server-Sent Events (SSE).
 
-    This endpoint uses a two-step strategy:
-    1. Direct PDF search using filetype:pdf
-    2. Manual page search and extraction if direct search fails
-
-    Args:
-        request: Search parameters (manufacturer, model_number, optional domains)
+    This endpoint streams progress updates during the search process,
+    allowing the frontend to display real-time status information.
 
     Returns:
-        ManualSearchResponse with PDF URL if found
-
-    Raises:
-        HTTPException: If search fails
+        StreamingResponse with SSE events
     """
-    try:
-        result = await search_manual(
-            manufacturer=request.manufacturer,
-            model_number=request.model_number,
-            official_domains=request.official_domains,
-        )
-        return result
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={
-                "error": "Manual search failed",
-                "code": "SEARCH_ERROR",
-                "details": str(e),
-            },
-        ) from e
+    async def event_generator():
+        try:
+            async for event in search_manual_with_progress(
+                manufacturer=request.manufacturer,
+                model_number=request.model_number,
+                official_domains=request.official_domains,
+                excluded_urls=request.excluded_urls,
+                skip_domain_filter=request.skip_domain_filter,
+                cached_candidates=[c.model_dump() for c in request.cached_candidates]
+                if request.cached_candidates
+                else None,
+            ):
+                if isinstance(event, SearchProgress):
+                    data = json.dumps(event.to_dict(), ensure_ascii=False)
+                else:
+                    # Final result
+                    data = json.dumps(event, ensure_ascii=False)
+                yield f"data: {data}\n\n"
+        except Exception as e:
+            error_data = json.dumps(
+                {"type": "error", "message": str(e)}, ensure_ascii=False
+            )
+            yield f"data: {error_data}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
+    )
 
 
 @router.post(
@@ -196,6 +216,308 @@ async def extract_maintenance(
             detail={
                 "error": "Maintenance extraction failed",
                 "code": "EXTRACTION_ERROR",
+                "details": str(e),
+            },
+        ) from e
+
+
+@router.post(
+    "/confirm",
+    response_model=ManualConfirmResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="Confirm manual PDF and save domain",
+    description="Confirm that the found PDF is correct, then save domain for future searches, store the PDF, and register shared appliance",
+)
+async def confirm_manual(request: ManualConfirmRequest):
+    """
+    Confirm a manual PDF after user verification.
+
+    This endpoint should be called after the user has verified that the
+    PDF found by search is correct. It performs:
+    1. Domain learning - saves the domain for faster future searches
+    2. PDF storage - downloads and stores the PDF in Supabase Storage
+    3. Shared appliance registration - creates/updates the shared appliance master data
+
+    Args:
+        request: ManualConfirmRequest with manufacturer, model_number, category, and pdf_url
+
+    Returns:
+        ManualConfirmResponse with status of domain saving, PDF storage, and shared appliance ID
+    """
+    from app.services.appliance_service import get_or_create_shared_appliance
+    from app.services.manufacturer_domain import ManufacturerDomainService
+    from app.services.pdf_storage import get_pdf_public_url, save_pdf_from_url
+
+    domain_service = ManufacturerDomainService()
+
+    # 1. Save domain for future searches
+    try:
+        await domain_service.save_domain(request.manufacturer, request.pdf_url)
+        domain_saved = True
+    except Exception as e:
+        print(f"Domain save error: {e}")
+        domain_saved = False
+
+    # 2. Download and store PDF
+    pdf_stored = False
+    storage_path = None
+    storage_url = None
+
+    try:
+        result = await save_pdf_from_url(
+            manufacturer=request.manufacturer,
+            model_number=request.model_number,
+            pdf_url=request.pdf_url,
+        )
+
+        if result.get("success"):
+            pdf_stored = True
+            storage_path = result.get("storage_path")
+            # Get public URL for the stored PDF
+            if storage_path:
+                storage_url = await get_pdf_public_url(storage_path)
+    except Exception as e:
+        print(f"PDF storage error: {e}")
+        pdf_stored = False
+
+    # 3. Create/update shared appliance with PDF info
+    shared_appliance_id = None
+    try:
+        shared_appliance = await get_or_create_shared_appliance(
+            maker=request.manufacturer,
+            model_number=request.model_number,
+            category=request.category,
+            manual_source_url=request.pdf_url,
+            stored_pdf_path=storage_path,
+        )
+        shared_appliance_id = str(shared_appliance.id)
+    except Exception as e:
+        print(f"Shared appliance creation error: {e}")
+
+    # Build response message
+    messages = []
+    if domain_saved:
+        messages.append("ドメインを保存しました")
+    if pdf_stored:
+        messages.append("PDFを保存しました")
+    if shared_appliance_id:
+        messages.append("家電マスターを登録しました")
+
+    if not messages:
+        message = "保存に失敗しました"
+    else:
+        message = "。".join(messages) + "。"
+
+    return ManualConfirmResponse(
+        success=domain_saved or pdf_stored or shared_appliance_id is not None,
+        domain_saved=domain_saved,
+        pdf_stored=pdf_stored,
+        storage_path=storage_path,
+        storage_url=storage_url,
+        shared_appliance_id=shared_appliance_id,
+        message=message,
+    )
+
+
+@router.post(
+    "/check-existing",
+    response_model=ExistingPdfCheckResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="Check for existing stored PDF",
+    description="Check if a PDF has already been stored for the given manufacturer and model number",
+)
+async def check_existing_pdf(request: ExistingPdfCheckRequest):
+    """
+    Check if a PDF already exists in storage for the given manufacturer and model number.
+
+    This endpoint should be called before searching for a new manual to avoid
+    unnecessary Google searches. If a PDF is found, its URL can be used directly.
+
+    Args:
+        request: ExistingPdfCheckRequest with manufacturer and model_number
+
+    Returns:
+        ExistingPdfCheckResponse with PDF info if found
+    """
+    from app.services.pdf_storage import find_existing_pdf
+
+    try:
+        result = await find_existing_pdf(
+            manufacturer=request.manufacturer, model_number=request.model_number
+        )
+
+        if result:
+            return ExistingPdfCheckResponse(
+                found=True,
+                shared_appliance_id=result.get("id"),
+                storage_path=result.get("storage_path"),
+                storage_url=result.get("public_url"),
+                source_url=result.get("source_url"),
+                message="保存済みの説明書PDFが見つかりました",
+            )
+        else:
+            return ExistingPdfCheckResponse(
+                found=False,
+                message="保存済みの説明書PDFは見つかりませんでした",
+            )
+
+    except Exception as e:
+        print(f"Error checking existing PDF: {e}")
+        return ExistingPdfCheckResponse(
+            found=False,
+            message=f"検索中にエラーが発生しました: {str(e)}",
+        )
+
+
+# ============================================================================
+# Maintenance Items Cache Endpoints
+# ============================================================================
+
+
+@router.get(
+    "/maintenance-items/{shared_appliance_id}",
+    response_model=SharedMaintenanceItemList,
+    responses={
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="Get maintenance items for a shared appliance",
+    description="Get cached maintenance items or extract from PDF if not cached",
+)
+async def get_maintenance_items(
+    shared_appliance_id: str,
+    pdf_url: str | None = None,
+    manufacturer: str | None = None,
+    model_number: str | None = None,
+    category: str | None = None,
+):
+    """
+    Get maintenance items for a shared appliance.
+
+    This endpoint first checks the cache (shared_maintenance_items table).
+    If cached items exist, they are returned immediately (no LLM call).
+    If not cached and pdf_url is provided, items are extracted and cached.
+
+    Args:
+        shared_appliance_id: UUID of the shared appliance
+        pdf_url: URL of the PDF manual (required if not cached)
+        manufacturer: Manufacturer name (helps extraction)
+        model_number: Model number (helps extraction)
+        category: Product category (helps extraction)
+
+    Returns:
+        SharedMaintenanceItemList with items and cache status
+
+    Note:
+        When is_cached=True, items are from cache (fast, no LLM cost).
+        When is_cached=False, items were just extracted (slower, costs LLM tokens).
+    """
+    try:
+        result = await get_or_extract_maintenance_items(
+            shared_appliance_id=shared_appliance_id,
+            pdf_url=pdf_url,
+            manufacturer=manufacturer,
+            model_number=model_number,
+            category=category,
+        )
+
+        if "error" in result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "error": "Failed to get maintenance items",
+                    "code": "MAINTENANCE_ITEMS_ERROR",
+                    "details": result.get("error"),
+                },
+            )
+
+        return SharedMaintenanceItemList(
+            shared_appliance_id=shared_appliance_id,
+            items=result.get("items", []),
+            extracted_at=result.get("extracted_at"),
+            is_cached=result.get("is_cached", False),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "Failed to get maintenance items",
+                "code": "MAINTENANCE_ITEMS_ERROR",
+                "details": str(e),
+            },
+        ) from e
+
+
+@router.post(
+    "/maintenance-schedules/register",
+    response_model=list[MaintenanceSchedule],
+    responses={
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="Register maintenance schedules from selected items",
+    description="Create user's maintenance schedules from selected shared maintenance items",
+)
+async def register_schedules(request: MaintenanceScheduleBulkCreate):
+    """
+    Register maintenance schedules from selected shared items.
+
+    This endpoint creates maintenance schedules for the user by copying
+    selected items from shared_maintenance_items to maintenance_schedules.
+
+    The user selects which items they want to track, and the system:
+    1. Fetches the selected shared items
+    2. Creates individual schedules for each selected item
+    3. Calculates next_due_at based on recommended intervals
+
+    Args:
+        request: MaintenanceScheduleBulkCreate with user_appliance_id and selected_item_ids
+
+    Returns:
+        List of created MaintenanceSchedule objects
+    """
+    if not request.selected_item_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "No items selected",
+                "code": "NO_ITEMS_SELECTED",
+                "details": "At least one item must be selected",
+            },
+        )
+
+    try:
+        created_schedules = await register_maintenance_schedules(
+            user_appliance_id=str(request.user_appliance_id),
+            selected_item_ids=[str(id) for id in request.selected_item_ids],
+        )
+
+        return created_schedules
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "Invalid request",
+                "code": "INVALID_REQUEST",
+                "details": str(e),
+            },
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "Failed to register schedules",
+                "code": "SCHEDULE_REGISTRATION_ERROR",
                 "details": str(e),
             },
         ) from e

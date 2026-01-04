@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # Upload limits
     max_upload_size_mb: int = 50
 
+    # Concurrency limits
+    max_concurrent_searches: int = 5  # Maximum parallel manual searches
+    max_thread_pool_workers: int = 10  # Thread pool size for blocking I/O operations
+
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).parent.parent.parent / ".env"),
         env_file_encoding="utf-8",

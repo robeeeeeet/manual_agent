@@ -43,7 +43,7 @@ export default function Header() {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-6">
             <Link
-              href="/"
+              href="/appliances"
               className="text-gray-600 hover:text-blue-600 transition-colors"
             >
               家電一覧
@@ -126,7 +126,7 @@ export default function Header() {
           <div className="md:hidden py-4 border-t border-gray-200">
             <div className="flex flex-col gap-4">
               <Link
-                href="/"
+                href="/appliances"
                 className="text-gray-600 hover:text-blue-600 transition-colors"
                 onClick={() => setIsMenuOpen(false)}
               >

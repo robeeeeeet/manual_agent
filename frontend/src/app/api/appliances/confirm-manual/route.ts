@@ -6,17 +6,20 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const { manufacturer, model_number, official_domains } = body;
+    const { manufacturer, model_number, category, pdf_url } = body;
 
-    if (!manufacturer || !model_number) {
+    if (!manufacturer || !model_number || !category || !pdf_url) {
       return NextResponse.json(
-        { error: "manufacturer and model_number are required" },
+        {
+          error:
+            "manufacturer, model_number, category, and pdf_url are required",
+        },
         { status: 400 }
       );
     }
 
     // Forward the request to the Python backend
-    const response = await fetch(`${BACKEND_URL}/api/v1/manuals/search`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/manuals/confirm`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -24,7 +27,8 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         manufacturer,
         model_number,
-        official_domains,
+        category,
+        pdf_url,
       }),
     });
 
@@ -39,7 +43,7 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error in search-manual API:", error);
+    console.error("Error in confirm-manual API:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

@@ -5,7 +5,15 @@
 ### ファイル構成
 - `app/api/routes/` - FastAPI ルーター（エンドポイント定義）
 - `app/schemas/` - Pydantic モデル（リクエスト/レスポンス型）
-- `app/services/` - ビジネスロジック（AI処理等）
+- `app/services/` - ビジネスロジック
+  - 画像認識（image_recognition.py）
+  - 説明書検索（manual_search.py）
+  - メンテナンス抽出（maintenance_extraction.py）
+  - メンテナンスキャッシュ（maintenance_cache_service.py）
+  - 家電CRUD（appliance_service.py）
+  - PDFストレージ（pdf_storage.py）
+  - Supabaseクライアント（supabase_client.py）
+  - メーカードメイン（manufacturer_domain.py）
 - `app/config.py` - 設定（pydantic-settings）
 
 ### スタイル
@@ -41,14 +49,17 @@ async def endpoint_name(request: RequestSchema):
   - `auth/` - 認証関連ルート（callback）
   - `login/`, `signup/` - 認証ページ
   - `register/` - 家電登録ページ
+  - `appliances/` - 家電一覧ページ
 - `src/components/` - Reactコンポーネント
   - `auth/` - 認証関連（AuthForm）
   - `layout/` - レイアウトコンポーネント（Header, Footer）
   - `ui/` - 汎用UIコンポーネント（Button, Card）
-  - `appliances/` - 家電関連コンポーネント（未実装）
+  - `appliances/` - 家電関連コンポーネント
+- `src/types/` - 型定義（appliance.ts）
 - `src/contexts/` - React Context（AuthContext）
 - `src/lib/` - ユーティリティ
   - `supabase/` - Supabaseクライアント（client, server, middleware）
+  - `api.ts` - バックエンドAPIクライアント
 - `src/middleware.ts` - Next.js ミドルウェア（ルート保護）
 
 ### スタイル
