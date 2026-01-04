@@ -78,6 +78,7 @@ npx supabase db seed
    - `00004_shared_appliances_refactor.sql`
    - `00005_create_manuals_bucket.sql`
    - `00006_shared_maintenance_items.sql`
+   - `00007_auth_users_sync_triggers.sql`
 
 **作成されるテーブル:**
 
@@ -92,6 +93,15 @@ npx supabase db seed
 | `push_subscriptions` | PWAプッシュ通知設定 |
 | `categories` | カテゴリマスター |
 | `manufacturer_domains` | メーカー公式サイトドメイン（学習） |
+
+**作成されるトリガー（00007）:**
+
+| トリガー | イベント | 動作 |
+|---------|---------|------|
+| `on_auth_user_created` | `auth.users` INSERT | `public.users` に自動作成 |
+| `on_auth_user_deleted` | `auth.users` DELETE | `public.users` から自動削除 |
+
+> **補足**: これらのトリガーにより、Supabase Auth でのユーザー登録・削除が `public.users` テーブルと自動同期されます。
 
 詳細は `backend/supabase/SCHEMA.md` を参照。
 
