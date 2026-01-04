@@ -1,0 +1,33 @@
+# pre-commit configuration
+# See https://pre-commit.com for more information
+# Run `pre-commit install` to install hooks
+
+repos:
+  # Ruff - Python linter and formatter (replaces black, isort, flake8)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: [--fix]
+        files: ^backend/
+      # Run the formatter
+      - id: ruff-format
+        files: ^backend/
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Trims trailing whitespace
+      - id: trailing-whitespace
+        exclude: ^(frontend/|.*\.md$)
+      # Ensures files end with a newline
+      - id: end-of-file-fixer
+        exclude: ^frontend/
+      # Checks for large files
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      # Prevents committing to main/master directly (optional, can be removed)
+      # - id: no-commit-to-branch
+      #   args: ['--branch', 'main', '--branch', 'master']
