@@ -58,10 +58,12 @@ cd backend && uv run python ../scripts/generate-vapid-keys.py
 
 **出力例:**
 ```
-VAPID_PUBLIC_KEY=BKskgl3GaVrBGTsY7wMBa7VyTzcwQ9Kf-vWyX9pgbCzdd6HQWDTinWinh8AKjTG3zMx9sBTJx2B2uRYiJI_AOvU
-VAPID_PRIVATE_KEY=HKG4uO6V8EsTKa0kh4dhsM2ZGmPhM0ZfaML_C4PT6BM
+VAPID_PUBLIC_KEY=<生成された公開鍵がここに表示されます>
+VAPID_PRIVATE_KEY=<生成された秘密鍵がここに表示されます>
 VAPID_SUBJECT=mailto:your-email@example.com
 ```
+
+> ⚠️ **重要**: 上記は例であり、実際のキーは絶対にドキュメントやコードにハードコードしないでください。
 
 **使用方法:**
 1. スクリプトを実行してVAPID鍵ペアを生成
