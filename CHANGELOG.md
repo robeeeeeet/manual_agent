@@ -49,6 +49,22 @@
 - `serviceWorker.ts`: Service Worker登録ユーティリティ
 - `src/hooks/` ディレクトリ
 - `AuthForm.tsx`: OTPコード入力フォーム追加
+- マイページ（`/mypage`）: メンテナンス統計、通知設定、通知時刻変更、ログアウト
+- Headerにマイページアイコンリンク追加
+
+**ユーザー設定API（バックエンド）**
+- `user_service.py`: プロファイル取得、設定更新、メンテナンス統計
+- `GET /api/v1/users/me` - プロファイル取得
+- `PATCH /api/v1/users/settings` - 設定更新（notify_time）
+- `GET /api/v1/users/me/maintenance-stats` - メンテナンス統計取得
+
+**ユーザー設定API（BFF層）**
+- `/api/user/me` - プロファイル取得
+- `/api/user/settings` - 設定取得・更新
+- `/api/user/maintenance-stats` - 統計取得
+
+### Changed
+- モバイルメニュー簡素化: ログインユーザーは「家電一覧」「マイページ」のみ表示（家電登録、通知設定、ログアウトはマイページに集約）
 
 **認証フロー**
 - サインアップ時のメール確認をOTPコード方式に変更（PWA対応）

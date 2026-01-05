@@ -193,37 +193,13 @@ export default function Header() {
               {!loading && (
                 <>
                   {user ? (
-                    <>
-                      <Link
-                        href="/register"
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-center"
-                        onClick={() => setIsMenuOpen(false)}
-                      >
-                        家電を登録
-                      </Link>
-                      <Link
-                        href="/mypage"
-                        className="text-gray-600 hover:text-blue-600 transition-colors"
-                        onClick={() => setIsMenuOpen(false)}
-                      >
-                        マイページ
-                      </Link>
-                      {/* Notification Settings (Mobile) */}
-                      <div className="pt-4 border-t border-gray-200">
-                        <NotificationPermission />
-                      </div>
-                      <div className="pt-4 border-t border-gray-200">
-                        <p className="text-sm text-gray-600 mb-2 truncate">
-                          {user.email}
-                        </p>
-                        <button
-                          onClick={handleSignOut}
-                          className="text-red-600 hover:text-red-700 transition-colors text-sm"
-                        >
-                          ログアウト
-                        </button>
-                      </div>
-                    </>
+                    <Link
+                      href="/mypage"
+                      className="text-gray-600 hover:text-blue-600 transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      マイページ
+                    </Link>
                   ) : (
                     <>
                       <Link
