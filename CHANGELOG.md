@@ -9,7 +9,14 @@
 
 ### Added
 
-#### Phase 5: 通知・PWA 🔄 テスト中
+#### Phase 5: 通知・PWA ✅ 完了
+
+**定期リマインド自動化**
+- `send_scheduled_maintenance_reminders()`: ユーザーごとの`notify_time`・`timezone`を考慮したリマインド送信
+- `_get_users_for_scheduled_notification()`: 現在の時刻に通知すべきユーザーを抽出
+- `/api/v1/cron/send-reminders`: Cron用エンドポイント（シークレットキー認証）
+- `scripts/setup-scheduler.sh`: Cloud Schedulerセットアップスクリプト
+- `CRON_SECRET_KEY`: Cronジョブ認証用シークレット（Secret Manager）
 
 **PWA基盤**
 - `manifest.json`: アプリ名、アイコン、テーマカラー設定

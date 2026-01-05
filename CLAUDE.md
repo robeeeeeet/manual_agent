@@ -69,20 +69,22 @@ manual_agent/
 │   │   ├── api/           # BFF層 API Routes
 │   │   │   ├── appliances/# 家電関連API（CRUD、説明書、メンテナンス）
 │   │   │   ├── push/      # Push通知API（subscribe, unsubscribe等）
-│   │   │   └── notifications/ # 通知API（reminders等）
+│   │   │   ├── notifications/ # 通知API（reminders等）
+│   │   │   └── user/      # ユーザーAPI（me, settings, maintenance-stats）
 │   │   ├── auth/callback/ # 認証コールバック
 │   │   ├── login/         # ログインページ
 │   │   ├── signup/        # 新規登録ページ
 │   │   ├── register/      # 家電登録ページ
-│   │   └── appliances/    # 家電一覧・詳細ページ
-│   │       └── [id]/      # 家電詳細ページ（動的ルート）
+│   │   ├── appliances/    # 家電一覧・詳細ページ
+│   │   │   └── [id]/      # 家電詳細ページ（動的ルート）
+│   │   └── mypage/        # マイページ（統計、設定、ログアウト）
 │   ├── src/components/    # UIコンポーネント
 │   │   ├── auth/          # 認証関連（AuthForm）
 │   │   ├── layout/        # Header, Footer
 │   │   ├── notification/  # 通知コンポーネント（NotificationPermission）
 │   │   └── ui/            # Button, Card, Modal
 │   ├── src/hooks/         # カスタムフック
-│   ├── src/types/         # 型定義（appliance.ts）
+│   ├── src/types/         # 型定義（appliance.ts, user.ts）
 │   ├── src/contexts/      # React Context（AuthContext）
 │   ├── src/lib/           # ユーティリティ
 │   │   ├── supabase/      # Supabaseクライアント
@@ -91,7 +93,7 @@ manual_agent/
 │   └── package.json
 ├── backend/               # FastAPI アプリケーション
 │   ├── app/
-│   │   ├── api/routes/    # APIルート（appliances, manuals, notifications, push）
+│   │   ├── api/routes/    # APIルート（appliances, manuals, notifications, push, users）
 │   │   ├── schemas/       # Pydanticスキーマ
 │   │   ├── services/      # ビジネスロジック
 │   │   │   ├── image_recognition.py     # 画像認識
@@ -104,6 +106,7 @@ manual_agent/
 │   │   │   ├── push_subscription_service.py # Push購読管理
 │   │   │   ├── notification_service.py      # Push通知送信
 │   │   │   ├── maintenance_notification_service.py # リマインド通知
+│   │   │   ├── user_service.py          # ユーザープロファイル・設定・統計
 │   │   │   ├── supabase_client.py       # Supabaseクライアント
 │   │   │   └── manufacturer_domain.py   # メーカードメイン
 │   │   └── main.py
@@ -224,10 +227,11 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
 - HEICなど特殊フォーマットのファイルアップロードもテスト対象に含める
 - API連携を含むE2Eフローを確認する
 - エラーケース（API失敗、バリデーションエラー等）も確認する
+- ログイン時は `frontend/.env.local` 記載の `TEST_USER_EMAIL` と `TEST_USER_PASSWORD` を使用する
 
 ## 現在のステータス
 
-**Phase 5: 通知・PWA** 🔄 テスト中
+**Phase 6: QAマークダウン方式 質問応答機能** 準備中
 
 ### 完了済み（Phase 0〜5）
 - ✅ Phase 0〜2: 基盤構築、デプロイ、認証
@@ -241,16 +245,18 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
   - 完了記録UI（完了ボタン、メモ入力モーダル）
   - 履歴表示UI（履歴モーダル、日時・メモ表示）
   - 家電一覧の次回メンテナンス表示（バッジ）
-- 🔄 Phase 5: 通知・PWA（テスト中）
+- ✅ Phase 5: 通知・PWA
   - PWA対応（manifest.json, Service Worker, アイコン）
   - Push通知基盤（購読管理、通知送信サービス）
   - メンテナンスリマインド通知（期限当日・期限間近）
   - 通知許可UIコンポーネント
   - テスト通知送信機能（許可ユーザーのみ）
   - サインアップ時OTPコード方式（PWA対応のためメールリンクから変更）
+  - 定期リマインド自動化（Cloud Scheduler + notify_time対応）
+  - マイページ（メンテナンス統計、通知設定、通知時刻変更、ログアウト）
 
 ### 次のフェーズ
-- Phase 6: RAG・質問応答機能（マニュアルPDFのベクトル化、質問UI）
+- Phase 6: QAマークダウン方式 質問応答機能（製品ごとQA生成、チャットUI）
 
 **本番URL:** https://manual-agent-seven.vercel.app/
 

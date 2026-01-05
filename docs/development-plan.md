@@ -259,7 +259,7 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
   - [x] 次回メンテナンス日バッジ表示
   - [x] 色分け表示（期限切れ: 赤、間近: 黄、余裕あり: 緑）
 
-### Phase 5: 通知・PWA 🔄 テスト中
+### Phase 5: 通知・PWA ✅ 完了
 
 #### 5-1. PWA基盤 ✅ 完了
 - [x] PWA設定
@@ -305,11 +305,33 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
   - [x] `/api/notifications/test` BFFルート
   - [x] 環境変数 `ALLOWED_TEST_NOTIFICATION_USERS` でホワイトリスト管理
 
-#### 5-4. VAPID鍵・テスト ✅ 完了（定期リマインド未実装）
+#### 5-4. VAPID鍵・テスト ✅ 完了
 - [x] VAPID鍵生成スクリプト（`scripts/generate-vapid-keys.py`）
 - [x] 本番環境VAPID鍵設定（Secret Manager登録済み）
 - [x] E2Eテスト（通知許可→購読→通知受信フロー）
-- [ ] 定期リマインド送信の自動化（Cronジョブ等）
+
+#### 5-5. 定期リマインド自動化 ✅ 完了
+- [x] `notify_time`・`timezone`対応のユーザーフィルタリング機能
+- [x] Cron用APIエンドポイント（`/api/v1/cron/send-reminders`）
+- [x] シークレットキー認証（`CRON_SECRET_KEY`）
+- [x] Cloud Schedulerセットアップスクリプト（`scripts/setup-scheduler.sh`）
+- [x] デプロイスクリプト更新（VAPID/CRON_SECRET_KEY追加）
+
+#### 5-6. マイページ機能 ✅ 完了
+- [x] バックエンドAPI実装
+  - [x] `user_service.py` - ユーザーサービス（プロファイル、設定、統計）
+  - [x] `schemas/user.py` - Pydanticスキーマ（UserProfile, MaintenanceStats等）
+  - [x] `routes/users.py` - APIルート（/me, /settings, /me/maintenance-stats）
+- [x] フロントエンドBFF層
+  - [x] `/api/user/me` - プロファイル取得
+  - [x] `/api/user/settings` - 設定取得・更新
+  - [x] `/api/user/maintenance-stats` - メンテナンス統計取得
+- [x] マイページUI（`/mypage`）
+  - [x] メンテナンス統計カード（今週予定、超過、今月完了、累計完了）
+  - [x] 通知設定（NotificationPermission再利用、テスト通知ボタン）
+  - [x] 通知時刻変更（1時間単位セレクト: 00:00〜23:00）
+  - [x] ログアウトボタン
+- [x] Header更新（マイページリンク追加）
 
 ### Phase 6: QAマークダウン方式 質問応答機能
 
@@ -340,7 +362,7 @@ RAGの代わりに、製品ごとにQAマークダウンファイルを作成し
 
 ## 現在のステータス
 
-**現在のフェーズ**: Phase 5（通知・PWA）🔄 進行中
+**現在のフェーズ**: Phase 6（QAマークダウン方式 質問応答機能）準備中
 
 ### 進捗サマリー
 
@@ -353,7 +375,7 @@ RAGの代わりに、製品ごとにQAマークダウンファイルを作成し
 | Phase 3 | ✅ 完了 | 家電登録・説明書取得・詳細画面・メンテナンス項目選択UI |
 | Phase 3.5 | ✅ 完了 | **📱 初回リリース完了！** https://manual-agent-seven.vercel.app/ |
 | Phase 4 | ✅ 完了 | メンテナンス完了記録・履歴表示・次回作業日表示 |
-| Phase 5 | 🔄 残り1件 | PWA・Push通知完了、定期リマインド自動化のみ未実装 |
+| Phase 5 | ✅ 完了 | PWA・Push通知・定期リマインド自動化 |
 | Phase 6+ | ⚪ 未着手 | QAマークダウン方式・拡張機能（[詳細計画](./phase6-qa-implementation-plan.md)） |
 
 ---
@@ -374,17 +396,29 @@ RAGの代わりに、製品ごとにQAマークダウンファイルを作成し
 
 ## 次のステップ
 
-Phase 5（通知・PWA）の主要機能は完了。残りは定期リマインドの自動化のみ：
+Phase 5（通知・PWA）が完了。次は Phase 6 に移行：
 
-### Phase 5: 通知・PWA（残りタスク）
+### 本番環境への定期リマインドデプロイ手順
 
-1. **定期リマインド自動化** - Cloud Scheduler等で毎朝リマインドAPIを呼び出し
-   - `/api/v1/notifications/reminders/send` を定期実行
-   - 期限当日・期限間近の項目をユーザーにPush通知
+```bash
+# 1. CRON_SECRET_KEYを生成してSecret Managerに登録
+CRON_KEY=$(openssl rand -hex 32)
+echo -n "$CRON_KEY" | gcloud secrets create CRON_SECRET_KEY --data-file=- --project=manual-agent-prod
+
+# 2. バックエンドをデプロイ（新しいシークレット含む）
+./scripts/deploy-backend.sh
+
+# 3. Cloud Schedulerジョブを作成
+./scripts/setup-scheduler.sh
+
+# 4. 動作確認（手動実行）
+./scripts/setup-scheduler.sh --trigger
+./scripts/setup-scheduler.sh --status
+```
 
 ### Phase 6 への準備
 
-定期リマインド実装後は、Phase 6（QAマークダウン方式 質問応答機能）に移行：
+Phase 6（QAマークダウン方式 質問応答機能）に移行：
 - 詳細計画: [phase6-qa-implementation-plan.md](./phase6-qa-implementation-plan.md)
 - ストレージ構造の階層化（`mfr_xxx/model/` フォルダ形式）
 - QA生成・チャットサービス実装

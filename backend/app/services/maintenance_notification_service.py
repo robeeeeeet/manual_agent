@@ -234,12 +234,12 @@ async def _send_due_today_notification(
     if count == 1:
         schedule = schedules[0]
         appliance_name = _get_appliance_name(schedule)
-        item_name = schedule.get("item_name", "メンテナンス")
-        title = "本日のメンテナンス"
-        body = f"{appliance_name}の「{item_name}」が本日期限です"
+        item_name = schedule.get("task_name", "お手入れ")
+        title = "今日のお手入れ"
+        body = f"{appliance_name}の『{item_name}』のお手入れのタイミングです"
     else:
-        title = "本日のメンテナンス"
-        body = f"{count}件のメンテナンスが本日期限です"
+        title = "今日のお手入れ"
+        body = f"{count}件のお手入れのタイミングです"
 
     notification_payload = {
         "title": title,
@@ -280,12 +280,12 @@ async def _send_due_soon_notification(
     if count == 1:
         schedule = schedules[0]
         appliance_name = _get_appliance_name(schedule)
-        item_name = schedule.get("item_name", "メンテナンス")
-        title = "メンテナンスのお知らせ"
-        body = f"{appliance_name}の「{item_name}」がまもなく期限です"
+        item_name = schedule.get("task_name", "お手入れ")
+        title = "お手入れのお知らせ"
+        body = f"{appliance_name}の『{item_name}』のお手入れ時期が近づいています"
     else:
-        title = "メンテナンスのお知らせ"
-        body = f"{count}件のメンテナンスがまもなく期限です"
+        title = "お手入れのお知らせ"
+        body = f"{count}件のお手入れ時期が近づいています"
 
     notification_payload = {
         "title": title,
@@ -361,3 +361,155 @@ async def send_test_notification(user_id: str) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to send test notification: {e}")
         return {"success": 0, "failed": 1, "expired": 0, "errors": [str(e)]}
+
+
+async def send_scheduled_maintenance_reminders() -> dict[str, Any]:
+    """
+    Cron用: 現在の時刻に通知すべきユーザーにリマインドを送信。
+
+    ユーザーごとの notify_time と timezone を考慮して、
+    現在の時刻がユーザーの通知時刻と一致する場合のみ通知を送信。
+
+    Returns:
+        Dictionary with results:
+            {
+                "users_processed": int,
+                "notifications_sent": int,
+                "notifications_failed": int,
+                "errors": [str]
+            }
+    """
+    results = {
+        "users_processed": 0,
+        "notifications_sent": 0,
+        "notifications_failed": 0,
+        "errors": [],
+    }
+
+    try:
+        # 現在の時刻に通知すべきユーザーを取得
+        users = await _get_users_for_scheduled_notification()
+        results["users_processed"] = len(users)
+
+        logger.info(f"Found {len(users)} users for scheduled notification")
+
+        for uid in users:
+            try:
+                user_results = await _send_reminders_for_user(uid, days_ahead=7)
+                results["notifications_sent"] += user_results.get("success", 0)
+                results["notifications_failed"] += user_results.get("failed", 0)
+                results["errors"].extend(user_results.get("errors", []))
+            except Exception as e:
+                logger.error(f"Error sending scheduled reminders to user {uid}: {e}")
+                results["errors"].append(f"User {uid}: {str(e)}")
+
+    except Exception as e:
+        logger.error(f"Error in send_scheduled_maintenance_reminders: {e}")
+        results["errors"].append(str(e))
+
+    return results
+
+
+async def _get_users_for_scheduled_notification() -> list[str]:
+    """
+    現在の時刻に通知すべきユーザーIDのリストを取得。
+
+    ユーザーの timezone で現在の時刻を計算し、
+    その時刻が notify_time と一致（同じ時間帯）する場合に通知対象とする。
+
+    Returns:
+        List of user IDs to notify
+    """
+    from zoneinfo import ZoneInfo
+
+    client = get_supabase_client()
+    if not client:
+        return []
+
+    try:
+        # Push購読があり、メンテナンス予定があるユーザーを取得
+        now = datetime.now(UTC)
+        future_date = now + timedelta(days=7)
+
+        # メンテナンス予定があるユーザーを取得
+        schedules_response = (
+            client.table("maintenance_schedules")
+            .select("user_appliances!inner(user_id)")
+            .lte("next_due_at", future_date.isoformat())
+            .gte("next_due_at", now.isoformat())
+            .execute()
+        )
+
+        if not schedules_response.data:
+            logger.info("No users with upcoming maintenance")
+            return []
+
+        # ユニークなユーザーIDを抽出
+        user_ids = set()
+        for item in schedules_response.data:
+            user_appliance = item.get("user_appliances")
+            if user_appliance and user_appliance.get("user_id"):
+                user_ids.add(user_appliance["user_id"])
+
+        if not user_ids:
+            return []
+
+        # 各ユーザーの通知設定を取得してフィルタリング
+        users_to_notify = []
+        for uid in user_ids:
+            # Push購読があるか確認
+            sub_response = (
+                client.table("push_subscriptions")
+                .select("id")
+                .eq("user_id", uid)
+                .limit(1)
+                .execute()
+            )
+            if not sub_response.data:
+                continue
+
+            # ユーザーの通知設定を取得
+            user_response = (
+                client.table("users")
+                .select("notify_time, timezone")
+                .eq("id", uid)
+                .single()
+                .execute()
+            )
+
+            if not user_response.data:
+                continue
+
+            user_data = user_response.data
+            notify_time_str = user_data.get("notify_time", "09:00:00")
+            timezone_str = user_data.get("timezone", "Asia/Tokyo")
+
+            # ユーザーのタイムゾーンで現在の時刻を取得
+            try:
+                user_tz = ZoneInfo(timezone_str)
+            except Exception:
+                user_tz = ZoneInfo("Asia/Tokyo")
+
+            user_now = now.astimezone(user_tz)
+            user_current_hour = user_now.hour
+
+            # notify_time から時間を抽出 (HH:MM:SS 形式)
+            try:
+                notify_hour = int(notify_time_str.split(":")[0])
+            except (ValueError, IndexError):
+                notify_hour = 9  # デフォルト
+
+            # 現在の時間がユーザーの通知時刻と一致するか確認
+            if user_current_hour == notify_hour:
+                users_to_notify.append(uid)
+                logger.info(
+                    f"User {uid} scheduled for notification "
+                    f"(timezone={timezone_str}, notify_time={notify_time_str}, "
+                    f"current_hour={user_current_hour})"
+                )
+
+        return users_to_notify
+
+    except Exception as e:
+        logger.error(f"Error getting users for scheduled notification: {e}")
+        return []

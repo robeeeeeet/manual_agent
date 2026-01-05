@@ -61,6 +61,29 @@ export default function Header() {
                       家電を登録
                     </Link>
                     <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
+                      <span className="text-sm text-gray-600 truncate max-w-[150px]">
+                        {user.email}
+                      </span>
+                      {/* My Page Link */}
+                      <Link
+                        href="/mypage"
+                        className="p-2 text-gray-600 hover:text-blue-600 transition-colors"
+                        aria-label="マイページ"
+                      >
+                        <svg
+                          className="w-6 h-6"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                          />
+                        </svg>
+                      </Link>
                       {/* Notification Bell Icon */}
                       <div className="relative">
                         <button
@@ -97,9 +120,6 @@ export default function Header() {
                           </>
                         )}
                       </div>
-                      <span className="text-sm text-gray-600 truncate max-w-[150px]">
-                        {user.email}
-                      </span>
                       <button
                         onClick={handleSignOut}
                         className="text-gray-600 hover:text-red-600 transition-colors text-sm"
@@ -180,6 +200,13 @@ export default function Header() {
                         onClick={() => setIsMenuOpen(false)}
                       >
                         家電を登録
+                      </Link>
+                      <Link
+                        href="/mypage"
+                        className="text-gray-600 hover:text-blue-600 transition-colors"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        マイページ
                       </Link>
                       {/* Notification Settings (Mobile) */}
                       <div className="pt-4 border-t border-gray-200">

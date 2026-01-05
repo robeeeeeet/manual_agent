@@ -21,6 +21,28 @@ APIレスポンスの型定義を作成する際は、必ずバックエンド�
 - バックエンド: `done_at` / フロントエンド: `completed_at`
 - バックエンド: `user_id` / フロントエンド: `userId`
 
+## BFF層でのレスポンス変換
+
+バックエンドAPIは構造化されたレスポンス（例: `{profile: {...}}`）を返すことが多い。
+BFF層（Next.js API Routes）でフロントエンドが期待する形式に変換すること。
+
+```typescript
+// Bad: バックエンドのレスポンスをそのまま返す
+return NextResponse.json(data, { status: 200 });
+
+// Good: フロントエンドの期待する形式に変換
+const profile = data.profile;
+return NextResponse.json({
+  notify_time: profile?.notify_time?.substring(0, 5) || "09:00",
+  timezone: profile?.timezone || "Asia/Tokyo",
+});
+```
+
+## GETメソッドの実装忘れ
+
+設定取得APIなど、GETとPATCH両方が必要なエンドポイントでは、両方のメソッドを実装すること。
+GETメソッドを忘れると `405 Method Not Allowed` エラーになる。
+
 ## E2Eテスト前のチェック
 
 テスト実行前に両サーバーが起動していることを確認:

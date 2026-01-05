@@ -10,10 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
     appliances,
+    cron,
     health,
     manuals,
     notifications,
     push_subscriptions,
+    users,
 )
 from app.config import settings
 
@@ -95,6 +97,14 @@ app.include_router(
 )
 app.include_router(
     notifications.router,
+    prefix=settings.api_v1_prefix,
+)
+app.include_router(
+    cron.router,
+    prefix=settings.api_v1_prefix,
+)
+app.include_router(
+    users.router,
     prefix=settings.api_v1_prefix,
 )
 

@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     vapid_private_key: str | None = None
     vapid_subject: str | None = None
 
+    # Cron Job Authentication
+    cron_secret_key: str | None = None
+
     # API Configuration
     api_v1_prefix: str = "/api/v1"
     project_name: str = "Manual Agent Backend"
