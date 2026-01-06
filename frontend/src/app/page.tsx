@@ -76,7 +76,7 @@ export default function Home() {
     now.setHours(0, 0, 0, 0);
     const dueDate = new Date(dateString);
     dueDate.setHours(0, 0, 0, 0);
-    return Math.ceil(
+    return Math.floor(
       (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
     );
   };
