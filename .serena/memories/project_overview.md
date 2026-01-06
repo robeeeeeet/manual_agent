@@ -113,6 +113,10 @@ manual_agent/
   - QAフィードバック機能（いいね/悪いね評価）
   - QAサービス群（qa_service, qa_chat_service, qa_rating_service）
   - テキストキャッシュサービス（text_cache_service）
+  - QA不正利用防止機能（qa_abuse_service）
+    - 認証必須化（ログインユーザーのみQA機能利用可）
+    - ルールベース + LLM ハイブリッド質問検証
+    - 違反記録・段階的利用制限（1回目=警告、2回目=1時間、3回目=24時間、4回目以降=7日間）
 
 ### 次のフェーズ
 - Phase 7: 追加機能・改善（検討中）

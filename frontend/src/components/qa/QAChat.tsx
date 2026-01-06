@@ -1,7 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChatMessage, QAStreamEvent, SearchProgress } from '@/types/qa';
+import {
+  ChatMessage,
+  QAStreamEvent,
+  SearchProgress,
+  QAError,
+  QABlockedError,
+  InvalidQuestionError,
+} from '@/types/qa';
 import { QAChatMessage } from './QAChatMessage';
 import { SearchProgressIndicator } from './SearchProgressIndicator';
 import Button from '@/components/ui/Button';
@@ -10,6 +17,69 @@ import Modal from '@/components/ui/Modal';
 interface QAChatProps {
   sharedApplianceId: string;
   productName: string;
+}
+
+// 相対時間を計算（○時間○分）
+function getRelativeTime(isoDate: string): string {
+  const now = new Date();
+  const target = new Date(isoDate);
+  const diffMs = target.getTime() - now.getTime();
+
+  if (diffMs <= 0) {
+    return '制限解除されました';
+  }
+
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+  if (hours > 0) {
+    return `あと${hours}時間${minutes}分`;
+  } else {
+    return `あと${minutes}分`;
+  }
+}
+
+// エラーメッセージを作成
+function createErrorMessage(error: QAError): ChatMessage {
+  let content = '';
+
+  if ('code' in error && error.code === 'QA_BLOCKED') {
+    const blockedError = error as QABlockedError;
+    const relativeTime = getRelativeTime(blockedError.restricted_until);
+    content = `🚫 QA機能が一時的に制限されています
+
+制限解除時刻: ${relativeTime}
+違反回数: ${blockedError.violation_count}回
+
+不適切な質問が続いたため、一時的にQA機能のご利用を制限させていただいております。
+制限解除後は、製品に関する適切な質問をお願いします。`;
+  } else if ('code' in error && error.code === 'INVALID_QUESTION') {
+    const invalidError = error as InvalidQuestionError;
+    const violationText =
+      invalidError.violation_type === 'off_topic'
+        ? '製品に関係のない質問'
+        : invalidError.violation_type === 'inappropriate'
+          ? '不適切な内容の質問'
+          : 'システムへの攻撃的な質問';
+
+    content = `⚠️ この質問は受け付けられませんでした
+
+理由: ${violationText}
+詳細: ${invalidError.reason}
+
+製品の使い方やメンテナンス方法など、説明書の内容に関連する質問をお願いします。
+
+⚠️ ご注意: 関係のない質問を繰り返すと、QA機能のご利用が一時的に制限されます。`;
+  } else {
+    content = error.error || '不明なエラーが発生しました。';
+  }
+
+  return {
+    id: Date.now().toString(),
+    type: 'assistant',
+    content,
+    timestamp: new Date(),
+  };
 }
 
 export function QAChat({ sharedApplianceId, productName }: QAChatProps) {
@@ -63,7 +133,37 @@ export function QAChat({ sharedApplianceId, productName }: QAChatProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get answer');
+        // エラーレスポンスをパース
+        const errorData: QAError = await response.json();
+
+        // 401 Unauthorized
+        if (response.status === 401) {
+          const errorMessage: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: `🔒 認証が必要です
+
+QA機能をご利用いただくには、ログインが必要です。
+お手数ですが、ログインページからログインしてください。`,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, errorMessage]);
+          setSearchProgress(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // 403 QA_BLOCKED または 400 INVALID_QUESTION
+        if (response.status === 403 || response.status === 400) {
+          const errorMessage = createErrorMessage(errorData);
+          setMessages((prev) => [...prev, errorMessage]);
+          setSearchProgress(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // その他のエラー
+        throw new Error(errorData.error || 'Failed to get answer');
       }
 
       const reader = response.body?.getReader();

@@ -114,6 +114,7 @@ manual_agent/
 │   │   │   ├── qa_service.py            # QA検索・生成サービス
 │   │   │   ├── qa_chat_service.py       # QAチャット（LLM対話）
 │   │   │   ├── qa_rating_service.py     # QAフィードバック評価
+│   │   │   ├── qa_abuse_service.py      # QA不正利用防止（質問検証、違反記録、利用制限）
 │   │   │   ├── text_cache_service.py    # PDFテキストキャッシュ
 │   │   │   └── image_conversion.py      # 画像変換（HEIC等）
 │   │   └── main.py
@@ -268,6 +269,11 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
   - QAフィードバック機能（いいね/悪いね評価、qa_ratings テーブル）
   - QAサービス群（qa_service, qa_chat_service, qa_rating_service）
   - テキストキャッシュサービス（text_cache_service）
+  - QA不正利用防止機能（qa_abuse_service）
+    - 認証必須化（X-User-Id ヘッダー）
+    - ルールベース + LLM ハイブリッド質問検証
+    - 違反記録（qa_violations テーブル）
+    - 段階的利用制限（qa_restrictions テーブル: 1回目=警告、2回目=1時間、3回目=24時間、4回目以降=7日間）
 
 ### 次のフェーズ
 - Phase 7: 追加機能・改善（検討中）

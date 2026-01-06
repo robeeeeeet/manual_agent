@@ -5,7 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.schemas.qa import (
     QAAskRequest,
@@ -18,7 +18,14 @@ from app.schemas.qa import (
     QAGenerateResponse,
     QAGetResponse,
 )
+from app.schemas.qa_abuse import InvalidQuestionError, QABlockedError
 from app.services.pdf_storage import MANUALS_BUCKET
+from app.services.qa_abuse_service import (
+    check_user_restriction,
+    record_violation,
+    update_restriction,
+    validate_question,
+)
 from app.services.qa_chat_service import answer_question
 from app.services.qa_rating_service import insert_rating
 from app.services.qa_service import (
@@ -175,20 +182,78 @@ async def get_qa(shared_appliance_id: str):
 
 
 @router.post("/{shared_appliance_id}/ask", response_model=QAAskResponse)
-async def ask_question(shared_appliance_id: str, request: QAAskRequest):
+async def ask_question(
+    shared_appliance_id: str,
+    request: QAAskRequest,
+    x_user_id: Annotated[str | None, Header()] = None,
+):
     """
-    Ask a question about a shared appliance.
+    Ask a question about a shared appliance (requires authentication).
 
     Args:
         shared_appliance_id: Shared appliance ID
         request: Question request
+        x_user_id: User ID from header (required)
 
     Returns:
         Answer with source and reference
+
+    Raises:
+        401: If user is not authenticated
+        403: If user is restricted from using QA
+        400: If question is invalid (off-topic, inappropriate, etc.)
     """
+    # 1. Require authentication
+    user_id = _get_user_id_from_header(x_user_id)
+    user_id_str = str(user_id)
+
+    # 2. Check if user is restricted
+    restriction = await check_user_restriction(user_id_str)
+    if restriction:
+        error_response = QABlockedError(
+            error="QA機能は現在制限されています",
+            code="QA_BLOCKED",
+            restricted_until=restriction["restricted_until"],
+            violation_count=restriction["violation_count"],
+        )
+        return JSONResponse(
+            status_code=403,
+            content=error_response.model_dump(mode="json"),
+        )
+
     appliance = await get_shared_appliance(shared_appliance_id)
 
-    # Get PDF bytes if available
+    # 3. Validate question
+    is_valid, error_info = await validate_question(
+        request.question,
+        appliance["maker"],
+        appliance["model_number"],
+        appliance.get("category", ""),
+    )
+
+    if not is_valid and error_info:
+        # Record violation and update restriction
+        await record_violation(
+            user_id_str,
+            shared_appliance_id,
+            request.question,
+            error_info["violation_type"],
+            error_info["detection_method"],
+        )
+        await update_restriction(user_id_str)
+
+        error_response = InvalidQuestionError(
+            error="この質問は製品に関連していないため回答できません",
+            code="INVALID_QUESTION",
+            violation_type=error_info["violation_type"],
+            reason=error_info["reason"],
+        )
+        return JSONResponse(
+            status_code=400,
+            content=error_response.model_dump(mode="json"),
+        )
+
+    # 4. Get PDF bytes if available
     pdf_bytes = None
     if appliance.get("stored_pdf_path"):
         try:
@@ -196,6 +261,7 @@ async def ask_question(shared_appliance_id: str, request: QAAskRequest):
         except Exception as e:
             logger.warning(f"Failed to get PDF: {e}")
 
+    # 5. Generate answer
     result = await answer_question(
         request.question,
         appliance["maker"],
@@ -212,9 +278,13 @@ async def ask_question(shared_appliance_id: str, request: QAAskRequest):
 
 
 @router.post("/{shared_appliance_id}/ask-stream")
-async def ask_question_stream(shared_appliance_id: str, request: QAAskRequest):
+async def ask_question_stream(
+    shared_appliance_id: str,
+    request: QAAskRequest,
+    x_user_id: Annotated[str | None, Header()] = None,
+):
     """
-    Ask a question with streaming progress updates via SSE.
+    Ask a question with streaming progress updates via SSE (requires authentication).
 
     Returns Server-Sent Events with step progress and final answer.
     Events:
@@ -226,15 +296,69 @@ async def ask_question_stream(shared_appliance_id: str, request: QAAskRequest):
     Args:
         shared_appliance_id: Shared appliance ID
         request: Question request
+        x_user_id: User ID from header (required)
 
     Returns:
         StreamingResponse with SSE events
+
+    Raises:
+        401: If user is not authenticated
+        403: If user is restricted from using QA
+        400: If question is invalid (off-topic, inappropriate, etc.)
     """
     from app.services.qa_chat_service import answer_question_stream
 
+    # 1. Require authentication
+    user_id = _get_user_id_from_header(x_user_id)
+    user_id_str = str(user_id)
+
+    # 2. Check if user is restricted
+    restriction = await check_user_restriction(user_id_str)
+    if restriction:
+        error_response = QABlockedError(
+            error="QA機能は現在制限されています",
+            code="QA_BLOCKED",
+            restricted_until=restriction["restricted_until"],
+            violation_count=restriction["violation_count"],
+        )
+        return JSONResponse(
+            status_code=403,
+            content=error_response.model_dump(mode="json"),
+        )
+
     appliance = await get_shared_appliance(shared_appliance_id)
 
-    # Get PDF bytes if available
+    # 3. Validate question
+    is_valid, error_info = await validate_question(
+        request.question,
+        appliance["maker"],
+        appliance["model_number"],
+        appliance.get("category", ""),
+    )
+
+    if not is_valid and error_info:
+        # Record violation and update restriction
+        await record_violation(
+            user_id_str,
+            shared_appliance_id,
+            request.question,
+            error_info["violation_type"],
+            error_info["detection_method"],
+        )
+        await update_restriction(user_id_str)
+
+        error_response = InvalidQuestionError(
+            error="この質問は製品に関連していないため回答できません",
+            code="INVALID_QUESTION",
+            violation_type=error_info["violation_type"],
+            reason=error_info["reason"],
+        )
+        return JSONResponse(
+            status_code=400,
+            content=error_response.model_dump(mode="json"),
+        )
+
+    # 4. Get PDF bytes if available
     pdf_bytes = None
     if appliance.get("stored_pdf_path"):
         try:
@@ -242,6 +366,7 @@ async def ask_question_stream(shared_appliance_id: str, request: QAAskRequest):
         except Exception as e:
             logger.warning(f"Failed to get PDF: {e}")
 
+    # 5. Generate streaming response
     async def generate():
         """Generate SSE events."""
         try:

@@ -79,3 +79,28 @@ export interface SearchProgress {
   stepName: string;
   completedSteps: number[];
 }
+
+// QAエラーコード
+export type QAErrorCode = 'UNAUTHORIZED' | 'QA_BLOCKED' | 'INVALID_QUESTION';
+
+// QA機能制限中のエラー
+export interface QABlockedError {
+  error: string;
+  code: 'QA_BLOCKED';
+  restricted_until: string; // ISO日時
+  violation_count: number;
+}
+
+// 不適切な質問のエラー
+export interface InvalidQuestionError {
+  error: string;
+  code: 'INVALID_QUESTION';
+  violation_type: 'off_topic' | 'inappropriate' | 'attack';
+  reason: string;
+}
+
+// QAエラー（統合型）
+export type QAError =
+  | QABlockedError
+  | InvalidQuestionError
+  | { error: string; code?: string };
