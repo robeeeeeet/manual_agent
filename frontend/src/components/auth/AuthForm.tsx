@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import Button from "@/components/ui/Button";
@@ -23,6 +23,8 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
   const { signIn, signUp, verifyOtp } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirectTo") || "/";
 
   const isLogin = mode === "login";
   const title = isLogin ? "ログイン" : "新規登録";
@@ -30,7 +32,9 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const switchText = isLogin
     ? "アカウントをお持ちでない方"
     : "すでにアカウントをお持ちの方";
-  const switchLink = isLogin ? "/signup" : "/login";
+  const baseSwitchLink = isLogin ? "/signup" : "/login";
+  const switchLink =
+    redirectTo !== "/" ? `${baseSwitchLink}?redirectTo=${encodeURIComponent(redirectTo)}` : baseSwitchLink;
   const switchLinkText = isLogin ? "新規登録" : "ログイン";
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -68,7 +72,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
             setError(error.message);
           }
         } else {
-          router.push("/");
+          router.push(redirectTo);
           router.refresh();
         }
       } else {
@@ -115,7 +119,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
           setError(error.message);
         }
       } else {
-        router.push("/");
+        router.push(redirectTo);
         router.refresh();
       }
     } catch {
