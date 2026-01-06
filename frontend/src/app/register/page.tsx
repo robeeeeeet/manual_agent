@@ -1602,7 +1602,7 @@ export default function RegisterPage() {
                               className="flex-1"
                             >
                               {isConfirmingManual
-                                ? "確認中..."
+                                ? "PDF保存・Q&A生成中..."
                                 : "この説明書であっています"}
                             </Button>
                             <Button
@@ -1614,6 +1614,11 @@ export default function RegisterPage() {
                               違う説明書を探す
                             </Button>
                           </div>
+                          {isConfirmingManual && (
+                            <p className="text-sm text-amber-700 mt-3 text-center">
+                              説明書PDFを保存し、Q&Aを自動生成しています。しばらくお待ちください。
+                            </p>
+                          )}
                         </div>
                       ) : (
                         <>
@@ -1634,7 +1639,7 @@ export default function RegisterPage() {
                           </Button>
                           {(isFetchingMaintenanceItems || isExtractingMaintenance) && (
                             <p className="text-sm text-gray-500 mt-2 text-center">
-                              この処理は時間がかかる場合があります。しばらくお待ちください。
+                              説明書を解析してメンテナンス項目を取得しています。しばらくお待ちください。
                             </p>
                           )}
                         </>

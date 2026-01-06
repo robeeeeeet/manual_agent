@@ -77,6 +77,29 @@
 │                           │ name (UNIQUE)                 │                     │
 │                           │ display_order                 │                     │
 │                           └───────────────────────────────┘                     │
+│                                                                                  │
+│                           ┌───────────────────────────────┐                     │
+│                           │   qa_violations               │                     │
+│                           ├───────────────────────────────┤                     │
+│                           │ id (PK)                       │                     │
+│                           │ user_id (FK → users)          │                     │
+│                           │ shared_appliance_id (FK)      │                     │
+│                           │ question                      │                     │
+│                           │ violation_type                │                     │
+│                           │ detection_method              │                     │
+│                           │ created_at                    │                     │
+│                           └───────────────────────────────┘                     │
+│                                                                                  │
+│                           ┌───────────────────────────────┐                     │
+│                           │   qa_restrictions             │                     │
+│                           ├───────────────────────────────┤                     │
+│                           │ id (PK)                       │                     │
+│                           │ user_id (FK → users, UNIQUE)  │                     │
+│                           │ violation_count               │                     │
+│                           │ restricted_until              │                     │
+│                           │ last_violation_at             │                     │
+│                           │ created_at, updated_at        │                     │
+│                           └───────────────────────────────┘                     │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -267,6 +290,54 @@ PWA プッシュ通知の購読設定を管理するテーブル。
 6. 住宅設備
 7. その他
 
+### 9. qa_violations（QA違反記録）
+
+QA機能に対する違反（不適切な質問）を記録するテーブル。
+
+| カラム名 | 型 | NULL | デフォルト | 説明 |
+|---------|-----|------|-----------|------|
+| `id` | UUID | NOT NULL | gen_random_uuid() | 違反記録ID（PK） |
+| `user_id` | UUID | NOT NULL | - | 違反したユーザーID（FK → users） |
+| `shared_appliance_id` | UUID | NOT NULL | - | 質問対象の製品ID（FK → shared_appliances） |
+| `question` | TEXT | NOT NULL | - | 違反した質問内容 |
+| `violation_type` | TEXT | NOT NULL | - | 違反タイプ: 'off_topic', 'inappropriate', 'attack' |
+| `detection_method` | TEXT | NOT NULL | - | 検出方法: 'rule_based', 'llm' |
+| `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 違反日時 |
+
+**制約**:
+- `violation_type` は 'off_topic', 'inappropriate', 'attack' のいずれか
+- `detection_method` は 'rule_based', 'llm' のいずれか
+
+**インデックス**: `user_id`, `shared_appliance_id`, `violation_type`
+
+**RLS**: 自分の違反記録のみ閲覧可能、INSERT/UPDATE/DELETEはservice_roleのみ
+
+### 10. qa_restrictions（QA利用制限）
+
+ユーザーのQA機能利用制限状態を管理するテーブル。
+
+| カラム名 | 型 | NULL | デフォルト | 説明 |
+|---------|-----|------|-----------|------|
+| `id` | UUID | NOT NULL | gen_random_uuid() | 制限ID（PK） |
+| `user_id` | UUID | NOT NULL | - | ユーザーID（UNIQUE、FK → users） |
+| `violation_count` | INTEGER | NOT NULL | 0 | 累計違反回数 |
+| `restricted_until` | TIMESTAMPTZ | NULL | - | 制限解除日時（NULLなら制限なし） |
+| `last_violation_at` | TIMESTAMPTZ | NULL | - | 最終違反日時 |
+| `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
+| `updated_at` | TIMESTAMPTZ | NOT NULL | NOW() | 更新日時 |
+
+**制約**: `user_id` は UNIQUE（1ユーザー1レコード）
+
+**インデックス**: `user_id`, `restricted_until`（制限中ユーザー一覧用）
+
+**RLS**: 自分の制限状態のみ閲覧可能、INSERT/UPDATE/DELETEはservice_roleのみ
+
+**制限時間設定**（バックエンド実装で制御）:
+- 1回目: 制限なし（拒否するが即時再利用可能）
+- 2回目: 1時間
+- 3回目: 24時間
+- 4回目以降: 7日間
+
 ## Row Level Security (RLS) ポリシー
 
 ### users
@@ -330,6 +401,24 @@ PWA プッシュ通知の購読設定を管理するテーブル。
 | UPDATE | - | 管理者のみ（将来実装） |
 | DELETE | - | 管理者のみ（将来実装） |
 
+### qa_violations
+
+| 操作 | ポリシー名 | 条件 |
+|-----|----------|------|
+| SELECT | Users can view own violations | `auth.uid() = user_id` |
+| INSERT | - | service_roleのみ（バックエンド経由） |
+| UPDATE | - | 禁止 |
+| DELETE | - | 禁止 |
+
+### qa_restrictions
+
+| 操作 | ポリシー名 | 条件 |
+|-----|----------|------|
+| SELECT | Users can view own restrictions | `auth.uid() = user_id` |
+| INSERT | - | service_roleのみ（バックエンド経由） |
+| UPDATE | - | service_roleのみ（バックエンド経由） |
+| DELETE | - | 禁止 |
+
 ## インデックス戦略
 
 ### 作成済みインデックス
@@ -359,6 +448,7 @@ PWA プッシュ通知の購読設定を管理するテーブル。
 - `user_appliances`
 - `maintenance_schedules`
 - `push_subscriptions`
+- `qa_restrictions`
 
 **トリガー関数**: `update_updated_at_column()`
 
@@ -371,6 +461,23 @@ PWA プッシュ通知の購読設定を管理するテーブル。
 **注意**: UUID生成には `gen_random_uuid()` を使用（PostgreSQL 13+標準機能、拡張不要）
 
 ## 設計の変更履歴
+
+### 2026-01-07: QA不正利用防止機能追加
+
+**追加されたもの**:
+- `qa_violations` テーブル: QA機能への違反（不適切な質問）を記録
+- `qa_restrictions` テーブル: ユーザーのQA機能利用制限状態を管理
+
+**設計意図**:
+- 製品に関係ない質問、攻撃的な質問、プロンプトインジェクションを検出して拒否
+- 繰り返し違反したユーザーに対して段階的な利用制限を適用
+- ルールベース判定（高速・無料）+ LLM判定（精度重視）のハイブリッド方式
+
+**制限時間設定**:
+- 1回目: 制限なし（拒否するが即時再利用可能）
+- 2回目: 1時間
+- 3回目: 24時間
+- 4回目以降: 7日間
 
 ### 2026-01-03: メンテナンス項目キャッシュ機能追加
 

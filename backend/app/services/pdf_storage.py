@@ -80,7 +80,10 @@ def generate_storage_path(manufacturer: str, model_number: str) -> str:
     """
     Generate a storage path for a PDF based on manufacturer and model number.
 
-    Path format: {normalized_manufacturer}/{normalized_model_number}.pdf
+    Path format (new): {normalized_manufacturer}/{normalized_model_number}/manual.pdf
+
+    Note: Old format was {normalized_manufacturer}/{normalized_model_number}.pdf
+    This was updated in Phase 6 to support the folder structure for QA and text_cache files.
 
     Args:
         manufacturer: Manufacturer name
@@ -89,9 +92,68 @@ def generate_storage_path(manufacturer: str, model_number: str) -> str:
     Returns:
         Storage path string
     """
+    # Use new folder structure: mfr_xxx/model/manual.pdf
     norm_manufacturer = normalize_manufacturer(manufacturer)
     norm_model = normalize_model_number(model_number)
-    return f"{norm_manufacturer}/{norm_model}.pdf"
+    return f"{norm_manufacturer}/{norm_model}/manual.pdf"
+
+
+def generate_folder_path(manufacturer: str, model_number: str) -> str:
+    """
+    Generate folder path for a product: {normalized_manufacturer}/{normalized_model}/
+
+    Args:
+        manufacturer: Manufacturer name
+        model_number: Model number
+
+    Returns:
+        Folder path string (with trailing slash)
+    """
+    norm_manufacturer = normalize_manufacturer(manufacturer)
+    norm_model = normalize_model_number(model_number)
+    return f"{norm_manufacturer}/{norm_model}"
+
+
+def get_qa_path(manufacturer: str, model_number: str) -> str:
+    """
+    Generate QA file path: {normalized_manufacturer}/{normalized_model}/qa.md
+
+    Args:
+        manufacturer: Manufacturer name
+        model_number: Model number
+
+    Returns:
+        QA file path string
+    """
+    return f"{generate_folder_path(manufacturer, model_number)}/qa.md"
+
+
+def get_text_cache_path(manufacturer: str, model_number: str) -> str:
+    """
+    Generate text cache path: {normalized_manufacturer}/{normalized_model}/text_cache.md
+
+    Args:
+        manufacturer: Manufacturer name
+        model_number: Model number
+
+    Returns:
+        Text cache path string
+    """
+    return f"{generate_folder_path(manufacturer, model_number)}/text_cache.md"
+
+
+def get_manual_pdf_path(manufacturer: str, model_number: str) -> str:
+    """
+    Generate manual PDF path (new folder format): {normalized_manufacturer}/{normalized_model}/manual.pdf
+
+    Args:
+        manufacturer: Manufacturer name
+        model_number: Model number
+
+    Returns:
+        Manual PDF path string
+    """
+    return f"{generate_folder_path(manufacturer, model_number)}/manual.pdf"
 
 
 async def download_pdf(url: str, timeout: float = 60.0) -> bytes | None:

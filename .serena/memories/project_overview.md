@@ -81,9 +81,9 @@ manual_agent/
 
 ## 現在のステータス
 
-**Phase 5: 通知・PWA** 🔄 テスト中
+**Phase 6: QAマークダウン方式 質問応答機能** 実装済み
 
-### 実装済み機能（Phase 0〜5）
+### 実装済み機能（Phase 0〜6）
 - 共有マスター方式のデータベース設計（shared_appliances / user_appliances）
 - メンテナンス項目キャッシュシステム（shared_maintenance_items）
 - 家電CRUD API（バックエンド + BFF層）
@@ -98,7 +98,7 @@ manual_agent/
 - 完了記録UI（完了ボタン、メモ入力モーダル）
 - 履歴表示UI（履歴モーダル、日時・メモ表示）
 - 家電一覧の次回メンテナンス表示（バッジ）
-- フロントエンド型定義（src/types/appliance.ts）
+- フロントエンド型定義（src/types/appliance.ts, src/types/qa.ts）
 - Modalコンポーネント
 - **PWA対応（manifest.json, Service Worker, アイコン）**
 - **Push通知基盤（購読管理、通知送信サービス）**
@@ -106,9 +106,20 @@ manual_agent/
 - **通知許可UIコンポーネント（NotificationPermission）**
 - **マイページ機能（メンテナンス統計、通知設定、通知時刻変更、ログアウト）**
 - **ユーザー設定API（プロファイル取得、設定更新、統計取得）**
+- **QA質問応答機能（家電詳細ページに統合）**
+  - QAチャットUI（QASection, QAChat, QAChatMessage）
+  - 3段階フォールバック検索（QA検索 → テキスト検索 → PDF分析）
+  - SSEストリーミング進捗表示（SearchProgressIndicator）
+  - QAフィードバック機能（いいね/悪いね評価）
+  - QAサービス群（qa_service, qa_chat_service, qa_rating_service）
+  - テキストキャッシュサービス（text_cache_service）
+  - QA不正利用防止機能（qa_abuse_service）
+    - 認証必須化（ログインユーザーのみQA機能利用可）
+    - ルールベース + LLM ハイブリッド質問検証
+    - 違反記録・段階的利用制限（1回目=警告、2回目=1時間、3回目=24時間、4回目以降=7日間）
 
 ### 次のフェーズ
-- Phase 6: QAマークダウン方式 質問応答機能（製品ごとQA生成、チャットUI）
+- Phase 7: 追加機能・改善（検討中）
 
 ## 重要な設計判断
 

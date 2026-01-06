@@ -333,25 +333,65 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
   - [x] ログアウトボタン
 - [x] Header更新（マイページリンク追加）
 
-### Phase 6: QAマークダウン方式 質問応答機能
+### Phase 6: QAマークダウン方式 質問応答機能 ✅ 完了
 
-**詳細計画**: [phase6-qa-implementation-plan.md](./phase6-qa-implementation-plan.md)
+**詳細計画**: [phase6-qa-implementation-plan.md](./plans/phase6-qa-implementation-plan.md)
 
 RAGの代わりに、製品ごとにQAマークダウンファイルを作成してLLMに読み取らせるアプローチを採用。
 
 **設計方針**:
 - 保存形式: Markdownファイル（Supabase Storage）
 - 生成タイミング: 説明書確認時に自動生成 + バッチ処理
-- PDF参照方式: ハイブリッド（QA → テキストキャッシュ → PDF）
+- PDF参照方式: ハイブリッド（QA検索 → テキスト検索 → PDF分析）
 
-**主要タスク**:
-- [ ] ストレージ構造移行（`mfr_xxx/model/` フォルダ形式へ）
-- [ ] テキストキャッシュサービス実装
-- [ ] QA生成サービス実装
-- [ ] QAチャットサービス実装（対話型質問応答）
-- [ ] バックエンドAPI実装（生成・取得・質問・フィードバック）
-- [ ] フロントエンドUI実装（チャット形式QAセクション）
-- [ ] バッチ処理スクリプト（既存PDF用QA一括生成）
+#### 6-1. バックエンドサービス実装 ✅ 完了
+- [x] テキストキャッシュサービス（`text_cache_service.py`）
+  - [x] PDFからテキスト抽出・キャッシュ保存
+  - [x] キャッシュ済みテキストの取得
+- [x] QAサービス（`qa_service.py`）
+  - [x] QAマークダウン生成（Gemini）
+  - [x] QA検索（キーワードマッチング）
+  - [x] テキスト検索（セクション検索）
+  - [x] PDF分析（LLM直接分析）
+- [x] QAチャットサービス（`qa_chat_service.py`）
+  - [x] 3段階フォールバック検索ロジック
+  - [x] SSEストリーミング進捗通知
+- [x] QA評価サービス（`qa_rating_service.py`）
+  - [x] フィードバック保存（いいね/悪いね）
+- [x] マイグレーション（`00008_qa_ratings.sql`）
+
+#### 6-2. バックエンドAPI実装 ✅ 完了
+- [x] APIルート（`qa.py`）
+  - [x] `GET /api/v1/qa/{shared_appliance_id}` - QA取得
+  - [x] `POST /api/v1/qa/{shared_appliance_id}/generate` - QA生成
+  - [x] `POST /api/v1/qa/{shared_appliance_id}/ask` - 質問応答
+  - [x] `POST /api/v1/qa/{shared_appliance_id}/ask-stream` - 質問応答（SSE）
+  - [x] `POST /api/v1/qa/{shared_appliance_id}/feedback` - フィードバック登録
+- [x] Pydanticスキーマ（`qa.py`）
+
+#### 6-3. フロントエンドBFF層実装 ✅ 完了
+- [x] `/api/qa/[sharedApplianceId]` - QA取得
+- [x] `/api/qa/[sharedApplianceId]/generate` - QA生成
+- [x] `/api/qa/[sharedApplianceId]/ask` - 質問応答
+- [x] `/api/qa/[sharedApplianceId]/ask-stream` - 質問応答（SSE）
+- [x] `/api/qa/[sharedApplianceId]/feedback` - フィードバック登録
+
+#### 6-4. フロントエンドUI実装 ✅ 完了
+- [x] 型定義（`src/types/qa.ts`）
+- [x] コンポーネント（`src/components/qa/`）
+  - [x] `QASection.tsx` - QAセクションコンテナ
+  - [x] `QAChat.tsx` - チャットUI
+  - [x] `QAChatMessage.tsx` - メッセージ表示
+  - [x] `QAFeedbackButtons.tsx` - フィードバックボタン
+  - [x] `SearchProgressIndicator.tsx` - 進捗表示（SSE連携）
+- [x] 家電詳細画面（`/appliances/[id]`）への統合
+
+#### 6-5. バッチ処理 ✅ 完了
+- [x] バッチ処理スクリプト（`scripts/batch_generate_qa.py`）- 既存PDF用QA一括生成
+  - [x] コマンドラインオプション（--limit, --delay, --force, --dry-run）
+  - [x] 既存QAスキップ機能
+  - [x] レート制限対策（遅延設定）
+  - [x] 結果サマリー表示
 
 ### Phase 7 以降: 拡張機能
 - [ ] 家族グループ共有
@@ -362,7 +402,7 @@ RAGの代わりに、製品ごとにQAマークダウンファイルを作成し
 
 ## 現在のステータス
 
-**現在のフェーズ**: Phase 6（QAマークダウン方式 質問応答機能）準備中
+**現在のフェーズ**: Phase 6（QAマークダウン方式 質問応答機能）✅ 完了
 
 ### 進捗サマリー
 
@@ -376,7 +416,8 @@ RAGの代わりに、製品ごとにQAマークダウンファイルを作成し
 | Phase 3.5 | ✅ 完了 | **📱 初回リリース完了！** https://manual-agent-seven.vercel.app/ |
 | Phase 4 | ✅ 完了 | メンテナンス完了記録・履歴表示・次回作業日表示 |
 | Phase 5 | ✅ 完了 | PWA・Push通知・定期リマインド自動化 |
-| Phase 6+ | ⚪ 未着手 | QAマークダウン方式・拡張機能（[詳細計画](./phase6-qa-implementation-plan.md)） |
+| Phase 6 | ✅ 完了 | QAマークダウン方式質問応答機能・チャットUI・フィードバック |
+| Phase 7+ | ⚪ 未着手 | 拡張機能（家族グループ共有、LINE通知等） |
 
 ---
 
@@ -396,30 +437,23 @@ RAGの代わりに、製品ごとにQAマークダウンファイルを作成し
 
 ## 次のステップ
 
-Phase 5（通知・PWA）が完了。次は Phase 6 に移行：
+Phase 6（QAマークダウン方式 質問応答機能）が完了。
 
-### 本番環境への定期リマインドデプロイ手順
+### Phase 6 完了内容
 
-```bash
-# 1. CRON_SECRET_KEYを生成してSecret Managerに登録
-CRON_KEY=$(openssl rand -hex 32)
-echo -n "$CRON_KEY" | gcloud secrets create CRON_SECRET_KEY --data-file=- --project=manual-agent-prod
+- ✅ 3段階フォールバック検索（QA → テキスト → PDF分析）
+- ✅ SSEストリーミング進捗表示
+- ✅ QAチャットUI（家電詳細画面に統合）
+- ✅ フィードバック機能（いいね/悪いね評価）
+- ✅ バッチ処理スクリプト（`scripts/batch_generate_qa.py`）
+- ✅ QA不正利用防止機能
+  - 認証必須化（ログインユーザーのみQA機能利用可）
+  - ルールベース + LLM ハイブリッド質問検証
+  - 違反記録（qa_violations テーブル）
+  - 段階的利用制限（1回目=警告、2回目=1時間、3回目=24時間、4回目以降=7日間）
 
-# 2. バックエンドをデプロイ（新しいシークレット含む）
-./scripts/deploy-backend.sh
+### Phase 7 以降の検討事項
 
-# 3. Cloud Schedulerジョブを作成
-./scripts/setup-scheduler.sh
-
-# 4. 動作確認（手動実行）
-./scripts/setup-scheduler.sh --trigger
-./scripts/setup-scheduler.sh --status
-```
-
-### Phase 6 への準備
-
-Phase 6（QAマークダウン方式 質問応答機能）に移行：
-- 詳細計画: [phase6-qa-implementation-plan.md](./phase6-qa-implementation-plan.md)
-- ストレージ構造の階層化（`mfr_xxx/model/` フォルダ形式）
-- QA生成・チャットサービス実装
-- 家電詳細画面への質問UI追加（チャット形式）
+- 家族グループ共有機能
+- LINE 通知対応
+- 家電以外の商品対応（住宅設備等）

@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Modal from "@/components/ui/Modal";
 import { createClient } from "@/lib/supabase/client";
+import { QASection } from "@/components/qa/QASection";
 import type {
   UserApplianceWithDetails,
   MaintenanceSchedule,
@@ -227,7 +228,7 @@ export default function ApplianceDetailPage({
     const now = new Date();
     const dueDate = new Date(nextDueAt);
     const diffTime = dueDate.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
   };
 
@@ -560,6 +561,18 @@ export default function ApplianceDetailPage({
           )}
         </CardBody>
       </Card>
+
+      {/* Q&A Section */}
+      {appliance.shared_appliance_id && (
+        <div className="mt-6">
+          <QASection
+            sharedApplianceId={appliance.shared_appliance_id}
+            manufacturer={appliance.maker}
+            modelNumber={appliance.model_number}
+            hasPdf={!!appliance.stored_pdf_path}
+          />
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       <Modal

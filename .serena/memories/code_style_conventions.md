@@ -53,8 +53,10 @@ async def endpoint_name(request: RequestSchema):
 - `src/components/` - Reactコンポーネント
   - `auth/` - 認証関連（AuthForm）
   - `layout/` - レイアウトコンポーネント（Header, Footer）
-  - `ui/` - 汎用UIコンポーネント（Button, Card）
+  - `ui/` - 汎用UIコンポーネント（Button, Card, Modal）
   - `appliances/` - 家電関連コンポーネント
+  - `notification/` - 通知関連（NotificationPermission）
+  - `qa/` - QA機能関連（QASection, QAChat, QAChatMessage, QAFeedbackButtons, SearchProgressIndicator）
 - `src/types/` - 型定義（appliance.ts）
 - `src/contexts/` - React Context（AuthContext）
 - `src/lib/` - ユーティリティ
