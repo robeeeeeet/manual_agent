@@ -1,6 +1,7 @@
 """Manual-related API routes"""
 
 import json
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
@@ -28,6 +29,9 @@ from app.services.manual_search import (
     SearchProgress,
     search_manual_with_progress,
 )
+from app.services.qa_service import generate_qa_markdown, save_qa_markdown
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/manuals", tags=["manuals"])
 
@@ -258,7 +262,7 @@ async def confirm_manual(request: ManualConfirmRequest):
         await domain_service.save_domain(request.manufacturer, request.pdf_url)
         domain_saved = True
     except Exception as e:
-        print(f"Domain save error: {e}")
+        logger.error(f"Domain save error: {e}")
         domain_saved = False
 
     # 2. Download and store PDF
@@ -280,7 +284,7 @@ async def confirm_manual(request: ManualConfirmRequest):
             if storage_path:
                 storage_url = await get_pdf_public_url(storage_path)
     except Exception as e:
-        print(f"PDF storage error: {e}")
+        logger.error(f"PDF storage error: {e}")
         pdf_stored = False
 
     # 3. Create/update shared appliance with PDF info
@@ -295,7 +299,47 @@ async def confirm_manual(request: ManualConfirmRequest):
         )
         shared_appliance_id = str(shared_appliance.id)
     except Exception as e:
-        print(f"Shared appliance creation error: {e}")
+        logger.error(f"Shared appliance creation error: {e}")
+
+    # 4. Auto-generate QA markdown after successful PDF storage
+    qa_generated = False
+    if pdf_stored and shared_appliance_id:
+        try:
+            from app.services.pdf_storage import download_pdf
+
+            logger.info(
+                f"Starting auto QA generation for {request.manufacturer} {request.model_number}"
+            )
+
+            # Download PDF to get bytes
+            pdf_bytes = await download_pdf(request.pdf_url)
+            if pdf_bytes:
+                # Generate QA markdown
+                qa_content = await generate_qa_markdown(
+                    pdf_bytes=pdf_bytes,
+                    manufacturer=request.manufacturer,
+                    model_number=request.model_number,
+                    category=request.category or "",
+                    shared_appliance_id=shared_appliance_id,
+                )
+
+                # Save QA markdown to storage
+                await save_qa_markdown(
+                    manufacturer=request.manufacturer,
+                    model_number=request.model_number,
+                    content=qa_content,
+                )
+                qa_generated = True
+                logger.info(
+                    f"QA markdown generated successfully for {request.manufacturer} {request.model_number}"
+                )
+            else:
+                logger.warning(
+                    f"Failed to download PDF for QA generation: {request.pdf_url}"
+                )
+        except Exception as e:
+            # QA generation failure should not block the main flow
+            logger.error(f"QA generation error (non-critical): {e}")
 
     # Build response message
     messages = []
@@ -305,6 +349,8 @@ async def confirm_manual(request: ManualConfirmRequest):
         messages.append("PDFを保存しました")
     if shared_appliance_id:
         messages.append("家電マスターを登録しました")
+    if qa_generated:
+        messages.append("QA情報を生成しました")
 
     if not messages:
         message = "保存に失敗しました"
@@ -368,7 +414,7 @@ async def check_existing_pdf(request: ExistingPdfCheckRequest):
             )
 
     except Exception as e:
-        print(f"Error checking existing PDF: {e}")
+        logger.error(f"Error checking existing PDF: {e}")
         return ExistingPdfCheckResponse(
             found=False,
             message=f"検索中にエラーが発生しました: {str(e)}",

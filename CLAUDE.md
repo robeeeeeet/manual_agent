@@ -68,6 +68,7 @@ manual_agent/
 │   ├── src/app/           # App Router（ページ、APIルート）
 │   │   ├── api/           # BFF層 API Routes
 │   │   │   ├── appliances/# 家電関連API（CRUD、説明書、メンテナンス）
+│   │   │   ├── qa/        # QA関連API（質問応答、フィードバック）
 │   │   │   ├── push/      # Push通知API（subscribe, unsubscribe等）
 │   │   │   ├── notifications/ # 通知API（reminders等）
 │   │   │   └── user/      # ユーザーAPI（me, settings, maintenance-stats）
@@ -82,9 +83,10 @@ manual_agent/
 │   │   ├── auth/          # 認証関連（AuthForm）
 │   │   ├── layout/        # Header, Footer
 │   │   ├── notification/  # 通知コンポーネント（NotificationPermission）
+│   │   ├── qa/            # QA機能（QASection, QAChat, QAChatMessage, QAFeedbackButtons, SearchProgressIndicator）
 │   │   └── ui/            # Button, Card, Modal
 │   ├── src/hooks/         # カスタムフック
-│   ├── src/types/         # 型定義（appliance.ts, user.ts）
+│   ├── src/types/         # 型定義（appliance.ts, user.ts, qa.ts）
 │   ├── src/contexts/      # React Context（AuthContext）
 │   ├── src/lib/           # ユーティリティ
 │   │   ├── supabase/      # Supabaseクライアント
@@ -93,7 +95,7 @@ manual_agent/
 │   └── package.json
 ├── backend/               # FastAPI アプリケーション
 │   ├── app/
-│   │   ├── api/routes/    # APIルート（appliances, manuals, notifications, push, users）
+│   │   ├── api/routes/    # APIルート（appliances, manuals, notifications, push, users, qa, cron）
 │   │   ├── schemas/       # Pydanticスキーマ
 │   │   ├── services/      # ビジネスロジック
 │   │   │   ├── image_recognition.py     # 画像認識
@@ -108,7 +110,12 @@ manual_agent/
 │   │   │   ├── maintenance_notification_service.py # リマインド通知
 │   │   │   ├── user_service.py          # ユーザープロファイル・設定・統計
 │   │   │   ├── supabase_client.py       # Supabaseクライアント
-│   │   │   └── manufacturer_domain.py   # メーカードメイン
+│   │   │   ├── manufacturer_domain.py   # メーカードメイン
+│   │   │   ├── qa_service.py            # QA検索・生成サービス
+│   │   │   ├── qa_chat_service.py       # QAチャット（LLM対話）
+│   │   │   ├── qa_rating_service.py     # QAフィードバック評価
+│   │   │   ├── text_cache_service.py    # PDFテキストキャッシュ
+│   │   │   └── image_conversion.py      # 画像変換（HEIC等）
 │   │   └── main.py
 │   ├── supabase/          # DBスキーマ・マイグレーション
 │   │   ├── SCHEMA.md      # データベーススキーマ設計書
@@ -231,9 +238,9 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
 
 ## 現在のステータス
 
-**Phase 6: QAマークダウン方式 質問応答機能** 準備中
+**Phase 6: QAマークダウン方式 質問応答機能** 実装済み
 
-### 完了済み（Phase 0〜5）
+### 完了済み（Phase 0〜6）
 - ✅ Phase 0〜2: 基盤構築、デプロイ、認証
 - ✅ Phase 3: 家電登録・説明書取得
   - データベース設計（共有マスター方式）
@@ -254,9 +261,16 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
   - サインアップ時OTPコード方式（PWA対応のためメールリンクから変更）
   - 定期リマインド自動化（Cloud Scheduler + notify_time対応）
   - マイページ（メンテナンス統計、通知設定、通知時刻変更、ログアウト）
+- ✅ Phase 6: QAマークダウン方式 質問応答機能
+  - QAチャットUI（QASection, QAChat, QAChatMessage, SearchProgressIndicator）
+  - 3段階フォールバック検索（QA検索 → テキスト検索 → PDF分析）
+  - SSEストリーミング進捗表示
+  - QAフィードバック機能（いいね/悪いね評価、qa_ratings テーブル）
+  - QAサービス群（qa_service, qa_chat_service, qa_rating_service）
+  - テキストキャッシュサービス（text_cache_service）
 
 ### 次のフェーズ
-- Phase 6: QAマークダウン方式 質問応答機能（製品ごとQA生成、チャットUI）
+- Phase 7: 追加機能・改善（検討中）
 
 **本番URL:** https://manual-agent-seven.vercel.app/
 
@@ -278,3 +292,5 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
 11. **VAPID認証**: Web Push通知のセキュアな送信者認証（公開鍵/秘密鍵ペア）
 12. **OTPコード認証**: サインアップ時のメール確認はOTPコード方式（PWAではメールリンクがSafariで開かれる問題を回避）
 13. **auth.users同期トリガー**: `auth.users`への登録・削除時に`public.users`を自動同期（Supabase推奨パターン）
+14. **QAマークダウン方式**: RAG（ベクトル検索）ではなく、事前生成したQAマークダウンファイルによる検索と3段階フォールバック（QA検索 → テキスト検索 → PDF直接分析）
+15. **SSEストリーミング**: QA検索の進捗をリアルタイムでフロントエンドに伝達（ユーザー体験向上）

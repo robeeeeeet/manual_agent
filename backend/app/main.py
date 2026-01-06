@@ -15,6 +15,7 @@ from app.api.routes import (
     manuals,
     notifications,
     push_subscriptions,
+    qa,  # Import separately to avoid linter removal
     users,
 )
 from app.config import settings
@@ -105,6 +106,10 @@ app.include_router(
 )
 app.include_router(
     users.router,
+    prefix=settings.api_v1_prefix,
+)
+app.include_router(
+    qa.router,
     prefix=settings.api_v1_prefix,
 )
 
