@@ -47,6 +47,9 @@ export default function ApplianceDetailPage({
   const [historyLogs, setHistoryLogs] = useState<MaintenanceLog[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  // Detail modal state
+  const [showDetailModal, setShowDetailModal] = useState(false);
+
   // Fetch appliance details
   useEffect(() => {
     const fetchData = async () => {
@@ -141,6 +144,26 @@ export default function ApplianceDetailPage({
     setSelectedSchedule(schedule);
     setCompletionNotes("");
     setShowCompleteModal(true);
+  };
+
+  // Open detail modal
+  const openDetailModal = (schedule: MaintenanceSchedule) => {
+    setSelectedSchedule(schedule);
+    setShowDetailModal(true);
+  };
+
+  // Transition from detail modal to complete modal
+  const handleDetailToComplete = () => {
+    setShowDetailModal(false);
+    setShowCompleteModal(true);
+  };
+
+  // Transition from detail modal to history modal
+  const handleDetailToHistory = async () => {
+    if (selectedSchedule) {
+      setShowDetailModal(false);
+      await fetchHistory(selectedSchedule.id);
+    }
   };
 
   // Handle completion
@@ -470,7 +493,7 @@ export default function ApplianceDetailPage({
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {schedules.map((schedule) => {
                 const daysUntil = getDaysUntilDue(schedule.next_due_at);
                 const statusColor = getDueStatusColor(daysUntil);
@@ -478,57 +501,29 @@ export default function ApplianceDetailPage({
                 return (
                   <div
                     key={schedule.id}
-                    className="p-4 bg-gray-50 rounded-lg border border-gray-100"
+                    onClick={() => openDetailModal(schedule)}
+                    className="p-3 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 cursor-pointer transition-colors"
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1">
-                        <h4 className="font-medium text-gray-900">
-                          {schedule.task_name}
-                        </h4>
-                        {schedule.description && (
-                          <p className="text-sm text-gray-600 mt-1">
-                            {schedule.description}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          <span
-                            className={`px-2 py-0.5 text-xs font-medium rounded ${getImportanceBadgeColor(
-                              schedule.importance
-                            )}`}
-                          >
-                            重要度: {importanceLabels[schedule.importance]}
-                          </span>
-                          <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-700">
-                            {schedule.interval_type === "days"
-                              ? `${schedule.interval_value}日ごと`
-                              : schedule.interval_type === "months"
-                                ? `${schedule.interval_value}ヶ月ごと`
-                                : "手動"}
-                          </span>
-                          {schedule.source_page && (
-                            <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-700">
-                              📄 {schedule.source_page}
-                            </span>
-                          )}
-                        </div>
-                        {/* Last completed date */}
-                        {schedule.last_done_at && (
-                          <p className="text-xs text-gray-500 mt-2">
-                            最終完了: {formatDate(schedule.last_done_at)}
-                          </p>
-                        )}
-                        {/* History link */}
-                        <button
-                          onClick={() => fetchHistory(schedule.id)}
-                          disabled={isLoadingHistory}
-                          className="text-xs text-blue-600 hover:text-blue-700 mt-1 disabled:opacity-50"
-                        >
-                          履歴を表示
-                        </button>
-                      </div>
-                      <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <div className="flex items-center justify-between gap-3">
+                      {/* Left: Task name */}
+                      <h4 className="font-medium text-gray-900 flex-1 truncate">
+                        {schedule.task_name}
+                      </h4>
+
+                      {/* Right: Badges and complete button */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Importance badge */}
                         <span
-                          className={`inline-block px-2 py-1 text-xs font-medium rounded ${statusColor}`}
+                          className={`px-2 py-0.5 text-xs font-medium rounded ${getImportanceBadgeColor(
+                            schedule.importance
+                          )}`}
+                        >
+                          {importanceLabels[schedule.importance]}
+                        </span>
+
+                        {/* Due status badge */}
+                        <span
+                          className={`px-2 py-0.5 text-xs font-medium rounded ${statusColor}`}
                         >
                           {daysUntil === null
                             ? "未設定"
@@ -538,17 +533,19 @@ export default function ApplianceDetailPage({
                                 ? "今日"
                                 : `あと${daysUntil}日`}
                         </span>
-                        <p className="text-xs text-gray-400">
-                          {formatDate(schedule.next_due_at)}
-                        </p>
+
+                        {/* Complete button */}
                         <Button
                           size="sm"
-                          onClick={() => openCompleteModal(schedule)}
-                          className={`mt-1 ${
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openCompleteModal(schedule);
+                          }}
+                          className={
                             daysUntil !== null && daysUntil < 0
                               ? "bg-red-600 hover:bg-red-700"
                               : ""
-                          }`}
+                          }
                         >
                           完了
                         </Button>
@@ -741,6 +738,140 @@ export default function ApplianceDetailPage({
               閉じる
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Detail Modal */}
+      <Modal
+        isOpen={showDetailModal}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedSchedule(null);
+        }}
+        variant="dialog"
+      >
+        <div className="p-6">
+          {selectedSchedule && (
+            <>
+              {/* Header */}
+              <h3 className="text-lg font-bold text-gray-900 mb-4">
+                {selectedSchedule.task_name}
+              </h3>
+
+              {/* Description */}
+              {selectedSchedule.description && (
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    説明
+                  </h4>
+                  <p className="text-gray-700">{selectedSchedule.description}</p>
+                </div>
+              )}
+
+              {/* Meta info grid */}
+              <div className="grid grid-cols-3 gap-4 mb-4 py-4 border-y border-gray-100">
+                <div>
+                  <h4 className="text-xs font-medium text-gray-500 mb-1">
+                    周期
+                  </h4>
+                  <p className="text-sm text-gray-900">
+                    {selectedSchedule.interval_type === "days"
+                      ? `${selectedSchedule.interval_value}日ごと`
+                      : selectedSchedule.interval_type === "months"
+                        ? `${selectedSchedule.interval_value}ヶ月ごと`
+                        : "手動"}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-medium text-gray-500 mb-1">
+                    重要度
+                  </h4>
+                  <span
+                    className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${getImportanceBadgeColor(
+                      selectedSchedule.importance
+                    )}`}
+                  >
+                    {importanceLabels[selectedSchedule.importance]}
+                  </span>
+                </div>
+                {selectedSchedule.source_page && (
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-500 mb-1">
+                      参照ページ
+                    </h4>
+                    <p className="text-sm text-gray-900">
+                      {selectedSchedule.source_page}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Date info */}
+              <div className="space-y-3 mb-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">次回予定日</span>
+                  <div className="text-right">
+                    <span className="text-sm font-medium text-gray-900">
+                      {formatDate(selectedSchedule.next_due_at)}
+                    </span>
+                    {(() => {
+                      const daysUntil = getDaysUntilDue(
+                        selectedSchedule.next_due_at
+                      );
+                      const statusColor = getDueStatusColor(daysUntil);
+                      return (
+                        <span
+                          className={`ml-2 px-2 py-0.5 text-xs font-medium rounded ${statusColor}`}
+                        >
+                          {daysUntil === null
+                            ? "未設定"
+                            : daysUntil < 0
+                              ? `${Math.abs(daysUntil)}日超過`
+                              : daysUntil === 0
+                                ? "今日"
+                                : `あと${daysUntil}日`}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+                {selectedSchedule.last_done_at && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">最終完了日</span>
+                    <span className="text-sm text-gray-900">
+                      {formatDate(selectedSchedule.last_done_at)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* History link */}
+              <button
+                onClick={handleDetailToHistory}
+                disabled={isLoadingHistory}
+                className="text-sm text-blue-600 hover:text-blue-700 mb-6 disabled:opacity-50"
+              >
+                完了履歴を表示
+              </button>
+
+              {/* Action buttons */}
+              <div className="flex gap-3 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    setSelectedSchedule(null);
+                  }}
+                  className="flex-1"
+                >
+                  閉じる
+                </Button>
+                <Button onClick={handleDetailToComplete} className="flex-1">
+                  完了する
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
     </div>
