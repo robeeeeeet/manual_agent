@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import (
     appliances,
     cron,
+    groups,
     health,
     maintenance,
     manuals,
@@ -111,6 +112,10 @@ app.include_router(
 )
 app.include_router(
     qa.router,
+    prefix=settings.api_v1_prefix,
+)
+app.include_router(
+    groups.router,
     prefix=settings.api_v1_prefix,
 )
 app.include_router(

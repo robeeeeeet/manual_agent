@@ -63,6 +63,12 @@ export default function Header() {
                 {user ? (
                   <>
                     <Link
+                      href="/groups"
+                      className="text-gray-600 hover:text-blue-600 transition-colors"
+                    >
+                      グループ
+                    </Link>
+                    <Link
                       href="/register"
                       className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                     >
@@ -211,6 +217,13 @@ export default function Header() {
                 <>
                   {user ? (
                     <>
+                      <Link
+                        href="/groups"
+                        className="text-gray-600 hover:text-blue-600 transition-colors"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        グループ
+                      </Link>
                       <Link
                         href="/mypage"
                         className="text-gray-600 hover:text-blue-600 transition-colors"

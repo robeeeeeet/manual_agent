@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Button from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Modal from "@/components/ui/Modal";
+import ShareToggle from "@/components/appliance/ShareButton";
 import { createClient } from "@/lib/supabase/client";
 import { QASection } from "@/components/qa/QASection";
 import type {
@@ -49,6 +50,24 @@ export default function ApplianceDetailPage({
 
   // Detail modal state
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  // Group membership state
+  const [hasGroup, setHasGroup] = useState(false);
+
+  // Check if user is in a group
+  const checkGroupMembership = async () => {
+    try {
+      const response = await fetch("/api/groups");
+      if (response.ok) {
+        const data = await response.json();
+        // API returns { groups: [...], count: number }
+        const groups = data.groups || data;
+        setHasGroup(Array.isArray(groups) && groups.length > 0);
+      }
+    } catch (err) {
+      console.error("Error checking group membership:", err);
+    }
+  };
 
   // Fetch appliance details
   useEffect(() => {
@@ -95,10 +114,25 @@ export default function ApplianceDetailPage({
 
     if (!authLoading && user) {
       fetchData();
+      checkGroupMembership();
     } else if (!authLoading && !user) {
       setIsLoading(false);
     }
   }, [id, user, authLoading]);
+
+  // Refetch appliance after share/unshare
+  const refetchAppliance = async () => {
+    if (!user) return;
+    try {
+      const response = await fetch(`/api/appliances/${id}`);
+      if (response.ok) {
+        const applianceData: UserApplianceWithDetails = await response.json();
+        setAppliance(applianceData);
+      }
+    } catch (err) {
+      console.error("Error refetching appliance:", err);
+    }
+  };
 
   // Delete appliance
   const handleDelete = async () => {
@@ -392,9 +426,29 @@ export default function ApplianceDetailPage({
                 {appliance.maker} {appliance.model_number}
               </p>
             </div>
-            <span className="px-3 py-1 text-sm font-medium rounded-full bg-gray-100 text-gray-700">
-              {appliance.category}
-            </span>
+            <div className="flex flex-col items-end gap-2">
+              <span className="px-3 py-1 text-sm font-medium rounded-full bg-gray-100 text-gray-700">
+                {appliance.category}
+              </span>
+              {appliance.is_group_owned && appliance.group_name && (
+                <span className="px-3 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-700 flex items-center gap-1">
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                    />
+                  </svg>
+                  {appliance.group_name}
+                </span>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardBody>
@@ -447,7 +501,14 @@ export default function ApplianceDetailPage({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-4 border-t">
+            <div className="flex gap-3 pt-4 border-t items-center">
+              <ShareToggle
+                applianceId={appliance.id}
+                isGroupOwned={appliance.is_group_owned}
+                hasGroup={hasGroup}
+                isOriginalOwner={appliance.user_id === user?.id}
+                onShareChange={refetchAppliance}
+              />
               <Button
                 variant="outline"
                 onClick={() => setShowDeleteModal(true)}

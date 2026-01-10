@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import Button from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
+import ShareToggle from "@/components/appliance/ShareButton";
 import { UserApplianceWithDetails } from "@/types/appliance";
 
 export default function AppliancesPage() {
@@ -12,6 +13,7 @@ export default function AppliancesPage() {
   const [appliances, setAppliances] = useState<UserApplianceWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasGroup, setHasGroup] = useState(false);
 
   const fetchAppliances = async () => {
     if (!user) return;
@@ -39,9 +41,25 @@ export default function AppliancesPage() {
     }
   };
 
+  // Check if user is in a group
+  const checkGroupMembership = async () => {
+    try {
+      const response = await fetch("/api/groups");
+      if (response.ok) {
+        const data = await response.json();
+        // API returns { groups: [...], count: number }
+        const groups = data.groups || data;
+        setHasGroup(Array.isArray(groups) && groups.length > 0);
+      }
+    } catch (err) {
+      console.error("Error checking group membership:", err);
+    }
+  };
+
   useEffect(() => {
     if (!authLoading && user) {
       fetchAppliances();
+      checkGroupMembership();
     } else if (!authLoading && !user) {
       setIsLoading(false);
     }
@@ -208,13 +226,31 @@ export default function AppliancesPage() {
                 <CardBody>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <h3 className="font-bold text-gray-900">
                           {appliance.name}
                         </h3>
                         <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">
                           {appliance.category}
                         </span>
+                        {appliance.is_group_owned && appliance.group_name && (
+                          <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700 flex items-center gap-1">
+                            <svg
+                              className="w-3 h-3"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                              />
+                            </svg>
+                            {appliance.group_name}
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-gray-600 mb-2">
                         {appliance.maker} {appliance.model_number}
@@ -255,6 +291,21 @@ export default function AppliancesPage() {
                     </div>
 
                     <div className="flex flex-col items-end gap-2">
+                      {/* Share toggle */}
+                      <div
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                      >
+                        <ShareToggle
+                          applianceId={appliance.id}
+                          isGroupOwned={appliance.is_group_owned}
+                          hasGroup={hasGroup}
+                          isOriginalOwner={appliance.user_id === user?.id}
+                          onShareChange={fetchAppliances}
+                        />
+                      </div>
                       {appliance.manual_source_url && (
                         <span
                           onClick={(e) => {
