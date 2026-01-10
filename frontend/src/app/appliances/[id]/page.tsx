@@ -1,19 +1,20 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Button from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Modal from "@/components/ui/Modal";
 import ShareToggle from "@/components/appliance/ShareButton";
-import { createClient } from "@/lib/supabase/client";
 import { QASection } from "@/components/qa/QASection";
 import type {
   UserApplianceWithDetails,
   MaintenanceSchedule,
   MaintenanceLog,
+  MaintenanceWithAppliance,
+  MaintenanceListResponse,
 } from "@/types/appliance";
 
 interface ApplianceDetailPageProps {
@@ -25,7 +26,17 @@ export default function ApplianceDetailPage({
 }: ApplianceDetailPageProps) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
+
+  // Determine back link based on referrer
+  const backLink = useMemo(() => {
+    const from = searchParams.get("from");
+    if (from === "maintenance") {
+      return { href: "/maintenance", label: "メンテナンス一覧に戻る" };
+    }
+    return { href: "/appliances", label: "家電一覧に戻る" };
+  }, [searchParams]);
 
   const [appliance, setAppliance] = useState<UserApplianceWithDetails | null>(
     null
@@ -89,18 +100,29 @@ export default function ApplianceDetailPage({
         const applianceData: UserApplianceWithDetails = await response.json();
         setAppliance(applianceData);
 
-        // Fetch maintenance schedules from Supabase directly
-        const supabase = createClient();
-        if (supabase) {
-          const { data: schedulesData, error: schedulesError } = await supabase
-            .from("maintenance_schedules")
-            .select("*")
-            .eq("user_appliance_id", id)
-            .order("next_due_at", { ascending: true });
-
-          if (!schedulesError && schedulesData) {
-            setSchedules(schedulesData);
-          }
+        // Fetch maintenance schedules via BFF API
+        const maintenanceResponse = await fetch(`/api/maintenance?appliance_id=${id}`);
+        if (maintenanceResponse.ok) {
+          const maintenanceData: MaintenanceListResponse = await maintenanceResponse.json();
+          // Convert MaintenanceWithAppliance to MaintenanceSchedule
+          const convertedSchedules: MaintenanceSchedule[] = maintenanceData.items.map(
+            (item: MaintenanceWithAppliance) => ({
+              id: item.id,
+              user_appliance_id: item.appliance_id,
+              shared_item_id: null,
+              task_name: item.task_name,
+              description: item.description,
+              interval_type: item.interval_type,
+              interval_value: item.interval_value,
+              last_done_at: item.last_done_at,
+              next_due_at: item.next_due_at,
+              source_page: item.source_page,
+              importance: item.importance,
+              created_at: "",
+              updated_at: "",
+            })
+          );
+          setSchedules(convertedSchedules);
         }
       } catch (err) {
         console.error("Error fetching appliance:", err);
@@ -159,17 +181,32 @@ export default function ApplianceDetailPage({
 
   // Fetch maintenance schedules
   const fetchSchedules = async () => {
-    const supabase = createClient();
-    if (supabase) {
-      const { data: schedulesData, error: schedulesError } = await supabase
-        .from("maintenance_schedules")
-        .select("*")
-        .eq("user_appliance_id", id)
-        .order("next_due_at", { ascending: true });
-
-      if (!schedulesError && schedulesData) {
-        setSchedules(schedulesData);
+    try {
+      const maintenanceResponse = await fetch(`/api/maintenance?appliance_id=${id}`);
+      if (maintenanceResponse.ok) {
+        const maintenanceData: MaintenanceListResponse = await maintenanceResponse.json();
+        // Convert MaintenanceWithAppliance to MaintenanceSchedule
+        const convertedSchedules: MaintenanceSchedule[] = maintenanceData.items.map(
+          (item: MaintenanceWithAppliance) => ({
+            id: item.id,
+            user_appliance_id: item.appliance_id,
+            shared_item_id: null,
+            task_name: item.task_name,
+            description: item.description,
+            interval_type: item.interval_type,
+            interval_value: item.interval_value,
+            last_done_at: item.last_done_at,
+            next_due_at: item.next_due_at,
+            source_page: item.source_page,
+            importance: item.importance,
+            created_at: "",
+            updated_at: "",
+          })
+        );
+        setSchedules(convertedSchedules);
       }
+    } catch (err) {
+      console.error("Error fetching schedules:", err);
     }
   };
 
@@ -355,7 +392,7 @@ export default function ApplianceDetailPage({
     return (
       <div className="max-w-2xl mx-auto">
         <Link
-          href="/appliances"
+          href={backLink.href}
           className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1 mb-4"
         >
           <svg
@@ -371,7 +408,7 @@ export default function ApplianceDetailPage({
               d="M15 19l-7-7 7-7"
             />
           </svg>
-          家電一覧に戻る
+          {backLink.label}
         </Link>
         <Card>
           <CardBody>
@@ -379,8 +416,8 @@ export default function ApplianceDetailPage({
               <p className="text-red-600 mb-4">
                 {error || "家電が見つかりませんでした"}
               </p>
-              <Link href="/appliances">
-                <Button>家電一覧に戻る</Button>
+              <Link href={backLink.href}>
+                <Button>{backLink.label}</Button>
               </Link>
             </div>
           </CardBody>
@@ -394,7 +431,7 @@ export default function ApplianceDetailPage({
       {/* Header */}
       <div className="mb-6">
         <Link
-          href="/appliances"
+          href={backLink.href}
           className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1 mb-4"
         >
           <svg
@@ -410,7 +447,7 @@ export default function ApplianceDetailPage({
               d="M15 19l-7-7 7-7"
             />
           </svg>
-          家電一覧に戻る
+          {backLink.label}
         </Link>
       </div>
 
@@ -454,41 +491,73 @@ export default function ApplianceDetailPage({
         <CardBody>
           <div className="space-y-4">
             {/* Manual Link */}
-            {appliance.manual_source_url && (
-              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+            {(appliance.stored_pdf_path || appliance.manual_source_url) && (
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <svg
+                        className="w-5 h-5 text-blue-600"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.92,12.31 10.92,12.31Z" />
+                      </svg>
+                    </div>
+                    <span className="font-medium text-gray-900">説明書PDF</span>
+                  </div>
+                  <a
+                    href={
+                      appliance.stored_pdf_path
+                        ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/manuals/${appliance.stored_pdf_path}`
+                        : appliance.manual_source_url || "#"
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                  >
+                    開く
                     <svg
-                      className="w-5 h-5 text-blue-600"
-                      fill="currentColor"
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
-                      <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.92,12.31 10.92,12.31Z" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                      />
                     </svg>
-                  </div>
-                  <span className="font-medium text-gray-900">説明書PDF</span>
+                  </a>
                 </div>
-                <a
-                  href={appliance.manual_source_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                >
-                  開く
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                    />
-                  </svg>
-                </a>
+                {/* Show original source link if both stored PDF and source URL exist */}
+                {appliance.stored_pdf_path && appliance.manual_source_url && (
+                  <div className="mt-2 pl-13 ml-13">
+                    <a
+                      href={appliance.manual_source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                    >
+                      元のサイトで見る
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                      </svg>
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 
