@@ -29,6 +29,7 @@ interface AuthContextType {
     email: string,
     token: string
   ) => Promise<{ error: AuthError | null }>;
+  resendOtp: (email: string) => Promise<{ error: AuthError | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -127,6 +128,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [supabase]
   );
 
+  const resendOtp = useCallback(
+    async (email: string) => {
+      if (!supabase) {
+        return { error: { message: "Supabase client not initialized" } as AuthError };
+      }
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+      });
+      return { error };
+    },
+    [supabase]
+  );
+
   const value: AuthContextType = {
     user,
     session,
@@ -135,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signOut,
     verifyOtp,
+    resendOtp,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

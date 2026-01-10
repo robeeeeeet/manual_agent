@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,8 +20,10 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showOtpForm, setShowOtpForm] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  const { signIn, signUp, verifyOtp } = useAuth();
+  const { signIn, signUp, verifyOtp, resendOtp } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/";
@@ -85,7 +87,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
           }
         } else {
           setMessage(
-            "確認コードをメールで送信しました。メールに記載されたコードを入力してください。"
+            "確認コードをメールで送信しました。メールに記載されたコードを入力してください。既にアカウントをお持ちの場合は、ログインページからサインインしてください。"
           );
           setShowOtpForm(true);
         }
@@ -119,6 +121,8 @@ export default function AuthForm({ mode }: AuthFormProps) {
           setError(error.message);
         }
       } else {
+        // Set flag to show notification modal after redirect
+        sessionStorage.setItem("showNotificationOnboarding", "true");
         router.push(redirectTo);
         router.refresh();
       }
@@ -126,6 +130,47 @@ export default function AuthForm({ mode }: AuthFormProps) {
       setError("予期せぬエラーが発生しました");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // クールダウンタイマー
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || isResending) return;
+
+    setIsResending(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const { error } = await resendOtp(email);
+
+      if (error) {
+        // Supabaseのレート制限エラーから秒数を抽出
+        const secondsMatch = error.message.match(/after (\d+) seconds/);
+        if (secondsMatch) {
+          const seconds = parseInt(secondsMatch[1], 10);
+          setResendCooldown(seconds);
+          // エラーではなくメッセージとして表示（カウントダウン中）
+        } else if (error.message.includes("rate limit") || error.message.includes("security purposes")) {
+          setError("送信回数の上限に達しました。しばらく待ってから再試行してください。");
+        } else {
+          setError(error.message);
+        }
+      } else {
+        setMessage("確認コードを再送しました。メールをご確認ください。");
+        setResendCooldown(60);
+      }
+    } catch {
+      setError("予期せぬエラーが発生しました");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -156,6 +201,16 @@ export default function AuthForm({ mode }: AuthFormProps) {
                 <strong>{email}</strong> に送信された確認コードを入力してください
               </p>
 
+              <p className="text-sm text-gray-500 text-center">
+                既にアカウントをお持ちの場合は{" "}
+                <Link
+                  href={redirectTo !== "/" ? `/login?redirectTo=${encodeURIComponent(redirectTo)}` : "/login"}
+                  className="text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  ログイン
+                </Link>
+              </p>
+
               <div>
                 <label
                   htmlFor="otpCode"
@@ -176,6 +231,26 @@ export default function AuthForm({ mode }: AuthFormProps) {
                   autoComplete="one-time-code"
                   disabled={isLoading}
                 />
+              </div>
+
+              <div className="text-center space-y-1">
+                {resendCooldown > 0 && !message && (
+                  <p className="text-sm text-gray-500">
+                    あと {resendCooldown} 秒で再送できます
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={isResending || resendCooldown > 0}
+                  className="text-sm text-blue-600 hover:text-blue-500 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isResending
+                    ? "送信中..."
+                    : resendCooldown > 0
+                      ? "コードを再送する"
+                      : "コードを再送する"}
+                </button>
               </div>
 
               <Button

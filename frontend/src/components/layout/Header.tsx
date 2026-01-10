@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import NotificationPermission from "@/components/notification/NotificationPermission";
 
@@ -11,6 +11,8 @@ export default function Header() {
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const isLoginPage = pathname === "/login";
 
   const handleSignOut = async () => {
     await signOut();
@@ -49,6 +51,12 @@ export default function Header() {
               className="text-gray-600 hover:text-blue-600 transition-colors"
             >
               家電一覧
+            </Link>
+            <Link
+              href="/maintenance"
+              className="text-gray-600 hover:text-blue-600 transition-colors"
+            >
+              メンテナンス
             </Link>
             {!loading && (
               <>
@@ -155,34 +163,36 @@ export default function Header() {
           </div>
 
           {/* Mobile Menu Button */}
-          <button
-            className="md:hidden p-2 text-gray-600"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            aria-label="メニュー"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          {!isLoginPage && (
+            <button
+              className="md:hidden p-2 text-gray-600"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              aria-label="メニュー"
             >
-              {isMenuOpen ? (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              )}
-            </svg>
-          </button>
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                {isMenuOpen ? (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                ) : (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                )}
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Mobile Navigation */}
@@ -195,6 +205,13 @@ export default function Header() {
                 onClick={() => setIsMenuOpen(false)}
               >
                 家電一覧
+              </Link>
+              <Link
+                href="/maintenance"
+                className="text-gray-600 hover:text-blue-600 transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                メンテナンス
               </Link>
               {!loading && (
                 <>
@@ -214,6 +231,12 @@ export default function Header() {
                       >
                         マイページ
                       </Link>
+                      <button
+                        onClick={handleSignOut}
+                        className="text-left text-red-600 hover:text-red-700 transition-colors"
+                      >
+                        ログアウト
+                      </button>
                     </>
                   ) : (
                     <>

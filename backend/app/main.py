@@ -13,6 +13,7 @@ from app.api.routes import (
     cron,
     groups,
     health,
+    maintenance,
     manuals,
     notifications,
     push_subscriptions,
@@ -115,6 +116,10 @@ app.include_router(
 )
 app.include_router(
     groups.router,
+    prefix=settings.api_v1_prefix,
+)
+app.include_router(
+    maintenance.router,
     prefix=settings.api_v1_prefix,
 )
 

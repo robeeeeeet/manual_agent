@@ -78,14 +78,16 @@ manual_agent/
 │   │   ├── register/      # 家電登録ページ
 │   │   ├── appliances/    # 家電一覧・詳細ページ
 │   │   │   └── [id]/      # 家電詳細ページ（動的ルート）
+│   │   ├── maintenance/   # メンテナンス一覧ページ
 │   │   └── mypage/        # マイページ（統計、設定、ログアウト）
 │   ├── src/components/    # UIコンポーネント
 │   │   ├── auth/          # 認証関連（AuthForm）
 │   │   ├── layout/        # Header, Footer
-│   │   ├── notification/  # 通知コンポーネント（NotificationPermission）
+│   │   ├── maintenance/   # メンテナンス関連（MaintenanceCompleteModal, MaintenanceStatusTabs, MaintenanceFilter, MaintenanceListItem）
+│   │   ├── notification/  # 通知コンポーネント（NotificationPermission, NotificationPermissionModal, NotificationOnboarding）
 │   │   ├── qa/            # QA機能（QASection, QAChat, QAChatMessage, QAFeedbackButtons, SearchProgressIndicator）
 │   │   └── ui/            # Button, Card, Modal
-│   ├── src/hooks/         # カスタムフック
+│   ├── src/hooks/         # カスタムフック（usePushNotification, useDeviceContext）
 │   ├── src/types/         # 型定義（appliance.ts, user.ts, qa.ts）
 │   ├── src/contexts/      # React Context（AuthContext）
 │   ├── src/lib/           # ユーティリティ
@@ -95,7 +97,7 @@ manual_agent/
 │   └── package.json
 ├── backend/               # FastAPI アプリケーション
 │   ├── app/
-│   │   ├── api/routes/    # APIルート（appliances, manuals, notifications, push, users, qa, cron）
+│   │   ├── api/routes/    # APIルート（appliances, manuals, maintenance, notifications, push, users, qa, cron）
 │   │   ├── schemas/       # Pydanticスキーマ
 │   │   ├── services/      # ビジネスロジック
 │   │   │   ├── image_recognition.py     # 画像認識
@@ -239,9 +241,9 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
 
 ## 現在のステータス
 
-**Phase 6: QAマークダウン方式 質問応答機能** 実装済み
+**Phase 6.5: メンテナンス一覧機能** 実装済み
 
-### 完了済み（Phase 0〜6）
+### 完了済み（Phase 0〜6.5）
 - ✅ Phase 0〜2: 基盤構築、デプロイ、認証
 - ✅ Phase 3: 家電登録・説明書取得
   - データベース設計（共有マスター方式）
@@ -257,9 +259,11 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
   - PWA対応（manifest.json, Service Worker, アイコン）
   - Push通知基盤（購読管理、通知送信サービス）
   - メンテナンスリマインド通知（期限当日・期限間近）
-  - 通知許可UIコンポーネント
+  - 通知許可UIコンポーネント（NotificationPermission, NotificationPermissionModal）
+  - 初回サインアップ時の通知オンボーディングフロー（NotificationOnboarding + sessionStorage）
+  - デバイスコンテキスト検知フック（useDeviceContext: PC/スマホ、ブラウザ/PWA判別）
   - テスト通知送信機能（許可ユーザーのみ）
-  - サインアップ時OTPコード方式（PWA対応のためメールリンクから変更）
+  - サインアップ時OTPコード方式（PWA対応のためメールリンクから変更）、確認コード再送機能
   - 定期リマインド自動化（Cloud Scheduler + notify_time対応）
   - マイページ（メンテナンス統計、通知設定、通知時刻変更、ログアウト）
 - ✅ Phase 6: QAマークダウン方式 質問応答機能
@@ -274,6 +278,13 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
     - ルールベース + LLM ハイブリッド質問検証
     - 違反記録（qa_violations テーブル）
     - 段階的利用制限（qa_restrictions テーブル: 1回目=警告、2回目=1時間、3回目=24時間、4回目以降=7日間）
+- ✅ Phase 6.5: メンテナンス一覧機能
+  - メンテナンス一覧ページ（`/maintenance`）
+  - ステータス別タブ（すべて / 期限超過 / 今週 / 予定通り / 手動）
+  - フィルター機能（重要度、家電別）
+  - 共通コンポーネント（MaintenanceCompleteModal, MaintenanceStatusTabs, MaintenanceFilter, MaintenanceListItem）
+  - 家電詳細ページと統一されたUI/UX
+  - バックエンドAPI（`GET /api/v1/maintenance`）
 
 ### 次のフェーズ
 - Phase 7: 追加機能・改善（検討中）
@@ -296,8 +307,10 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
 9. **メンテナンスキャッシュ**: LLM抽出結果を`shared_maintenance_items`にキャッシュし、2人目以降のLLMコスト・処理時間を削減
 10. **PWA対応**: next-pwaによるService Worker管理、Web Push API（pywebpush）によるプッシュ通知
 11. **VAPID認証**: Web Push通知のセキュアな送信者認証（公開鍵/秘密鍵ペア）
-12. **OTPコード認証**: サインアップ時のメール確認はOTPコード方式（PWAではメールリンクがSafariで開かれる問題を回避）
+12. **OTPコード認証**: サインアップ時のメール確認はOTPコード方式（PWAではメールリンクがSafariで開かれる問題を回避）、確認コード再送機能付き（Supabaseレート制限対応・日本語カウントダウン表示）
 13. **auth.users同期トリガー**: `auth.users`への登録・削除時に`public.users`を自動同期（Supabase推奨パターン）
-14. **認証リダイレクト**: 未認証ユーザーは全保護ルート（`/`, `/appliances`, `/register`, `/mypage`）からログインページへリダイレクトされ、ログイン後は元のページに戻る（`redirectTo`クエリパラメータ）
+14. **認証リダイレクト**: 未認証ユーザーは全保護ルート（`/`, `/appliances`, `/register`, `/mypage`, `/maintenance`）からログインページへリダイレクトされ、ログイン後は元のページに戻る（`redirectTo`クエリパラメータ）
 15. **QAマークダウン方式**: RAG（ベクトル検索）ではなく、事前生成したQAマークダウンファイルによる検索と3段階フォールバック（QA検索 → テキスト検索 → PDF直接分析）
 16. **SSEストリーミング**: QA検索の進捗をリアルタイムでフロントエンドに伝達（ユーザー体験向上）
+17. **通知オンボーディング**: 初回サインアップ時にモーダルで通知許可を促す（sessionStorageでフラグ管理、スキップ可能）
+18. **デバイスコンテキスト検知**: User-AgentとCSS `display-mode: standalone` でPC/スマホ、ブラウザ/PWAを判別し、適切な案内文言を表示

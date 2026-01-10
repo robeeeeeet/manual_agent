@@ -236,6 +236,44 @@ export interface MaintenanceLogList {
 }
 
 // ============================================================================
+// Maintenance List Types (メンテナンス一覧)
+// ============================================================================
+
+export type MaintenanceStatus = "overdue" | "upcoming" | "scheduled" | "manual";
+
+export interface MaintenanceWithAppliance {
+  id: string;
+  task_name: string;
+  description: string | null;
+  next_due_at: string | null;
+  last_done_at: string | null;
+  importance: "high" | "medium" | "low";
+  interval_type: "days" | "months" | "manual";
+  interval_value: number | null;
+  source_page: string | null;
+  appliance_id: string;
+  appliance_name: string;
+  maker: string;
+  model_number: string;
+  category: string;
+  status: MaintenanceStatus;
+  days_until_due: number | null;
+}
+
+export interface MaintenanceCounts {
+  overdue: number;
+  upcoming: number;
+  scheduled: number;
+  manual: number;
+  total: number;
+}
+
+export interface MaintenanceListResponse {
+  items: MaintenanceWithAppliance[];
+  counts: MaintenanceCounts;
+}
+
+// ============================================================================
 // Legacy Types (Deprecated - for backwards compatibility)
 // ============================================================================
 

@@ -519,6 +519,57 @@ class UpcomingMaintenanceItem(BaseModel):
     model_number: str = Field(..., description="Model number")
 
 
+# ============================================================================
+# Maintenance List Schemas (メンテナンス一覧)
+# ============================================================================
+class MaintenanceWithAppliance(BaseModel):
+    """Maintenance schedule with appliance info for list view"""
+
+    id: UUID = Field(..., description="Schedule ID")
+    task_name: str = Field(..., description="Task name")
+    description: str | None = Field(None, description="Task description")
+    next_due_at: datetime | None = Field(None, description="Next due date")
+    last_done_at: datetime | None = Field(None, description="Last completion date")
+    importance: Literal["high", "medium", "low"] = Field(
+        ..., description="Importance level"
+    )
+    interval_type: Literal["days", "months", "manual"] = Field(
+        ..., description="Interval type"
+    )
+    interval_value: int | None = Field(None, description="Interval value")
+    source_page: str | None = Field(None, description="Reference page in manual")
+    appliance_id: UUID = Field(..., description="User appliance ID")
+    appliance_name: str = Field(..., description="User's appliance name")
+    maker: str = Field(..., description="Manufacturer name")
+    model_number: str = Field(..., description="Model number")
+    category: str = Field(..., description="Product category")
+    status: Literal["overdue", "upcoming", "scheduled", "manual"] = Field(
+        ..., description="Current status based on due date"
+    )
+    days_until_due: int | None = Field(
+        None, description="Days until due (negative if overdue, null for manual)"
+    )
+
+
+class MaintenanceCounts(BaseModel):
+    """Count of maintenance items by status"""
+
+    overdue: int = Field(0, description="Number of overdue items")
+    upcoming: int = Field(0, description="Number of items due within 7 days")
+    scheduled: int = Field(0, description="Number of items due later")
+    manual: int = Field(0, description="Number of manual items")
+    total: int = Field(0, description="Total number of items")
+
+
+class MaintenanceListResponse(BaseModel):
+    """Response for maintenance list API"""
+
+    items: list[MaintenanceWithAppliance] = Field(
+        ..., description="List of maintenance items"
+    )
+    counts: MaintenanceCounts = Field(..., description="Counts by status")
+
+
 # Error Response Schema
 class ErrorResponse(BaseModel):
     """Standard error response"""
