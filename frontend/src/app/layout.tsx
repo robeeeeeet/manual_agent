@@ -4,6 +4,7 @@ import "./globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { AuthProvider } from "@/contexts/AuthContext";
+import NotificationOnboarding from "@/components/notification/NotificationOnboarding";
 
 const notoSansJP = Noto_Sans_JP({
   variable: "--font-noto-sans-jp",
@@ -51,6 +52,7 @@ export default function RootLayout({
             {children}
           </main>
           <Footer />
+          <NotificationOnboarding />
         </AuthProvider>
       </body>
     </html>

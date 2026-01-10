@@ -114,7 +114,9 @@ manual_agent/
 - **PWA対応（manifest.json, Service Worker, アイコン）**
 - **Push通知基盤（購読管理、通知送信サービス）**
 - **メンテナンスリマインド通知（期限当日・期限間近の通知）**
-- **通知許可UIコンポーネント（NotificationPermission）**
+- **通知許可UIコンポーネント（NotificationPermission, NotificationPermissionModal）**
+- **初回サインアップ時の通知オンボーディングフロー（NotificationOnboarding）**
+- **デバイスコンテキスト検知フック（useDeviceContext: PC/スマホ、ブラウザ/PWA判別）**
 - **マイページ機能（メンテナンス統計、通知設定、通知時刻変更、ログアウト）**
 - **ユーザー設定API（プロファイル取得、設定更新、統計取得）**
 - **QA質問応答機能（家電詳細ページに統合）**
