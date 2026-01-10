@@ -82,10 +82,10 @@ manual_agent/
 │   ├── src/components/    # UIコンポーネント
 │   │   ├── auth/          # 認証関連（AuthForm）
 │   │   ├── layout/        # Header, Footer
-│   │   ├── notification/  # 通知コンポーネント（NotificationPermission）
+│   │   ├── notification/  # 通知コンポーネント（NotificationPermission, NotificationPermissionModal, NotificationOnboarding）
 │   │   ├── qa/            # QA機能（QASection, QAChat, QAChatMessage, QAFeedbackButtons, SearchProgressIndicator）
 │   │   └── ui/            # Button, Card, Modal
-│   ├── src/hooks/         # カスタムフック
+│   ├── src/hooks/         # カスタムフック（usePushNotification, useDeviceContext）
 │   ├── src/types/         # 型定義（appliance.ts, user.ts, qa.ts）
 │   ├── src/contexts/      # React Context（AuthContext）
 │   ├── src/lib/           # ユーティリティ
@@ -257,7 +257,9 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
   - PWA対応（manifest.json, Service Worker, アイコン）
   - Push通知基盤（購読管理、通知送信サービス）
   - メンテナンスリマインド通知（期限当日・期限間近）
-  - 通知許可UIコンポーネント
+  - 通知許可UIコンポーネント（NotificationPermission, NotificationPermissionModal）
+  - 初回サインアップ時の通知オンボーディングフロー（NotificationOnboarding + sessionStorage）
+  - デバイスコンテキスト検知フック（useDeviceContext: PC/スマホ、ブラウザ/PWA判別）
   - テスト通知送信機能（許可ユーザーのみ）
   - サインアップ時OTPコード方式（PWA対応のためメールリンクから変更）
   - 定期リマインド自動化（Cloud Scheduler + notify_time対応）
@@ -301,3 +303,5 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
 14. **認証リダイレクト**: 未認証ユーザーは全保護ルート（`/`, `/appliances`, `/register`, `/mypage`）からログインページへリダイレクトされ、ログイン後は元のページに戻る（`redirectTo`クエリパラメータ）
 15. **QAマークダウン方式**: RAG（ベクトル検索）ではなく、事前生成したQAマークダウンファイルによる検索と3段階フォールバック（QA検索 → テキスト検索 → PDF直接分析）
 16. **SSEストリーミング**: QA検索の進捗をリアルタイムでフロントエンドに伝達（ユーザー体験向上）
+17. **通知オンボーディング**: 初回サインアップ時にモーダルで通知許可を促す（sessionStorageでフラグ管理、スキップ可能）
+18. **デバイスコンテキスト検知**: User-AgentとCSS `display-mode: standalone` でPC/スマホ、ブラウザ/PWAを判別し、適切な案内文言を表示

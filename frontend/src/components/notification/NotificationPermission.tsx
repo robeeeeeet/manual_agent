@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePushNotification } from "@/hooks/usePushNotification";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDeviceContext, getNotificationSettingsText } from "@/hooks/useDeviceContext";
 
 // Check if user is allowed to send test notifications
 const ALLOWED_TEST_USERS = process.env.NEXT_PUBLIC_ALLOWED_TEST_NOTIFICATION_USERS || "";
@@ -25,11 +26,13 @@ export default function NotificationPermission() {
     requestPermission,
     unsubscribe,
   } = usePushNotification();
+  const { deviceType, appMode } = useDeviceContext();
 
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
   const canSendTestNotification = isAllowedTestUser(user?.email);
+  const settingsText = getNotificationSettingsText(deviceType, appMode);
 
   const sendTestNotification = async () => {
     setTestLoading(true);
@@ -107,7 +110,7 @@ export default function NotificationPermission() {
           <div>
             <p className="text-sm font-medium text-red-700">通知が無効になっています</p>
             <p className="text-sm text-red-600 mt-1">
-              ブラウザの設定から通知を許可してください
+              {settingsText}
             </p>
           </div>
         </div>
