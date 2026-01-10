@@ -12,6 +12,7 @@ from app.api.routes import (
     appliances,
     cron,
     health,
+    maintenance,
     manuals,
     notifications,
     push_subscriptions,
@@ -110,6 +111,10 @@ app.include_router(
 )
 app.include_router(
     qa.router,
+    prefix=settings.api_v1_prefix,
+)
+app.include_router(
+    maintenance.router,
     prefix=settings.api_v1_prefix,
 )
 

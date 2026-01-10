@@ -686,7 +686,21 @@ export default function ApplianceDetailPage({
         variant="dialog"
       >
         <div className="p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">完了履歴</h3>
+          {/* Close button */}
+          <button
+            onClick={() => {
+              setShowHistoryModal(false);
+              setHistoryLogs([]);
+            }}
+            className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+            aria-label="閉じる"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          <h3 className="text-lg font-bold text-gray-900 mb-4 pr-8">完了履歴</h3>
 
           {isLoadingHistory ? (
             <div className="flex justify-center py-8">
@@ -725,19 +739,6 @@ export default function ApplianceDetailPage({
               ))}
             </div>
           )}
-
-          <div className="mt-6">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowHistoryModal(false);
-                setHistoryLogs([]);
-              }}
-              className="w-full"
-            >
-              閉じる
-            </Button>
-          </div>
         </div>
       </Modal>
 
@@ -751,10 +752,24 @@ export default function ApplianceDetailPage({
         variant="dialog"
       >
         <div className="p-6">
+          {/* Close button */}
+          <button
+            onClick={() => {
+              setShowDetailModal(false);
+              setSelectedSchedule(null);
+            }}
+            className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+            aria-label="閉じる"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
           {selectedSchedule && (
             <>
               {/* Header */}
-              <h3 className="text-lg font-bold text-gray-900 mb-4">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 pr-8">
                 {selectedSchedule.task_name}
               </h3>
 
@@ -854,19 +869,9 @@ export default function ApplianceDetailPage({
                 完了履歴を表示
               </button>
 
-              {/* Action buttons */}
-              <div className="flex gap-3 pt-4 border-t">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowDetailModal(false);
-                    setSelectedSchedule(null);
-                  }}
-                  className="flex-1"
-                >
-                  閉じる
-                </Button>
-                <Button onClick={handleDetailToComplete} className="flex-1">
+              {/* Action button */}
+              <div className="pt-4 border-t">
+                <Button onClick={handleDetailToComplete} className="w-full">
                   完了する
                 </Button>
               </div>
