@@ -65,13 +65,23 @@ class UserApplianceCreate(UserApplianceBase):
     stored_pdf_path: str | None = Field(
         None, description="Path to stored PDF in Supabase Storage"
     )
+    # グループ所有の場合に設定（Phase 7: Family Sharing）
+    group_id: UUID | None = Field(
+        None,
+        description="Group ID for group-owned appliance (mutually exclusive with user_id)",
+    )
 
 
 class UserAppliance(UserApplianceBase):
     """Schema for user appliance response"""
 
     id: UUID = Field(..., description="Unique identifier")
-    user_id: UUID = Field(..., description="Owner's user ID")
+    user_id: UUID | None = Field(
+        None, description="Owner's user ID (for personal ownership)"
+    )
+    group_id: UUID | None = Field(
+        None, description="Group ID (for group ownership, Phase 7)"
+    )
     shared_appliance_id: UUID = Field(..., description="Reference to shared appliance")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
@@ -99,6 +109,12 @@ class UserApplianceWithDetails(UserAppliance):
     category: str = Field(..., description="Product category")
     manual_source_url: str | None = Field(None, description="Manual source URL")
     stored_pdf_path: str | None = Field(None, description="Stored PDF path")
+
+    # グループ情報（Phase 7: Family Sharing）
+    group_name: str | None = Field(None, description="Group name (if group-owned)")
+    is_group_owned: bool = Field(
+        False, description="Whether this appliance is group-owned"
+    )
 
     # 次回メンテナンス情報（最も近い期限）
     next_maintenance: NextMaintenanceInfo | None = Field(

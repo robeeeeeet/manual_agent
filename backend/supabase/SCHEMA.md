@@ -100,6 +100,32 @@
 │                           │ last_violation_at             │                     │
 │                           │ created_at, updated_at        │                     │
 │                           └───────────────────────────────┘                     │
+│                                                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐│
+│  │                         Family Sharing (Phase 7)                            ││
+│  │                                                                             ││
+│  │   ┌───────────────────────────────┐                                         ││
+│  │   │         groups                │                                         ││
+│  │   ├───────────────────────────────┤                                         ││
+│  │   │ id (PK)                       │                                         ││
+│  │   │ name                          │                                         ││
+│  │   │ invite_code (UNIQUE)          │                                         ││
+│  │   │ owner_id (FK → users)         │                                         ││
+│  │   └───────────────────────────────┘                                         ││
+│  │              │                                                              ││
+│  │              ↓                                                              ││
+│  │   ┌───────────────────────────────┐                                         ││
+│  │   │     group_members             │                                         ││
+│  │   ├───────────────────────────────┤                                         ││
+│  │   │ id (PK)                       │                                         ││
+│  │   │ group_id (FK → groups)        │                                         ││
+│  │   │ user_id (FK → users)          │                                         ││
+│  │   │ role ('owner'/'member')       │                                         ││
+│  │   │ joined_at                     │                                         ││
+│  │   └───────────────────────────────┘                                         ││
+│  │                                                                             ││
+│  │   user_appliances.group_id → groups.id （グループ所有の場合）                  ││
+│  └─────────────────────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -145,23 +171,27 @@
 
 ### 3. user_appliances（ユーザー所有関係）
 
-ユーザーと家電マスターの所有関係を管理するテーブル。
+ユーザーまたはグループと家電マスターの所有関係を管理するテーブル。
 
 | カラム名 | 型 | NULL | デフォルト | 説明 |
 |---------|-----|------|-----------|------|
 | `id` | UUID | NOT NULL | gen_random_uuid() | 所有関係ID（PK） |
-| `user_id` | UUID | NOT NULL | - | 所有者のユーザーID（FK → users） |
+| `user_id` | UUID | NULL | - | 所有者のユーザーID（個人所有の場合、FK → users） |
+| `group_id` | UUID | NULL | - | 所有グループID（グループ所有の場合、FK → groups） |
 | `shared_appliance_id` | UUID | NOT NULL | - | 家電マスターID（FK → shared_appliances） |
 | `name` | TEXT | NOT NULL | - | ユーザー固有の表示名（例: リビングのエアコン） |
 | `image_url` | TEXT | NULL | - | ユーザーがアップロードした画像URL |
 | `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
 | `updated_at` | TIMESTAMPTZ | NOT NULL | NOW() | 更新日時 |
 
-**制約**: `(user_id, name)` はUNIQUE（同一ユーザーで同じ表示名を防止）
+**制約**:
+- `(user_id, name)` は条件付きUNIQUE（個人所有の場合）
+- `(group_id, name)` は条件付きUNIQUE（グループ所有の場合）
+- `chk_user_appliances_owner`: `user_id` と `group_id` のいずれか一方のみ設定
 
-**インデックス**: `user_id`, `shared_appliance_id`
+**インデックス**: `user_id`, `group_id`, `shared_appliance_id`
 
-**RLS**: 自分の所有関係のみ参照・更新・削除可能
+**RLS**: 個人所有 OR グループメンバーとして参照・更新・削除可能
 
 ### 4. shared_maintenance_items（メンテナンス項目キャッシュ）
 
@@ -338,6 +368,46 @@ QA機能に対する違反（不適切な質問）を記録するテーブル。
 - 3回目: 24時間
 - 4回目以降: 7日間
 
+### 11. groups（グループ）
+
+家族グループを管理するテーブル（Phase 7）。
+
+| カラム名 | 型 | NULL | デフォルト | 説明 |
+|---------|-----|------|-----------|------|
+| `id` | UUID | NOT NULL | gen_random_uuid() | グループID（PK） |
+| `name` | TEXT | NOT NULL | - | グループ名 |
+| `invite_code` | TEXT | NOT NULL | - | 招待コード（6-8文字英数字、UNIQUE） |
+| `owner_id` | UUID | NOT NULL | - | グループオーナーのユーザーID（FK → users） |
+| `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
+| `updated_at` | TIMESTAMPTZ | NOT NULL | NOW() | 更新日時 |
+
+**制約**: `invite_code` は UNIQUE
+
+**インデックス**: `invite_code`, `owner_id`
+
+**RLS**: グループメンバーのみ閲覧可能、オーナーのみ更新・削除可能
+
+**特記事項**:
+- グループ削除時、グループ家電はオーナーの個人所有に自動移管（トリガー）
+
+### 12. group_members（グループメンバー）
+
+グループのメンバーシップを管理するテーブル（Phase 7）。
+
+| カラム名 | 型 | NULL | デフォルト | 説明 |
+|---------|-----|------|-----------|------|
+| `id` | UUID | NOT NULL | gen_random_uuid() | メンバーシップID（PK） |
+| `group_id` | UUID | NOT NULL | - | 所属グループID（FK → groups） |
+| `user_id` | UUID | NOT NULL | - | メンバーのユーザーID（FK → users） |
+| `role` | TEXT | NOT NULL | 'member' | 役割: 'owner' または 'member' |
+| `joined_at` | TIMESTAMPTZ | NOT NULL | NOW() | 参加日時 |
+
+**制約**: `(group_id, user_id)` は UNIQUE（同一グループに同一ユーザーは1回のみ）
+
+**インデックス**: `group_id`, `user_id`
+
+**RLS**: 同グループメンバーのみ閲覧可能、本人またはオーナーが削除可能
+
 ## Row Level Security (RLS) ポリシー
 
 ### users
@@ -362,26 +432,54 @@ QA機能に対する違反（不適切な質問）を記録するテーブル。
 
 | 操作 | ポリシー名 | 条件 |
 |-----|----------|------|
-| SELECT | Users can view their own user_appliances | `auth.uid() = user_id` |
-| INSERT | Users can insert their own user_appliances | `auth.uid() = user_id` |
-| UPDATE | Users can update their own user_appliances | `auth.uid() = user_id` |
-| DELETE | Users can delete their own user_appliances | `auth.uid() = user_id` |
+| SELECT | Users can view user_appliances | `user_id = auth.uid()` OR グループメンバー |
+| INSERT | Users can insert user_appliances | `user_id = auth.uid()` OR グループメンバー |
+| UPDATE | Users can update user_appliances | `user_id = auth.uid()` OR グループメンバー |
+| DELETE | Users can delete user_appliances | `user_id = auth.uid()` OR グループメンバー |
+
+**グループメンバー判定**:
+```sql
+EXISTS (
+    SELECT 1 FROM group_members
+    WHERE group_members.group_id = user_appliances.group_id
+    AND group_members.user_id = auth.uid()
+)
+```
 
 ### maintenance_schedules
 
 | 操作 | ポリシー名 | 条件 |
 |-----|----------|------|
-| SELECT | Users can view schedules for their appliances | `user_appliances.user_id = auth.uid()` |
-| INSERT | Users can insert schedules for their appliances | `user_appliances.user_id = auth.uid()` |
-| UPDATE | Users can update schedules for their appliances | `user_appliances.user_id = auth.uid()` |
-| DELETE | Users can delete schedules for their appliances | `user_appliances.user_id = auth.uid()` |
+| SELECT | Users can view maintenance schedules | 家電所有者 OR グループメンバー |
+| INSERT | Users can insert maintenance schedules | 家電所有者 OR グループメンバー |
+| UPDATE | Users can update maintenance schedules | 家電所有者 OR グループメンバー |
+| DELETE | Users can delete maintenance schedules | 家電所有者 OR グループメンバー |
+
+**判定条件**: `user_appliances.user_id = auth.uid()` OR グループメンバー
 
 ### maintenance_logs
 
 | 操作 | ポリシー名 | 条件 |
 |-----|----------|------|
-| SELECT | Users can view logs for their appliances | `user_appliances.user_id = auth.uid()` |
-| INSERT | Users can insert logs for their appliances | `done_by_user_id = auth.uid()` かつ `user_appliances.user_id = auth.uid()` |
+| SELECT | Users can view maintenance logs | 家電所有者 OR グループメンバー |
+| INSERT | Users can insert maintenance logs | `done_by_user_id = auth.uid()` かつ (家電所有者 OR グループメンバー) |
+
+### groups
+
+| 操作 | ポリシー名 | 条件 |
+|-----|----------|------|
+| SELECT | Members can view their groups | グループメンバーのみ |
+| INSERT | Authenticated users can create groups | `owner_id = auth.uid()` |
+| UPDATE | Owners can update their groups | `owner_id = auth.uid()` |
+| DELETE | Owners can delete their groups | `owner_id = auth.uid()` |
+
+### group_members
+
+| 操作 | ポリシー名 | 条件 |
+|-----|----------|------|
+| SELECT | Members can view group members | 同グループメンバーのみ |
+| INSERT | Users can join groups | `user_id = auth.uid()` |
+| DELETE | Members can leave or be removed | 本人 OR グループオーナー |
 
 ### push_subscriptions
 
@@ -461,6 +559,28 @@ QA機能に対する違反（不適切な質問）を記録するテーブル。
 **注意**: UUID生成には `gen_random_uuid()` を使用（PostgreSQL 13+標準機能、拡張不要）
 
 ## 設計の変更履歴
+
+### 2026-01-09: Phase 7 家族グループ共有機能追加
+
+**追加されたもの**:
+- `groups` テーブル: 家族グループを管理
+- `group_members` テーブル: グループメンバーシップを管理
+- `user_appliances.group_id` カラム: グループ所有の場合に設定
+
+**設計意図**:
+- 家族など複数人で家電とメンテナンススケジュールを共有
+- グループ所有モデル: グループとして家電を登録、全メンバーが編集・削除可能
+- 共有スケジュール: 誰かが完了すると全員に反映
+- 招待コード方式: 6-8文字英数字で簡単に参加
+- 個人通知設定を維持: 各メンバーの `notify_time` を尊重
+
+**RLSポリシー変更**:
+- `user_appliances`: 個人所有 OR グループメンバーとしてアクセス可能
+- `maintenance_schedules`: グループ家電のスケジュールも共有
+- `maintenance_logs`: グループメンバーが完了記録を閲覧可能
+
+**トリガー**:
+- `transfer_group_appliances_to_owner`: グループ削除時に家電をオーナーの個人所有に移管
 
 ### 2026-01-07: QA不正利用防止機能追加
 

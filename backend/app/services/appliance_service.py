@@ -1,5 +1,6 @@
 """Service for managing appliances (shared and user-owned)."""
 
+import logging
 from datetime import UTC
 from uuid import UUID
 
@@ -10,6 +11,8 @@ from app.schemas.appliance import (
     UserApplianceWithDetails,
 )
 from app.services.supabase_client import get_supabase_client
+
+logger = logging.getLogger(__name__)
 
 
 class ApplianceServiceError(Exception):
@@ -26,6 +29,12 @@ class ApplianceNotFoundError(ApplianceServiceError):
 
 class DuplicateNameError(ApplianceServiceError):
     """Raised when user already has an appliance with the same name."""
+
+    pass
+
+
+class NotGroupMemberError(ApplianceServiceError):
+    """Raised when user is not a member of the group."""
 
     pass
 
@@ -118,28 +127,55 @@ async def get_or_create_shared_appliance(
 async def register_user_appliance(
     user_id: UUID,
     appliance_data: UserApplianceCreate,
+    group_id: UUID | None = None,
 ) -> UserApplianceWithDetails:
     """
-    Register a new appliance for a user.
+    Register a new appliance for a user or group.
 
     This will:
     1. Get or create the shared appliance (by maker/model_number)
-    2. Create a user_appliance record linking the user to the shared appliance
+    2. Create a user_appliance record linking the user/group to the shared appliance
 
     Args:
-        user_id: User's UUID
+        user_id: User's UUID (used for personal ownership or group membership check)
         appliance_data: Appliance registration data
+        group_id: Group's UUID (if registering as group appliance)
 
     Returns:
         UserApplianceWithDetails with all appliance information
 
     Raises:
-        DuplicateNameError: If user already has an appliance with the same name
+        NotGroupMemberError: If user is not a member of the specified group
+        DuplicateNameError: If owner already has an appliance with the same name
         ApplianceServiceError: If database operation fails
     """
     client = get_supabase_client()
     if not client:
         raise ApplianceServiceError("Supabase client not configured")
+
+    # If group_id is provided, verify membership
+    group_name = None
+    if group_id:
+        membership = (
+            client.table("group_members")
+            .select("id")
+            .eq("group_id", str(group_id))
+            .eq("user_id", str(user_id))
+            .execute()
+        )
+        if not membership.data:
+            raise NotGroupMemberError("You are not a member of this group")
+
+        # Get group name
+        group_result = (
+            client.table("groups")
+            .select("name")
+            .eq("id", str(group_id))
+            .single()
+            .execute()
+        )
+        if group_result.data:
+            group_name = group_result.data["name"]
 
     # Get or create shared appliance
     shared = await get_or_create_shared_appliance(
@@ -151,11 +187,18 @@ async def register_user_appliance(
     )
 
     # Create user_appliance record
+    # Either user_id OR group_id is set (XOR constraint in DB)
     insert_data = {
-        "user_id": str(user_id),
         "shared_appliance_id": str(shared.id),
         "name": appliance_data.name,
     }
+
+    if group_id:
+        insert_data["group_id"] = str(group_id)
+        # user_id is NULL for group appliances
+    else:
+        insert_data["user_id"] = str(user_id)
+
     if appliance_data.image_url:
         insert_data["image_url"] = appliance_data.image_url
 
@@ -167,6 +210,10 @@ async def register_user_appliance(
             raise DuplicateNameError(
                 f"You already have an appliance named '{appliance_data.name}'"
             ) from e
+        if "chk_user_appliances_owner" in error_str:
+            raise ApplianceServiceError(
+                "Invalid ownership: must specify either user_id or group_id"
+            ) from e
         raise ApplianceServiceError(f"Failed to register appliance: {e}") from e
 
     if not result.data:
@@ -177,7 +224,8 @@ async def register_user_appliance(
     # Return combined data
     return UserApplianceWithDetails(
         id=user_appliance["id"],
-        user_id=user_appliance["user_id"],
+        user_id=user_appliance.get("user_id"),
+        group_id=user_appliance.get("group_id"),
         shared_appliance_id=user_appliance["shared_appliance_id"],
         name=user_appliance["name"],
         image_url=user_appliance.get("image_url"),
@@ -188,18 +236,20 @@ async def register_user_appliance(
         category=shared.category,
         manual_source_url=shared.manual_source_url,
         stored_pdf_path=shared.stored_pdf_path,
+        group_name=group_name,
+        is_group_owned=group_id is not None,
     )
 
 
 async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
     """
-    Get all appliances for a user.
+    Get all appliances for a user (personal + group appliances).
 
     Args:
         user_id: User's UUID
 
     Returns:
-        List of UserApplianceWithDetails
+        List of UserApplianceWithDetails (personal appliances + group appliances)
 
     Raises:
         ApplianceServiceError: If database operation fails
@@ -212,18 +262,56 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
     if not client:
         raise ApplianceServiceError("Supabase client not configured")
 
-    # Query user_appliances with joined shared_appliances data
-    result = (
+    # Step 1: Get user's personal appliances
+    personal_result = (
         client.table("user_appliances")
         .select("*, shared_appliances(*)")
         .eq("user_id", str(user_id))
-        .order("created_at", desc=True)
         .execute()
     )
 
+    # Step 2: Get user's group memberships
+    memberships_result = (
+        client.table("group_members")
+        .select("group_id")
+        .eq("user_id", str(user_id))
+        .execute()
+    )
+
+    group_ids = [m["group_id"] for m in (memberships_result.data or [])]
+
+    # Step 3: Get group appliances (if user is in any groups)
+    group_appliances_data = []
+    group_names_map = {}
+    if group_ids:
+        # Get group names
+        groups_result = (
+            client.table("groups").select("id, name").in_("id", group_ids).execute()
+        )
+        group_names_map = {g["id"]: g["name"] for g in (groups_result.data or [])}
+
+        # Get group appliances
+        group_appliances_result = (
+            client.table("user_appliances")
+            .select("*, shared_appliances(*)")
+            .in_("group_id", group_ids)
+            .execute()
+        )
+        group_appliances_data = group_appliances_result.data or []
+
+    # Combine personal and group appliances
+    all_appliances_data = (personal_result.data or []) + group_appliances_data
+
+    # Sort by created_at descending
+    all_appliances_data.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
     appliances = []
-    for row in result.data:
+    for row in all_appliances_data:
         shared = row.get("shared_appliances", {})
+        is_group_owned = row.get("group_id") is not None
+        group_name = (
+            group_names_map.get(row.get("group_id")) if is_group_owned else None
+        )
 
         # Get next upcoming maintenance for this appliance
         next_maintenance = None
@@ -255,7 +343,8 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
         appliances.append(
             UserApplianceWithDetails(
                 id=row["id"],
-                user_id=row["user_id"],
+                user_id=row.get("user_id"),
+                group_id=row.get("group_id"),
                 shared_appliance_id=row["shared_appliance_id"],
                 name=row["name"],
                 image_url=row.get("image_url"),
@@ -267,6 +356,8 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
                 manual_source_url=shared.get("manual_source_url"),
                 stored_pdf_path=shared.get("stored_pdf_path"),
                 next_maintenance=next_maintenance,
+                group_name=group_name,
+                is_group_owned=is_group_owned,
             )
         )
 
@@ -279,6 +370,10 @@ async def get_user_appliance(
     """
     Get a specific appliance for a user.
 
+    Access is granted if:
+    - User owns the appliance (personal ownership), OR
+    - User is a member of the group that owns the appliance
+
     Args:
         user_id: User's UUID
         appliance_id: Appliance's UUID (user_appliances.id)
@@ -287,18 +382,18 @@ async def get_user_appliance(
         UserApplianceWithDetails
 
     Raises:
-        ApplianceNotFoundError: If appliance not found or not owned by user
+        ApplianceNotFoundError: If appliance not found or not accessible
         ApplianceServiceError: If database operation fails
     """
     client = get_supabase_client()
     if not client:
         raise ApplianceServiceError("Supabase client not configured")
 
+    # Get the appliance first
     result = (
         client.table("user_appliances")
         .select("*, shared_appliances(*)")
         .eq("id", str(appliance_id))
-        .eq("user_id", str(user_id))
         .execute()
     )
 
@@ -306,11 +401,46 @@ async def get_user_appliance(
         raise ApplianceNotFoundError(f"Appliance {appliance_id} not found")
 
     row = result.data[0]
+
+    # Check access: personal ownership OR group membership
+    has_access = False
+    group_name = None
+    is_group_owned = row.get("group_id") is not None
+
+    if row.get("user_id") == str(user_id):
+        # Personal ownership
+        has_access = True
+    elif is_group_owned:
+        # Check group membership
+        membership = (
+            client.table("group_members")
+            .select("id")
+            .eq("group_id", row["group_id"])
+            .eq("user_id", str(user_id))
+            .execute()
+        )
+        if membership.data:
+            has_access = True
+            # Get group name
+            group_result = (
+                client.table("groups")
+                .select("name")
+                .eq("id", row["group_id"])
+                .single()
+                .execute()
+            )
+            if group_result.data:
+                group_name = group_result.data["name"]
+
+    if not has_access:
+        raise ApplianceNotFoundError(f"Appliance {appliance_id} not found")
+
     shared = row.get("shared_appliances", {})
 
     return UserApplianceWithDetails(
         id=row["id"],
-        user_id=row["user_id"],
+        user_id=row.get("user_id"),
+        group_id=row.get("group_id"),
         shared_appliance_id=row["shared_appliance_id"],
         name=row["name"],
         image_url=row.get("image_url"),
@@ -321,6 +451,8 @@ async def get_user_appliance(
         category=shared.get("category", ""),
         manual_source_url=shared.get("manual_source_url"),
         stored_pdf_path=shared.get("stored_pdf_path"),
+        group_name=group_name,
+        is_group_owned=is_group_owned,
     )
 
 
@@ -330,7 +462,11 @@ async def update_user_appliance(
     update_data: UserApplianceUpdate,
 ) -> UserApplianceWithDetails:
     """
-    Update a user's appliance.
+    Update an appliance.
+
+    Access is granted if:
+    - User owns the appliance (personal ownership), OR
+    - User is a member of the group that owns the appliance
 
     Args:
         user_id: User's UUID
@@ -341,8 +477,8 @@ async def update_user_appliance(
         Updated UserApplianceWithDetails
 
     Raises:
-        ApplianceNotFoundError: If appliance not found or not owned by user
-        DuplicateNameError: If the new name already exists for this user
+        ApplianceNotFoundError: If appliance not found or not accessible
+        DuplicateNameError: If the new name already exists for this owner
         ApplianceServiceError: If database operation fails
     """
     client = get_supabase_client()
@@ -380,7 +516,11 @@ async def update_user_appliance(
 
 async def delete_user_appliance(user_id: UUID, appliance_id: UUID) -> bool:
     """
-    Delete a user's appliance.
+    Delete an appliance.
+
+    Access is granted if:
+    - User owns the appliance (personal ownership), OR
+    - User is a member of the group that owns the appliance
 
     Note: This only deletes the user_appliance record.
     The shared_appliance remains for other users.
@@ -393,7 +533,7 @@ async def delete_user_appliance(user_id: UUID, appliance_id: UUID) -> bool:
         True if deleted successfully
 
     Raises:
-        ApplianceNotFoundError: If appliance not found or not owned by user
+        ApplianceNotFoundError: If appliance not found or not accessible
         ApplianceServiceError: If database operation fails
     """
     client = get_supabase_client()

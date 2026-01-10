@@ -103,7 +103,8 @@ export interface SharedAppliance {
 
 export interface UserAppliance {
   id: string;
-  user_id: string;
+  user_id: string | null; // null for group-owned appliances
+  group_id: string | null; // set for group-owned appliances (Phase 7)
   shared_appliance_id: string;
   name: string;
   image_url: string | null;
@@ -125,6 +126,9 @@ export interface UserApplianceWithDetails extends UserAppliance {
   category: string;
   manual_source_url: string | null;
   stored_pdf_path: string | null;
+  // Group information (Phase 7: Family Sharing)
+  group_name: string | null;
+  is_group_owned: boolean;
   // Next maintenance info (if any)
   next_maintenance: NextMaintenanceInfo | null;
 }
@@ -137,6 +141,7 @@ export interface UserApplianceCreate {
   manual_source_url?: string;
   stored_pdf_path?: string;
   image_url?: string;
+  group_id?: string; // For group-owned appliances (Phase 7)
 }
 
 export interface UserApplianceUpdate {
