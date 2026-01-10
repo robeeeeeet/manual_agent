@@ -85,7 +85,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
           }
         } else {
           setMessage(
-            "確認コードをメールで送信しました。メールに記載されたコードを入力してください。"
+            "確認コードをメールで送信しました。メールに記載されたコードを入力してください。既にアカウントをお持ちの場合は、ログインページからサインインしてください。"
           );
           setShowOtpForm(true);
         }
@@ -154,6 +154,16 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
               <p className="text-sm text-gray-600 text-center">
                 <strong>{email}</strong> に送信された確認コードを入力してください
+              </p>
+
+              <p className="text-sm text-gray-500 text-center">
+                既にアカウントをお持ちの場合は{" "}
+                <Link
+                  href={redirectTo !== "/" ? `/login?redirectTo=${encodeURIComponent(redirectTo)}` : "/login"}
+                  className="text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  ログイン
+                </Link>
               </p>
 
               <div>
