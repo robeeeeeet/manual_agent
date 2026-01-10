@@ -22,6 +22,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [showOtpForm, setShowOtpForm] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const { signIn, signUp, verifyOtp, resendOtp } = useAuth();
   const router = useRouter();
@@ -74,8 +75,12 @@ export default function AuthForm({ mode }: AuthFormProps) {
             setError(error.message);
           }
         } else {
+          // ログイン成功: フルスクリーンローディングを表示してから遷移
+          // これによりヘッダーの状態変化とページ遷移のタイミングのずれを隠す
+          setIsNavigating(true);
           router.push(redirectTo);
           router.refresh();
+          return; // isLoadingをfalseにしない（ナビゲーション中のため）
         }
       } else {
         const { error } = await signUp(email, password);
@@ -123,8 +128,11 @@ export default function AuthForm({ mode }: AuthFormProps) {
       } else {
         // Set flag to show notification modal after redirect
         sessionStorage.setItem("showNotificationOnboarding", "true");
+        // サインアップ成功: フルスクリーンローディングを表示してから遷移
+        setIsNavigating(true);
         router.push(redirectTo);
         router.refresh();
+        return; // isLoadingをfalseにしない
       }
     } catch {
       setError("予期せぬエラーが発生しました");
@@ -173,6 +181,18 @@ export default function AuthForm({ mode }: AuthFormProps) {
       setIsResending(false);
     }
   };
+
+  // ログイン後の遷移中はフルスクリーンローディングを表示
+  if (isNavigating) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-600">ログイン中...</p>
+        </div>
+      </div>
+    );
+  }
 
   // OTPコード入力フォーム
   if (showOtpForm) {
@@ -339,6 +359,16 @@ export default function AuthForm({ mode }: AuthFormProps) {
                 autoComplete={isLogin ? "current-password" : "new-password"}
                 disabled={isLoading}
               />
+              {isLogin && (
+                <div className="mt-2 text-right">
+                  <Link
+                    href="/reset-password"
+                    className="text-sm text-blue-600 hover:text-blue-700"
+                  >
+                    パスワードを忘れた方
+                  </Link>
+                </div>
+              )}
             </div>
 
             {!isLogin && (
