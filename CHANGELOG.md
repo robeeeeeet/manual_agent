@@ -7,13 +7,61 @@
 
 ## [Unreleased]
 
+### Added
+
+#### Phase 6.5: メンテナンス一覧機能 ✅ 完了
+
+**バックエンドAPI**
+- `GET /api/v1/maintenance` - 全メンテナンス項目取得（ステータス・重要度・家電IDでフィルタ可能）
+- ステータス判定ロジック（overdue / upcoming / scheduled / manual）
+- カウント集計（各ステータスの件数）
+
+**フロントエンドBFF層**
+- `/api/maintenance` - メンテナンス一覧取得
+
+**フロントエンドUI**
+- `/maintenance` ページ（メンテナンス一覧）
+- 共通コンポーネント
+  - `MaintenanceStatusTabs.tsx` - ステータス別タブ（すべて / 期限超過 / 今週 / 予定通り / 手動）
+  - `MaintenanceFilter.tsx` - フィルター（重要度、家電別）
+  - `MaintenanceListItem.tsx` - リストアイテム（コンパクト / フル表示切替）
+  - `MaintenanceCompleteModal.tsx` - 完了モーダル（家電詳細ページから共通化）
+- 家電詳細ページと統一されたUI/UX
+- 認証保護追加（middleware.ts に `/maintenance` 追加）
+
+#### 通知オンボーディング機能
+
+**フロントエンドUI**
+- `NotificationOnboarding.tsx` - 初回サインアップ時の通知許可モーダル
+- `sessionStorage` によるオンボーディング表示フラグ管理
+- スキップ可能（「今はスキップ」ボタン）
+- `useDeviceContext` フックによるデバイス判定（PC/スマホ、ブラウザ/PWA）
+
+#### 確認コード再送機能
+
+**フロントエンドUI**
+- `AuthForm.tsx` - 「コードを再送する」ボタン追加
+- 60秒クールダウンタイマー（成功時）
+- Supabaseレート制限エラーからの秒数抽出・カウントダウン表示
+- 日本語メッセージ対応（「あと N 秒で再送できます」）
+
+**AuthContext**
+- `resendOtp()` メソッド追加（Supabase Auth `resend()` API使用）
+
 ### Changed
 
-#### UI改善: ハンバーガーメニューの改善
+#### UI改善: ハンバーガーメニュー・Headerの改善
 
 **Header コンポーネント（`Header.tsx`）**
+- デスクトップ表示にログアウトボタンを追加（ユーザーメール横）
 - モバイルメニュー（ハンバーガーメニュー）にログアウトボタンを追加
 - ログインページ（`/login`）でハンバーガーメニューを非表示に変更
+
+#### サインアップ時のエラーメッセージ改善
+
+**AuthForm コンポーネント**
+- 既存メールアドレスでサインアップ時の日本語エラーメッセージ追加
+- 「このメールアドレスは既に登録されています」表示
 
 #### UI改善: メンテナンス一覧のコンパクト化
 

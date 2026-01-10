@@ -4,6 +4,9 @@
 .mcp.json.backup.*
 .claude/settings.local.json
 
+# 完了した作業メモ
+docs/done/
+
 # 環境変数（APIキーなど）
 .env
 .env.local
