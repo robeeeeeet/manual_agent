@@ -584,7 +584,7 @@ export default function MaintenancePage() {
               {/* Link to appliance detail */}
               <div className="mt-4 text-center">
                 <Link
-                  href={`/appliances/${selectedItem.appliance_id}`}
+                  href={`/appliances/${selectedItem.appliance_id}?from=maintenance`}
                   className="text-sm text-blue-600 hover:text-blue-700"
                 >
                   家電詳細ページへ →
