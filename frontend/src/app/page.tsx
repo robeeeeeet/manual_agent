@@ -5,9 +5,16 @@ import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserApplianceWithDetails } from "@/types/appliance";
+import MaintenanceListItem from "@/components/maintenance/MaintenanceListItem";
+import MaintenanceCompleteModal from "@/components/maintenance/MaintenanceCompleteModal";
+import {
+  UserApplianceWithDetails,
+  MaintenanceWithAppliance,
+  MaintenanceListResponse,
+  MaintenanceSchedule,
+} from "@/types/appliance";
 
-interface MaintenanceSchedule {
+interface HomeMaintenanceSchedule {
   id: string;
   task_name: string;
   next_due_at: string;
@@ -16,7 +23,7 @@ interface MaintenanceSchedule {
 
 // Extended type for home page (includes maintenance schedules for future use)
 interface ApplianceWithMaintenance extends UserApplianceWithDetails {
-  maintenance_schedules?: MaintenanceSchedule[];
+  maintenance_schedules?: HomeMaintenanceSchedule[];
 }
 
 export default function Home() {
@@ -24,48 +31,111 @@ export default function Home() {
   const [appliances, setAppliances] = useState<ApplianceWithMaintenance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Urgent maintenance state
+  const [urgentMaintenance, setUrgentMaintenance] = useState<
+    MaintenanceWithAppliance[]
+  >([]);
+  const [maintenanceLoading, setMaintenanceLoading] = useState(true);
+
+  // Complete modal state
+  const [selectedItem, setSelectedItem] =
+    useState<MaintenanceWithAppliance | null>(null);
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+
+  // Fetch appliances and maintenance data
   useEffect(() => {
-    const fetchAppliances = async () => {
+    const fetchData = async () => {
       if (!user) {
         setIsLoading(false);
+        setMaintenanceLoading(false);
         return;
       }
 
       try {
-        // Use BFF API to get appliances (limited to 3 for home page)
-        const response = await fetch("/api/appliances");
+        // Fetch appliances and maintenance in parallel
+        const [appliancesRes, maintenanceRes] = await Promise.all([
+          fetch("/api/appliances"),
+          fetch("/api/maintenance?status=overdue,upcoming"),
+        ]);
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch appliances");
+        if (appliancesRes.ok) {
+          const appliancesData = await appliancesRes.json();
+          setAppliances(appliancesData.slice(0, 3));
         }
 
-        const data = await response.json();
-        // Limit to 3 appliances for home page display
-        setAppliances(data.slice(0, 3));
+        if (maintenanceRes.ok) {
+          const maintenanceData: MaintenanceListResponse =
+            await maintenanceRes.json();
+          // Show up to 5 urgent items
+          setUrgentMaintenance(maintenanceData.items.slice(0, 5));
+        }
       } catch (err) {
-        console.error("Error fetching appliances:", err);
+        console.error("Error fetching data:", err);
       } finally {
         setIsLoading(false);
+        setMaintenanceLoading(false);
       }
     };
 
     if (!authLoading) {
-      fetchAppliances();
+      fetchData();
     }
   }, [user, authLoading]);
 
+  // Refetch maintenance after completion
+  const refetchMaintenance = async () => {
+    try {
+      const response = await fetch("/api/maintenance?status=overdue,upcoming");
+      if (response.ok) {
+        const data: MaintenanceListResponse = await response.json();
+        setUrgentMaintenance(data.items.slice(0, 5));
+      }
+    } catch (err) {
+      console.error("Error refetching maintenance:", err);
+    }
+  };
+
+  // Handle completion modal
+  const openCompleteModal = (item: MaintenanceWithAppliance) => {
+    setSelectedItem(item);
+    setShowCompleteModal(true);
+  };
+
+  const handleCompleteSuccess = () => {
+    setShowCompleteModal(false);
+    setSelectedItem(null);
+    refetchMaintenance();
+  };
+
+  // Convert MaintenanceWithAppliance to MaintenanceSchedule for modal
+  const selectedSchedule: MaintenanceSchedule | null = selectedItem
+    ? {
+        id: selectedItem.id,
+        user_appliance_id: selectedItem.appliance_id,
+        shared_item_id: null,
+        task_name: selectedItem.task_name,
+        description: selectedItem.description,
+        interval_type: selectedItem.interval_type,
+        interval_value: selectedItem.interval_value,
+        last_done_at: selectedItem.last_done_at,
+        next_due_at: selectedItem.next_due_at,
+        source_page: selectedItem.source_page,
+        importance: selectedItem.importance,
+        created_at: "",
+        updated_at: "",
+      }
+    : null;
+
   // Get the nearest due maintenance for an appliance
   const getNearestDueMaintenance = (
-    schedules: MaintenanceSchedule[]
-  ): MaintenanceSchedule | null => {
+    schedules: HomeMaintenanceSchedule[]
+  ): HomeMaintenanceSchedule | null => {
     if (!schedules || schedules.length === 0) return null;
 
-    const sortedSchedules = schedules
-      .filter((s) => s.next_due_at)
-      .sort(
-        (a, b) =>
-          new Date(a.next_due_at).getTime() - new Date(b.next_due_at).getTime()
-      );
+    const sortedSchedules = [...schedules].sort(
+      (a, b) =>
+        new Date(a.next_due_at).getTime() - new Date(b.next_due_at).getTime()
+    );
 
     return sortedSchedules[0] || null;
   };
@@ -210,6 +280,36 @@ export default function Home() {
           </Card>
         </div>
       </section>
+
+      {/* Urgent Maintenance Section */}
+      {user && !authLoading && !maintenanceLoading && urgentMaintenance.length > 0 && (
+        <section className="py-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900">
+              期限が近いメンテナンス
+            </h2>
+            <Link
+              href="/maintenance"
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+            >
+              すべて見る →
+            </Link>
+          </div>
+          <Card>
+            <CardBody className="py-2">
+              {urgentMaintenance.map((item) => (
+                <MaintenanceListItem
+                  key={item.id}
+                  item={item}
+                  onComplete={openCompleteModal}
+                  showApplianceName={true}
+                  compact={true}
+                />
+              ))}
+            </CardBody>
+          </Card>
+        </section>
+      )}
 
       {/* Appliance List */}
       <section className="py-8">
@@ -391,6 +491,18 @@ export default function Home() {
           </div>
         )}
       </section>
+
+      {/* Complete Modal */}
+      <MaintenanceCompleteModal
+        isOpen={showCompleteModal}
+        onClose={() => {
+          setShowCompleteModal(false);
+          setSelectedItem(null);
+        }}
+        schedule={selectedSchedule}
+        applianceName={selectedItem?.appliance_name}
+        onComplete={handleCompleteSuccess}
+      />
     </div>
   );
 }
