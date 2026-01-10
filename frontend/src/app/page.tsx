@@ -435,15 +435,18 @@ export default function Home() {
 
                         {/* Maintenance info */}
                         {nearestMaintenance && daysUntil !== null && (
-                          <div className="mt-3 flex items-center gap-2">
+                          <div className="mt-3 flex items-center gap-2 min-w-0">
                             <span
-                              className={`px-2 py-1 text-xs font-medium rounded ${getDueStatusColor(
+                              className={`px-2 py-1 text-xs font-medium rounded flex-shrink-0 ${getDueStatusColor(
                                 daysUntil
                               )}`}
                             >
                               {getDueStatusText(daysUntil)}
                             </span>
-                            <span className="text-sm text-gray-600">
+                            <span
+                              className="text-sm text-gray-600 line-clamp-2"
+                              title={nearestMaintenance.task_name}
+                            >
                               {nearestMaintenance.task_name}
                             </span>
                           </div>
