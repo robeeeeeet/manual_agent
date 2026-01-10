@@ -9,6 +9,69 @@
 
 ### Added
 
+#### Phase 7: 家族グループ共有機能 ✅ 完了
+
+**データベース**
+- `groups` テーブル: グループ情報（名前、招待コード、オーナー）
+- `group_members` テーブル: グループメンバー管理（role: owner/member）
+- `user_appliances.group_id` カラム追加: グループ所有の家電管理
+- 1ユーザー1グループ制約（`uq_group_members_user`）
+- 個人所有/グループ所有の排他制約（`chk_user_appliances_owner`）
+- マイグレーション 00010〜00014
+
+**バックエンドサービス**
+- `group_service.py`: グループCRUD、招待コード生成・検証、メンバー管理
+  - `create_group()` - グループ作成（6文字招待コード自動生成）
+  - `join_group()` - 招待コードでグループ参加
+  - `leave_group()` - グループ離脱（共有家電は個人所有に移管）
+  - `delete_group()` - グループ削除（家電はオーナーに移管）
+  - `remove_member()` - メンバー削除（オーナー権限）
+  - `regenerate_invite_code()` - 招待コード再生成
+- `appliance_service.py` 拡張:
+  - `share_appliance()` - 個人家電をグループに共有
+  - `unshare_appliance()` - グループ家電を個人所有に戻す
+
+**バックエンドAPI**
+- `POST /api/v1/groups` - グループ作成
+- `GET /api/v1/groups` - 所属グループ取得
+- `GET /api/v1/groups/{id}` - グループ詳細
+- `PATCH /api/v1/groups/{id}` - グループ更新
+- `DELETE /api/v1/groups/{id}` - グループ削除
+- `POST /api/v1/groups/{id}/regenerate-code` - 招待コード再生成
+- `POST /api/v1/groups/join` - 招待コードで参加
+- `POST /api/v1/groups/{id}/leave` - グループ離脱
+- `GET /api/v1/groups/{id}/members` - メンバー一覧
+- `DELETE /api/v1/groups/{id}/members/{userId}` - メンバー削除
+- `POST /api/v1/appliances/{id}/share` - 家電をグループに共有
+- `POST /api/v1/appliances/{id}/unshare` - 共有解除
+
+**フロントエンドBFF層**
+- `/api/groups` - グループ一覧・作成
+- `/api/groups/[id]` - グループ詳細・更新・削除
+- `/api/groups/[id]/regenerate-code` - 招待コード再生成
+- `/api/groups/[id]/members` - メンバー一覧
+- `/api/groups/[id]/members/[userId]` - メンバー削除
+- `/api/groups/[id]/leave` - グループ離脱
+- `/api/groups/join` - グループ参加
+- `/api/appliances/[id]/share` - 家電共有
+- `/api/appliances/[id]/unshare` - 共有解除
+
+**フロントエンドUI**
+- `/groups` ページ: グループ一覧、作成フォーム、招待コード入力
+- `/groups/[id]` ページ: グループ詳細、メンバー管理、招待コード表示・コピー
+- `ShareButton.tsx`: 家電共有/解除トグルスイッチ（コンファームモーダル付き）
+- 家電一覧・詳細ページにグループ共有ボタン追加
+- Headerにグループページへのリンク追加
+- グループ参加済みユーザー向けUI制限（重複参加防止）
+- モーダル背景の統一（半透明+ぼかし効果）
+
+**技術的特徴**
+- 招待コード: 6文字英数字（大文字）でエントロピー確保
+- 共有モデル: グループ所有（全メンバーが編集・削除可能）
+- スケジュール共有: 誰かが完了すると全員に反映
+- 通知設定: 個人設定を維持（各メンバーの`notify_time`を尊重）
+- グループ切替え: 既存グループ離脱→共有家電を個人所有に移管→新グループ参加
+
 #### Phase 6.5: メンテナンス一覧機能 ✅ 完了
 
 **バックエンドAPI**

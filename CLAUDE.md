@@ -67,7 +67,8 @@ manual_agent/
 ├── frontend/              # Next.js アプリケーション
 │   ├── src/app/           # App Router（ページ、APIルート）
 │   │   ├── api/           # BFF層 API Routes
-│   │   │   ├── appliances/# 家電関連API（CRUD、説明書、メンテナンス）
+│   │   │   ├── appliances/# 家電関連API（CRUD、説明書、メンテナンス、共有）
+│   │   │   ├── groups/    # グループAPI（CRUD、参加、メンバー管理）
 │   │   │   ├── qa/        # QA関連API（質問応答、フィードバック）
 │   │   │   ├── push/      # Push通知API（subscribe, unsubscribe等）
 │   │   │   ├── notifications/ # 通知API（reminders等）
@@ -78,9 +79,12 @@ manual_agent/
 │   │   ├── register/      # 家電登録ページ
 │   │   ├── appliances/    # 家電一覧・詳細ページ
 │   │   │   └── [id]/      # 家電詳細ページ（動的ルート）
+│   │   ├── groups/        # グループ管理ページ
+│   │   │   └── [id]/      # グループ詳細ページ（動的ルート）
 │   │   ├── maintenance/   # メンテナンス一覧ページ
 │   │   └── mypage/        # マイページ（統計、設定、ログアウト）
 │   ├── src/components/    # UIコンポーネント
+│   │   ├── appliance/     # 家電コンポーネント（ShareButton）
 │   │   ├── auth/          # 認証関連（AuthForm）
 │   │   ├── layout/        # Header, Footer
 │   │   ├── maintenance/   # メンテナンス関連（MaintenanceCompleteModal, MaintenanceStatusTabs, MaintenanceFilter, MaintenanceListItem）
@@ -88,7 +92,7 @@ manual_agent/
 │   │   ├── qa/            # QA機能（QASection, QAChat, QAChatMessage, QAFeedbackButtons, SearchProgressIndicator）
 │   │   └── ui/            # Button, Card, Modal
 │   ├── src/hooks/         # カスタムフック（usePushNotification, useDeviceContext）
-│   ├── src/types/         # 型定義（appliance.ts, user.ts, qa.ts）
+│   ├── src/types/         # 型定義（appliance.ts, user.ts, qa.ts, group.ts）
 │   ├── src/contexts/      # React Context（AuthContext）
 │   ├── src/lib/           # ユーティリティ
 │   │   ├── supabase/      # Supabaseクライアント
@@ -97,7 +101,7 @@ manual_agent/
 │   └── package.json
 ├── backend/               # FastAPI アプリケーション
 │   ├── app/
-│   │   ├── api/routes/    # APIルート（appliances, manuals, maintenance, notifications, push, users, qa, cron）
+│   │   ├── api/routes/    # APIルート（appliances, manuals, maintenance, notifications, push, users, qa, cron, groups）
 │   │   ├── schemas/       # Pydanticスキーマ
 │   │   ├── services/      # ビジネスロジック
 │   │   │   ├── image_recognition.py     # 画像認識
@@ -111,6 +115,7 @@ manual_agent/
 │   │   │   ├── notification_service.py      # Push通知送信
 │   │   │   ├── maintenance_notification_service.py # リマインド通知
 │   │   │   ├── user_service.py          # ユーザープロファイル・設定・統計
+│   │   │   ├── group_service.py         # グループCRUD・招待コード・メンバー管理
 │   │   │   ├── supabase_client.py       # Supabaseクライアント
 │   │   │   ├── manufacturer_domain.py   # メーカードメイン
 │   │   │   ├── qa_service.py            # QA検索・生成サービス
@@ -241,9 +246,9 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
 
 ## 現在のステータス
 
-**Phase 6.5: メンテナンス一覧機能** 実装済み
+**Phase 7: 家族グループ共有機能** 実装済み
 
-### 完了済み（Phase 0〜6.5）
+### 完了済み（Phase 0〜7）
 - ✅ Phase 0〜2: 基盤構築、デプロイ、認証
 - ✅ Phase 3: 家電登録・説明書取得
   - データベース設計（共有マスター方式）
@@ -285,9 +290,17 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
   - 共通コンポーネント（MaintenanceCompleteModal, MaintenanceStatusTabs, MaintenanceFilter, MaintenanceListItem）
   - 家電詳細ページと統一されたUI/UX
   - バックエンドAPI（`GET /api/v1/maintenance`）
+- ✅ Phase 7: 家族グループ共有機能
+  - グループ管理（作成・参加・退出・削除）
+  - 招待コード方式（6文字英数字）
+  - 家電共有/解除（トグルスイッチでワンタップ操作）
+  - メンバー管理（オーナーによるメンバー削除）
+  - 1ユーザー1グループ制約
+  - グループページ（`/groups`、`/groups/[id]`）
+  - マイグレーション 00010〜00014
 
 ### 次のフェーズ
-- Phase 7: 追加機能・改善（検討中）
+- Phase 8: 追加機能・改善（検討中）
 
 **本番URL:** https://manual-agent-seven.vercel.app/
 
@@ -309,8 +322,10 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
 11. **VAPID認証**: Web Push通知のセキュアな送信者認証（公開鍵/秘密鍵ペア）
 12. **OTPコード認証**: サインアップ時のメール確認はOTPコード方式（PWAではメールリンクがSafariで開かれる問題を回避）、確認コード再送機能付き（Supabaseレート制限対応・日本語カウントダウン表示）
 13. **auth.users同期トリガー**: `auth.users`への登録・削除時に`public.users`を自動同期（Supabase推奨パターン）
-14. **認証リダイレクト**: 未認証ユーザーは全保護ルート（`/`, `/appliances`, `/register`, `/mypage`, `/maintenance`）からログインページへリダイレクトされ、ログイン後は元のページに戻る（`redirectTo`クエリパラメータ）
+14. **認証リダイレクト**: 未認証ユーザーは全保護ルート（`/`, `/appliances`, `/register`, `/mypage`, `/maintenance`, `/groups`）からログインページへリダイレクトされ、ログイン後は元のページに戻る（`redirectTo`クエリパラメータ）
 15. **QAマークダウン方式**: RAG（ベクトル検索）ではなく、事前生成したQAマークダウンファイルによる検索と3段階フォールバック（QA検索 → テキスト検索 → PDF直接分析）
 16. **SSEストリーミング**: QA検索の進捗をリアルタイムでフロントエンドに伝達（ユーザー体験向上）
 17. **通知オンボーディング**: 初回サインアップ時にモーダルで通知許可を促す（sessionStorageでフラグ管理、スキップ可能）
 18. **デバイスコンテキスト検知**: User-AgentとCSS `display-mode: standalone` でPC/スマホ、ブラウザ/PWAを判別し、適切な案内文言を表示
+19. **家族グループ共有**: 1ユーザー1グループ制約、招待コード方式（6文字英数字）、グループ所有の家電は全メンバーが編集・削除可能、メンテナンス完了は全員に反映
+20. **グループ家電の所有権管理**: `user_appliances` テーブルに `group_id` を追加、個人所有（`user_id` 設定）またはグループ所有（`group_id` 設定）の排他制約
