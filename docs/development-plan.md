@@ -301,6 +301,12 @@ Phase 1 完了後、継続的デプロイ環境を構築。以降の開発はス
   - [x] `AuthForm.tsx` - OTPコード入力フォーム追加
   - [x] `AuthContext.tsx` - `verifyOtp()` メソッド追加
   - [x] Supabaseメールテンプレート設定手順（`docs/supabase-setup.md`）
+- [x] 確認コード再送機能
+  - [x] `AuthContext.tsx` - `resendOtp()` メソッド追加（Supabase Auth `resend()` API使用）
+  - [x] `AuthForm.tsx` - 再送ボタンUI追加
+  - [x] 60秒クールダウンタイマー（成功時）
+  - [x] Supabaseレート制限エラーからの秒数抽出・カウントダウン表示
+  - [x] 日本語エラーメッセージ対応
 - [x] テスト通知機能
   - [x] `/api/notifications/test` BFFルート
   - [x] 環境変数 `ALLOWED_TEST_NOTIFICATION_USERS` でホワイトリスト管理

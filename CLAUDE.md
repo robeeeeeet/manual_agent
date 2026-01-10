@@ -263,7 +263,7 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
   - 初回サインアップ時の通知オンボーディングフロー（NotificationOnboarding + sessionStorage）
   - デバイスコンテキスト検知フック（useDeviceContext: PC/スマホ、ブラウザ/PWA判別）
   - テスト通知送信機能（許可ユーザーのみ）
-  - サインアップ時OTPコード方式（PWA対応のためメールリンクから変更）
+  - サインアップ時OTPコード方式（PWA対応のためメールリンクから変更）、確認コード再送機能
   - 定期リマインド自動化（Cloud Scheduler + notify_time対応）
   - マイページ（メンテナンス統計、通知設定、通知時刻変更、ログアウト）
 - ✅ Phase 6: QAマークダウン方式 質問応答機能
@@ -307,7 +307,7 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
 9. **メンテナンスキャッシュ**: LLM抽出結果を`shared_maintenance_items`にキャッシュし、2人目以降のLLMコスト・処理時間を削減
 10. **PWA対応**: next-pwaによるService Worker管理、Web Push API（pywebpush）によるプッシュ通知
 11. **VAPID認証**: Web Push通知のセキュアな送信者認証（公開鍵/秘密鍵ペア）
-12. **OTPコード認証**: サインアップ時のメール確認はOTPコード方式（PWAではメールリンクがSafariで開かれる問題を回避）
+12. **OTPコード認証**: サインアップ時のメール確認はOTPコード方式（PWAではメールリンクがSafariで開かれる問題を回避）、確認コード再送機能付き（Supabaseレート制限対応・日本語カウントダウン表示）
 13. **auth.users同期トリガー**: `auth.users`への登録・削除時に`public.users`を自動同期（Supabase推奨パターン）
 14. **認証リダイレクト**: 未認証ユーザーは全保護ルート（`/`, `/appliances`, `/register`, `/mypage`, `/maintenance`）からログインページへリダイレクトされ、ログイン後は元のページに戻る（`redirectTo`クエリパラメータ）
 15. **QAマークダウン方式**: RAG（ベクトル検索）ではなく、事前生成したQAマークダウンファイルによる検索と3段階フォールバック（QA検索 → テキスト検索 → PDF直接分析）
