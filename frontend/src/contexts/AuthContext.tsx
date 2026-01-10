@@ -30,6 +30,8 @@ interface AuthContextType {
     token: string
   ) => Promise<{ error: AuthError | null }>;
   resendOtp: (email: string) => Promise<{ error: AuthError | null }>;
+  resetPasswordForEmail: (email: string) => Promise<{ error: AuthError | null }>;
+  updatePassword: (password: string) => Promise<{ error: AuthError | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -142,6 +144,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [supabase]
   );
 
+  const resetPasswordForEmail = useCallback(
+    async (email: string) => {
+      if (!supabase) {
+        return { error: { message: "Supabase client not initialized" } as AuthError };
+      }
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      return { error };
+    },
+    [supabase]
+  );
+
+  const updatePassword = useCallback(
+    async (password: string) => {
+      if (!supabase) {
+        return { error: { message: "Supabase client not initialized" } as AuthError };
+      }
+      const { error } = await supabase.auth.updateUser({ password });
+      return { error };
+    },
+    [supabase]
+  );
+
   const value: AuthContextType = {
     user,
     session,
@@ -151,6 +177,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     verifyOtp,
     resendOtp,
+    resetPasswordForEmail,
+    updatePassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
