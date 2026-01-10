@@ -1,43 +1,43 @@
 "use client";
 
-import { useState, useEffect } from "react";
-
 export type DeviceType = "desktop" | "mobile";
 export type AppMode = "browser" | "pwa";
 
 interface DeviceContext {
   deviceType: DeviceType;
   appMode: AppMode;
-  isLoading: boolean;
+}
+
+/**
+ * Detect device type from User-Agent
+ */
+function detectDeviceType(): DeviceType {
+  if (typeof window === "undefined") return "desktop";
+  const userAgent = navigator.userAgent.toLowerCase();
+  const isMobile = /iphone|ipad|ipod|android|webos|blackberry|windows phone/.test(userAgent);
+  return isMobile ? "mobile" : "desktop";
+}
+
+/**
+ * Detect PWA mode from display-mode media query and iOS standalone
+ */
+function detectAppMode(): AppMode {
+  if (typeof window === "undefined") return "browser";
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+  const isIOSStandalone = "standalone" in navigator && (navigator as { standalone?: boolean }).standalone === true;
+  return isStandalone || isIOSStandalone ? "pwa" : "browser";
 }
 
 /**
  * Hook to detect device type and app mode (browser vs PWA)
+ * Uses synchronous detection to avoid cascading renders
  */
 export function useDeviceContext(): DeviceContext {
-  const [deviceType, setDeviceType] = useState<DeviceType>("desktop");
-  const [appMode, setAppMode] = useState<AppMode>("browser");
-  const [isLoading, setIsLoading] = useState(true);
+  // Compute values synchronously - these don't change during session
+  const deviceType = detectDeviceType();
+  const appMode = detectAppMode();
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    // Detect device type from User-Agent
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isMobile = /iphone|ipad|ipod|android|webos|blackberry|windows phone/.test(userAgent);
-    setDeviceType(isMobile ? "mobile" : "desktop");
-
-    // Detect PWA mode
-    // 1. Check display-mode media query (works for most browsers)
-    const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-    // 2. Check iOS Safari standalone mode
-    const isIOSStandalone = "standalone" in navigator && (navigator as { standalone?: boolean }).standalone === true;
-
-    setAppMode(isStandalone || isIOSStandalone ? "pwa" : "browser");
-    setIsLoading(false);
-  }, []);
-
-  return { deviceType, appMode, isLoading };
+  return { deviceType, appMode };
 }
 
 /**
