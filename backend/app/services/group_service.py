@@ -286,19 +286,17 @@ async def update_group(group_id: str, owner_id: str, name: str) -> dict:
         if not await _is_owner(client, group_id, owner_id):
             return {"error": "Only the owner can update this group"}
 
-        # Update group
+        # Update group (supabase-py v2: update then fetch separately)
+        client.table("groups").update(
+            {
+                "name": name,
+                "updated_at": datetime.now(UTC).isoformat(),
+            }
+        ).eq("id", group_id).execute()
+
+        # Fetch updated data
         response = (
-            client.table("groups")
-            .update(
-                {
-                    "name": name,
-                    "updated_at": datetime.now(UTC).isoformat(),
-                }
-            )
-            .eq("id", group_id)
-            .select("*")
-            .single()
-            .execute()
+            client.table("groups").select("*").eq("id", group_id).single().execute()
         )
 
         if not response.data:
@@ -314,7 +312,9 @@ async def update_group(group_id: str, owner_id: str, name: str) -> dict:
 async def delete_group(group_id: str, owner_id: str) -> dict:
     """
     Delete group (only owner can delete).
-    Note: Group appliances are transferred to owner via database trigger.
+
+    When deleting, all shared appliances are returned to their original owners
+    (group_id is set to NULL, user_id is already set to the original owner).
 
     Args:
         group_id: UUID of the group
@@ -323,6 +323,7 @@ async def delete_group(group_id: str, owner_id: str) -> dict:
     Returns:
         dict with:
         - success: True if deleted
+        - transferred_count: Number of appliances returned to personal ownership
         - error: Error message if any
     """
     client = get_supabase_client()
@@ -334,11 +335,25 @@ async def delete_group(group_id: str, owner_id: str) -> dict:
         if not await _is_owner(client, group_id, owner_id):
             return {"error": "Only the owner can delete this group"}
 
+        # Transfer all shared appliances back to personal ownership
+        # Each appliance has user_id = original_owner, so just clear group_id
+        transfer_result = (
+            client.table("user_appliances")
+            .update({"group_id": None})
+            .eq("group_id", group_id)
+            .execute()
+        )
+        transferred_count = len(transfer_result.data) if transfer_result.data else 0
+
+        logger.info(
+            f"Transferred {transferred_count} appliances to personal ownership "
+            f"for deleted group {group_id}"
+        )
+
         # Delete group (CASCADE deletes group_members)
-        # Note: user_appliances.group_id is transferred to owner via trigger
         client.table("groups").delete().eq("id", group_id).execute()
 
-        return {"success": True}
+        return {"success": True, "transferred_count": transferred_count}
 
     except Exception as e:
         logger.error(f"Error deleting group: {e}")
@@ -527,6 +542,9 @@ async def leave_group(user_id: str, group_id: str) -> dict:
     """
     Leave a group (owner cannot leave).
 
+    When leaving, any appliances the user shared with the group are returned
+    to their personal ownership (group_id is set to NULL).
+
     Args:
         user_id: UUID of the leaving user
         group_id: UUID of the group
@@ -534,6 +552,7 @@ async def leave_group(user_id: str, group_id: str) -> dict:
     Returns:
         dict with:
         - success: True if left successfully
+        - transferred_count: Number of appliances returned to personal ownership
         - error: Error message if any
     """
     client = get_supabase_client()
@@ -549,12 +568,28 @@ async def leave_group(user_id: str, group_id: str) -> dict:
         if not await _is_member(client, group_id, user_id):
             return {"error": "You are not a member of this group"}
 
+        # Transfer shared appliances back to personal ownership
+        # Find appliances where user_id = leaving_user AND group_id = this_group
+        transfer_result = (
+            client.table("user_appliances")
+            .update({"group_id": None})
+            .eq("user_id", user_id)
+            .eq("group_id", group_id)
+            .execute()
+        )
+        transferred_count = len(transfer_result.data) if transfer_result.data else 0
+
+        logger.info(
+            f"Transferred {transferred_count} appliances to personal ownership "
+            f"for user {user_id} leaving group {group_id}"
+        )
+
         # Remove membership
         client.table("group_members").delete().eq("group_id", group_id).eq(
             "user_id", user_id
         ).execute()
 
-        return {"success": True}
+        return {"success": True, "transferred_count": transferred_count}
 
     except Exception as e:
         logger.error(f"Error leaving group: {e}")

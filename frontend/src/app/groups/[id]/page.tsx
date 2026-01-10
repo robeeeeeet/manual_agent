@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardBody } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
 import { GroupWithMembers, GroupMember } from "@/types/group";
 
 interface GroupDetailPageProps {
@@ -25,6 +26,9 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showRemoveMemberModal, setShowRemoveMemberModal] = useState(false);
+  const [showRegenerateCodeModal, setShowRegenerateCodeModal] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<GroupMember | null>(null);
   const [newName, setNewName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -86,11 +90,13 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     }
   };
 
+  // Show regenerate code confirmation
+  const handleRegenerateCodeClick = () => {
+    setShowRegenerateCodeModal(true);
+  };
+
   // Regenerate invite code
   const handleRegenerateCode = async () => {
-    if (!confirm("招待コードを再生成しますか？古いコードは使用できなくなります。"))
-      return;
-
     setSubmitting(true);
     try {
       const response = await fetch(`/api/groups/${id}/regenerate-code`, {
@@ -108,13 +114,10 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
       if (group) {
         setGroup({ ...group, invite_code: data.invite_code });
       }
+      setShowRegenerateCodeModal(false);
     } catch (err) {
       console.error("Error regenerating code:", err);
-      alert(
-        err instanceof Error
-          ? err.message
-          : "招待コードの再生成に失敗しました"
-      );
+      // Stay on modal but show error could be added
     } finally {
       setSubmitting(false);
     }
@@ -203,17 +206,20 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     }
   };
 
+  // Show remove member confirmation
+  const handleRemoveMemberClick = (member: GroupMember) => {
+    setMemberToRemove(member);
+    setShowRemoveMemberModal(true);
+  };
+
   // Remove member
-  const handleRemoveMember = async (member: GroupMember) => {
-    if (
-      !confirm(`${member.email} をグループから削除しますか？`)
-    )
-      return;
+  const handleRemoveMember = async () => {
+    if (!memberToRemove) return;
 
     setSubmitting(true);
     try {
       const response = await fetch(
-        `/api/groups/${id}/members/${member.user_id}`,
+        `/api/groups/${id}/members/${memberToRemove.user_id}`,
         {
           method: "DELETE",
         }
@@ -224,12 +230,12 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
         throw new Error(errorData.error || "メンバーの削除に失敗しました");
       }
 
+      setShowRemoveMemberModal(false);
+      setMemberToRemove(null);
       await fetchGroup();
     } catch (err) {
       console.error("Error removing member:", err);
-      alert(
-        err instanceof Error ? err.message : "メンバーの削除に失敗しました"
-      );
+      // Stay on modal but show error could be added
     } finally {
       setSubmitting(false);
     }
@@ -333,7 +339,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
               {isOwner && (
                 <Button
                   variant="outline"
-                  onClick={handleRegenerateCode}
+                  onClick={handleRegenerateCodeClick}
                   disabled={submitting}
                 >
                   再生成
@@ -382,7 +388,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleRemoveMember(member)}
+                        onClick={() => handleRemoveMemberClick(member)}
                         disabled={submitting}
                       >
                         削除
@@ -428,8 +434,8 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
 
       {/* Edit Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
             <h2 className="text-xl font-bold mb-4">グループ名を変更</h2>
             <form onSubmit={handleUpdateGroup}>
               <div className="mb-4">
@@ -473,14 +479,14 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
 
       {/* Delete Confirm Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
             <h2 className="text-xl font-bold mb-4 text-red-600">
               グループを削除
             </h2>
             <p className="text-gray-600 mb-4">
               本当にこのグループを削除しますか？
-              グループの家電はあなたの個人所有に移管されます。
+              共有されていた家電は、それぞれの登録者（元のオーナー）の個人所有に戻ります。
             </p>
             <div className="flex justify-end gap-2">
               <Button
@@ -504,8 +510,8 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
 
       {/* Leave Confirm Modal */}
       {showLeaveConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
             <h2 className="text-xl font-bold mb-4">グループを退出</h2>
             <p className="text-gray-600 mb-4">
               本当にこのグループを退出しますか？
@@ -530,6 +536,85 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
           </div>
         </div>
       )}
+
+      {/* Remove Member Modal */}
+      <Modal
+        isOpen={showRemoveMemberModal}
+        onClose={() => {
+          setShowRemoveMemberModal(false);
+          setMemberToRemove(null);
+        }}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            メンバーを削除
+          </h3>
+          <p className="text-gray-600 mb-4">
+            {memberToRemove?.email} をグループから削除しますか？
+          </p>
+          <p className="text-sm text-gray-500 mb-6">
+            削除されたメンバーは、グループの家電にアクセスできなくなります。
+          </p>
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowRemoveMemberModal(false);
+                setMemberToRemove(null);
+              }}
+              disabled={submitting}
+            >
+              キャンセル
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleRemoveMember}
+              disabled={submitting}
+            >
+              {submitting ? "削除中..." : "削除"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Regenerate Code Modal */}
+      <Modal
+        isOpen={showRegenerateCodeModal}
+        onClose={() => setShowRegenerateCodeModal(false)}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            招待コードを再生成
+          </h3>
+          <p className="text-gray-600 mb-4">
+            新しい招待コードを生成しますか？
+          </p>
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-6">
+            <p className="text-sm text-amber-800">
+              <span className="font-medium">注意:</span>{" "}
+              古い招待コードは使用できなくなります。既にグループに参加しているメンバーには影響ありません。
+            </p>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setShowRegenerateCodeModal(false)}
+              disabled={submitting}
+            >
+              キャンセル
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleRegenerateCode}
+              disabled={submitting}
+            >
+              {submitting ? "再生成中..." : "再生成"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

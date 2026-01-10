@@ -39,6 +39,30 @@ class NotGroupMemberError(ApplianceServiceError):
     pass
 
 
+class NoGroupMembershipError(ApplianceServiceError):
+    """Raised when user is not a member of any group."""
+
+    pass
+
+
+class NotOwnerError(ApplianceServiceError):
+    """Raised when user is not the owner of the appliance."""
+
+    pass
+
+
+class AlreadySharedError(ApplianceServiceError):
+    """Raised when appliance is already shared with a group."""
+
+    pass
+
+
+class NotSharedError(ApplianceServiceError):
+    """Raised when appliance is not shared (personal ownership)."""
+
+    pass
+
+
 async def get_or_create_shared_appliance(
     maker: str,
     model_number: str,
@@ -262,11 +286,13 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
     if not client:
         raise ApplianceServiceError("Supabase client not configured")
 
-    # Step 1: Get user's personal appliances
+    # Step 1: Get user's personal appliances (not shared with any group)
+    # Note: Shared appliances keep user_id but have group_id set
     personal_result = (
         client.table("user_appliances")
         .select("*, shared_appliances(*)")
         .eq("user_id", str(user_id))
+        .is_("group_id", "null")
         .execute()
     )
 
@@ -639,3 +665,164 @@ async def update_shared_appliance_manual(
         )
 
     return SharedAppliance(**result.data[0])
+
+
+async def get_user_group(user_id: UUID) -> dict | None:
+    """
+    Get the group that the user belongs to.
+
+    Since users can only belong to one group (00013 constraint),
+    this returns a single group or None.
+
+    Args:
+        user_id: User's UUID
+
+    Returns:
+        Group dict with id, name, etc. or None if not in any group
+    """
+    client = get_supabase_client()
+    if not client:
+        return None
+
+    result = (
+        client.table("group_members")
+        .select("group_id, groups(id, name, owner_id)")
+        .eq("user_id", str(user_id))
+        .execute()
+    )
+
+    if not result.data:
+        return None
+
+    membership = result.data[0]
+    group_data = membership.get("groups", {})
+    return {
+        "id": group_data.get("id"),
+        "name": group_data.get("name"),
+        "owner_id": group_data.get("owner_id"),
+    }
+
+
+async def share_appliance(
+    user_id: UUID, appliance_id: UUID
+) -> UserApplianceWithDetails:
+    """
+    Share a personal appliance with the user's group.
+
+    Transfers ownership from personal to group while keeping the original owner tracked:
+    - user_id is KEPT (tracks original owner for leave_group logic)
+    - group_id is set to the user's group
+
+    Args:
+        user_id: User's UUID
+        appliance_id: Appliance's UUID (user_appliances.id)
+
+    Returns:
+        Updated UserApplianceWithDetails
+
+    Raises:
+        NoGroupMembershipError: If user is not a member of any group
+        NotOwnerError: If user is not the personal owner of the appliance
+        AlreadySharedError: If appliance is already shared with a group
+        ApplianceServiceError: If database operation fails
+    """
+    client = get_supabase_client()
+    if not client:
+        raise ApplianceServiceError("Supabase client not configured")
+
+    # 1. Get user's group (1 group only due to 00013 constraint)
+    group = await get_user_group(user_id)
+    if not group:
+        raise NoGroupMembershipError("グループに参加していません")
+
+    # 2. Get the appliance
+    result = (
+        client.table("user_appliances")
+        .select("*")
+        .eq("id", str(appliance_id))
+        .execute()
+    )
+
+    if not result.data:
+        raise ApplianceNotFoundError(f"Appliance {appliance_id} not found")
+
+    appliance = result.data[0]
+
+    # 3. Check ownership - must be personal owner
+    if appliance.get("user_id") != str(user_id):
+        raise NotOwnerError("この家電の所有者ではありません")
+
+    # 4. Check if already shared
+    if appliance.get("group_id") is not None:
+        raise AlreadySharedError("既に共有されています")
+
+    # 5. Share with group (keep user_id to track original owner)
+    try:
+        client.table("user_appliances").update(
+            {"group_id": group["id"]}  # Keep user_id, only set group_id
+        ).eq("id", str(appliance_id)).execute()
+    except Exception as e:
+        logger.error(f"Failed to share appliance: {e}")
+        raise ApplianceServiceError(f"Failed to share appliance: {e}") from e
+
+    # 6. Return updated appliance
+    return await get_user_appliance(user_id, appliance_id)
+
+
+async def unshare_appliance(
+    user_id: UUID, appliance_id: UUID
+) -> UserApplianceWithDetails:
+    """
+    Unshare a group appliance and return it to personal ownership.
+
+    Only the original owner (user_id in the appliance record) can unshare.
+    Simply clears group_id since user_id is already the original owner.
+
+    Args:
+        user_id: User's UUID (must be the original owner)
+        appliance_id: Appliance's UUID (user_appliances.id)
+
+    Returns:
+        Updated UserApplianceWithDetails
+
+    Raises:
+        NotOwnerError: If user is not the original owner of the appliance
+        NotSharedError: If appliance is not shared (already personal ownership)
+        ApplianceServiceError: If database operation fails
+    """
+    client = get_supabase_client()
+    if not client:
+        raise ApplianceServiceError("Supabase client not configured")
+
+    # 1. Get the appliance
+    result = (
+        client.table("user_appliances")
+        .select("*")
+        .eq("id", str(appliance_id))
+        .execute()
+    )
+
+    if not result.data:
+        raise ApplianceNotFoundError(f"Appliance {appliance_id} not found")
+
+    appliance = result.data[0]
+
+    # 2. Check if it's a group appliance
+    if appliance.get("group_id") is None:
+        raise NotSharedError("この家電は共有されていません")
+
+    # 3. Check if user is the original owner
+    if appliance.get("user_id") != str(user_id):
+        raise NotOwnerError("この家電の元の所有者ではありません")
+
+    # 4. Return to personal ownership (just clear group_id)
+    try:
+        client.table("user_appliances").update({"group_id": None}).eq(
+            "id", str(appliance_id)
+        ).execute()
+    except Exception as e:
+        logger.error(f"Failed to unshare appliance: {e}")
+        raise ApplianceServiceError(f"Failed to unshare appliance: {e}") from e
+
+    # 5. Return updated appliance
+    return await get_user_appliance(user_id, appliance_id)

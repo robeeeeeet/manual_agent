@@ -103,7 +103,7 @@ export interface SharedAppliance {
 
 export interface UserAppliance {
   id: string;
-  user_id: string | null; // null for group-owned appliances
+  user_id: string; // Original owner (always set, even for shared appliances)
   group_id: string | null; // set for group-owned appliances (Phase 7)
   shared_appliance_id: string;
   name: string;

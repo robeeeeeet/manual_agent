@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardBody } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
 import { GroupWithMembers, JoinGroupResponse } from "@/types/group";
 
 export default function GroupsPage() {
@@ -19,9 +20,16 @@ export default function GroupsPage() {
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
+  const [showSwitchConfirmModal, setShowSwitchConfirmModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const [newGroupName, setNewGroupName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [pendingJoinCode, setPendingJoinCode] = useState("");
+
+  // Check if user is already in a group
+  const hasGroup = groups.length > 0;
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -81,25 +89,41 @@ export default function GroupsPage() {
       await fetchGroups();
     } catch (err) {
       console.error("Error creating group:", err);
-      alert(
+      setErrorMessage(
         err instanceof Error ? err.message : "グループの作成に失敗しました"
       );
+      setShowErrorModal(true);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Join group
+  // Join group - check if already in a group first
   const handleJoinGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCode.trim()) return;
 
+    // Check if already in a group
+    if (groups.length > 0) {
+      // User is already in a group, show confirmation modal
+      setPendingJoinCode(inviteCode.trim().toUpperCase());
+      setShowJoinModal(false);
+      setShowSwitchConfirmModal(true);
+      return;
+    }
+
+    // No existing group, proceed with join
+    await executeJoinGroup(inviteCode.trim().toUpperCase());
+  };
+
+  // Execute the actual join after confirmation
+  const executeJoinGroup = async (code: string) => {
     setSubmitting(true);
     try {
       const response = await fetch("/api/groups/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invite_code: inviteCode.trim().toUpperCase() }),
+        body: JSON.stringify({ invite_code: code }),
       });
 
       const data: JoinGroupResponse = await response.json();
@@ -113,14 +137,46 @@ export default function GroupsPage() {
       }
 
       setInviteCode("");
+      setPendingJoinCode("");
       setShowJoinModal(false);
+      setShowSwitchConfirmModal(false);
       await fetchGroups();
     } catch (err) {
       console.error("Error joining group:", err);
-      alert(
+      setErrorMessage(
         err instanceof Error ? err.message : "グループへの参加に失敗しました"
       );
+      setShowErrorModal(true);
     } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle group switch confirmation
+  const handleConfirmSwitch = async () => {
+    if (!pendingJoinCode || groups.length === 0) return;
+
+    setSubmitting(true);
+    try {
+      // First, leave the current group
+      const currentGroup = groups[0];
+      const leaveResponse = await fetch(`/api/groups/${currentGroup.id}/leave`, {
+        method: "POST",
+      });
+
+      if (!leaveResponse.ok) {
+        const errorData = await leaveResponse.json();
+        throw new Error(errorData.error || "現在のグループからの離脱に失敗しました");
+      }
+
+      // Then join the new group
+      await executeJoinGroup(pendingJoinCode);
+    } catch (err) {
+      console.error("Error switching groups:", err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "グループの切替えに失敗しました"
+      );
+      setShowErrorModal(true);
       setSubmitting(false);
     }
   };
@@ -139,20 +195,23 @@ export default function GroupsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900">グループ管理</h1>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowJoinModal(true)}
-            >
-              招待コードで参加
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => setShowCreateModal(true)}
-            >
-              新規作成
-            </Button>
-          </div>
+          {/* Only show buttons when user is NOT in a group */}
+          {!loading && !hasGroup && (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowJoinModal(true)}
+              >
+                招待コードで参加
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => setShowCreateModal(true)}
+              >
+                新規作成
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Error message */}
@@ -242,8 +301,8 @@ export default function GroupsPage() {
 
       {/* Create Group Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
             <h2 className="text-xl font-bold mb-4">新しいグループを作成</h2>
             <form onSubmit={handleCreateGroup}>
               <div className="mb-4">
@@ -288,8 +347,8 @@ export default function GroupsPage() {
 
       {/* Join Group Modal */}
       {showJoinModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
             <h2 className="text-xl font-bold mb-4">グループに参加</h2>
             <form onSubmit={handleJoinGroup}>
               <div className="mb-4">
@@ -336,6 +395,94 @@ export default function GroupsPage() {
           </div>
         </div>
       )}
+
+      {/* Group Switch Confirmation Modal */}
+      {showSwitchConfirmModal && groups.length > 0 && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4 text-amber-600">
+              グループを切替えますか？
+            </h2>
+            <div className="mb-6 space-y-3">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-800">
+                  <span className="font-medium">現在のグループ:</span>{" "}
+                  {groups[0].name}
+                </p>
+              </div>
+              <p className="text-gray-600">
+                新しいグループに参加すると、現在のグループから自動的に離脱します。
+              </p>
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <p className="text-sm text-gray-700">
+                  <span className="font-medium">注意:</span>{" "}
+                  共有中の家電は個人所有に戻ります。他のメンバーはそれらの家電にアクセスできなくなります。
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowSwitchConfirmModal(false);
+                  setPendingJoinCode("");
+                  setInviteCode("");
+                }}
+                disabled={submitting}
+              >
+                キャンセル
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={handleConfirmSwitch}
+                disabled={submitting}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                {submitting ? "切替え中..." : "切替える"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Modal */}
+      <Modal
+        isOpen={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+              <svg
+                className="w-5 h-5 text-red-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900">エラー</h3>
+          </div>
+          <p className="text-gray-600 mb-6">{errorMessage}</p>
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
+              onClick={() => setShowErrorModal(false)}
+            >
+              閉じる
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
