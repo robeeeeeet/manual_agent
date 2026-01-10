@@ -121,6 +121,8 @@ export default function AuthForm({ mode }: AuthFormProps) {
           setError(error.message);
         }
       } else {
+        // Set flag to show notification modal after redirect
+        sessionStorage.setItem("showNotificationOnboarding", "true");
         router.push(redirectTo);
         router.refresh();
       }

@@ -134,7 +134,7 @@ export function usePushNotification(): UsePushNotificationResult {
         // ステート更新は非同期なので、result を直接渡す
         await subscribeInternal(result);
       } else if (result === "denied") {
-        setError("通知が拒否されました。ブラウザの設定から許可してください。");
+        setError("通知が拒否されました。設定から許可してください。");
       }
     } catch (err) {
       console.error("Permission request failed:", err);

@@ -255,6 +255,164 @@ async def get_upcoming_maintenance(
         return []
 
 
+async def get_all_maintenance_with_details(
+    user_id: str,
+    status_filter: list[str] | None = None,
+    importance_filter: list[str] | None = None,
+    appliance_id: str | None = None,
+) -> dict:
+    """
+    Get all maintenance schedules for a user with appliance details.
+
+    Args:
+        user_id: UUID of the user
+        status_filter: Filter by status ('overdue', 'upcoming', 'scheduled', 'manual')
+        importance_filter: Filter by importance ('high', 'medium', 'low')
+        appliance_id: Filter by specific appliance
+
+    Returns:
+        dict with:
+        - items: List of maintenance items with appliance details and status
+        - counts: Count of items by status
+    """
+    client = get_supabase_client()
+    if not client:
+        return {"items": [], "counts": _empty_counts()}
+
+    try:
+        now = datetime.now(UTC)
+        seven_days_later = now + timedelta(days=7)
+
+        # Step 1: Get user's appliance IDs
+        appliances_query = (
+            client.table("user_appliances")
+            .select("id, name, shared_appliances(maker, model_number, category)")
+            .eq("user_id", user_id)
+        )
+        if appliance_id:
+            appliances_query = appliances_query.eq("id", appliance_id)
+
+        appliances_response = appliances_query.execute()
+        if not appliances_response.data:
+            return {"items": [], "counts": _empty_counts()}
+
+        appliance_ids = [a["id"] for a in appliances_response.data]
+        appliance_map = {a["id"]: a for a in appliances_response.data}
+
+        # Step 2: Get all maintenance schedules for these appliances
+        schedules_response = (
+            client.table("maintenance_schedules")
+            .select("*")
+            .in_("user_appliance_id", appliance_ids)
+            .order("next_due_at", desc=False, nullsfirst=False)
+            .execute()
+        )
+
+        if not schedules_response.data:
+            return {"items": [], "counts": _empty_counts()}
+
+        # Step 3: Calculate status and build response
+        items = []
+        counts = {"overdue": 0, "upcoming": 0, "scheduled": 0, "manual": 0, "total": 0}
+
+        for schedule in schedules_response.data:
+            appliance = appliance_map.get(schedule["user_appliance_id"])
+            if not appliance:
+                continue
+
+            shared = appliance.get("shared_appliances", {}) or {}
+
+            # Calculate status and days until due
+            status, days_until_due = _calculate_status(
+                schedule.get("next_due_at"),
+                schedule.get("interval_type"),
+                now,
+                seven_days_later,
+            )
+
+            # Update counts
+            counts[status] += 1
+            counts["total"] += 1
+
+            # Apply filters
+            if status_filter and status not in status_filter:
+                continue
+            if (
+                importance_filter
+                and schedule.get("importance") not in importance_filter
+            ):
+                continue
+
+            items.append(
+                {
+                    "id": schedule["id"],
+                    "task_name": schedule["task_name"],
+                    "description": schedule.get("description"),
+                    "next_due_at": schedule.get("next_due_at"),
+                    "last_done_at": schedule.get("last_done_at"),
+                    "importance": schedule.get("importance", "medium"),
+                    "interval_type": schedule.get("interval_type", "manual"),
+                    "interval_value": schedule.get("interval_value"),
+                    "source_page": schedule.get("source_page"),
+                    "appliance_id": schedule["user_appliance_id"],
+                    "appliance_name": appliance["name"],
+                    "maker": shared.get("maker", ""),
+                    "model_number": shared.get("model_number", ""),
+                    "category": shared.get("category", ""),
+                    "status": status,
+                    "days_until_due": days_until_due,
+                }
+            )
+
+        # Sort: overdue first (most overdue first), then by next_due_at
+        items.sort(
+            key=lambda x: (
+                0 if x["status"] == "overdue" else 1,
+                x["days_until_due"] if x["days_until_due"] is not None else 9999,
+            )
+        )
+
+        return {"items": items, "counts": counts}
+
+    except Exception as e:
+        logger.error(f"Error fetching all maintenance: {e}")
+        return {"items": [], "counts": _empty_counts()}
+
+
+def _calculate_status(
+    next_due_at: str | None,
+    interval_type: str | None,
+    now: datetime,
+    seven_days_later: datetime,
+) -> tuple[str, int | None]:
+    """
+    Calculate status and days until due for a maintenance schedule.
+
+    Returns:
+        Tuple of (status, days_until_due)
+    """
+    if not next_due_at or interval_type == "manual":
+        return ("manual", None)
+
+    try:
+        due_date = datetime.fromisoformat(next_due_at.replace("Z", "+00:00"))
+        days_until = (due_date - now).days
+
+        if due_date < now:
+            return ("overdue", days_until)
+        elif due_date <= seven_days_later:
+            return ("upcoming", days_until)
+        else:
+            return ("scheduled", days_until)
+    except Exception:
+        return ("manual", None)
+
+
+def _empty_counts() -> dict:
+    """Return empty counts dictionary."""
+    return {"overdue": 0, "upcoming": 0, "scheduled": 0, "manual": 0, "total": 0}
+
+
 async def get_appliance_next_maintenance(
     user_appliance_id: str,
 ) -> dict | None:

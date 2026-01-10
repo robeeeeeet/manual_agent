@@ -50,12 +50,15 @@ async def endpoint_name(request: RequestSchema):
   - `login/`, `signup/` - 認証ページ
   - `register/` - 家電登録ページ
   - `appliances/` - 家電一覧ページ
+  - `maintenance/` - メンテナンス一覧ページ
+  - `mypage/` - マイページ
 - `src/components/` - Reactコンポーネント
   - `auth/` - 認証関連（AuthForm）
   - `layout/` - レイアウトコンポーネント（Header, Footer）
   - `ui/` - 汎用UIコンポーネント（Button, Card, Modal）
   - `appliances/` - 家電関連コンポーネント
-  - `notification/` - 通知関連（NotificationPermission）
+  - `maintenance/` - メンテナンス関連（MaintenanceCompleteModal, MaintenanceStatusTabs, MaintenanceFilter, MaintenanceListItem）
+  - `notification/` - 通知関連（NotificationPermission, NotificationPermissionModal, NotificationOnboarding）
   - `qa/` - QA機能関連（QASection, QAChat, QAChatMessage, QAFeedbackButtons, SearchProgressIndicator）
 - `src/types/` - 型定義（appliance.ts）
 - `src/contexts/` - React Context（AuthContext）
