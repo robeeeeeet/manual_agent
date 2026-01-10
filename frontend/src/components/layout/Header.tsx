@@ -50,6 +50,12 @@ export default function Header() {
             >
               家電一覧
             </Link>
+            <Link
+              href="/maintenance"
+              className="text-gray-600 hover:text-blue-600 transition-colors"
+            >
+              メンテナンス
+            </Link>
             {!loading && (
               <>
                 {user ? (
@@ -189,6 +195,13 @@ export default function Header() {
                 onClick={() => setIsMenuOpen(false)}
               >
                 家電一覧
+              </Link>
+              <Link
+                href="/maintenance"
+                className="text-gray-600 hover:text-blue-600 transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                メンテナンス
               </Link>
               {!loading && (
                 <>
