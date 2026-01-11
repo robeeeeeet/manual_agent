@@ -496,6 +496,40 @@ async def _search_manual_with_progress_impl(
                 candidate["verification_failed_reason"] = failed_reason
                 break
 
+    # === パナソニック専用ルート ===
+    # パナソニック製品は公式サイトから直接取得する（Google CSE をスキップ）
+    from app.services.panasonic_manual import is_panasonic, search_panasonic_manual
+
+    if is_panasonic(manufacturer):
+        yield SearchProgress(
+            "panasonic_search",
+            "パナソニック公式サイトを検索中...",
+            "公式サポートページから取扱説明書を取得します",
+        )
+
+        panasonic_result = await search_panasonic_manual(model_number)
+
+        if panasonic_result:
+            logger.info(f"[PANASONIC] Found PDF: {panasonic_result['pdf_url']}")
+            yield {
+                "type": "result",
+                "success": True,
+                "pdf_url": panasonic_result["pdf_url"],
+                "method": "panasonic_official",
+                "candidates": [],
+            }
+            return
+
+        # 見つからない場合は従来フローへフォールバック
+        logger.info(
+            "[PANASONIC] Not found on official site, falling back to Google search"
+        )
+        yield SearchProgress(
+            "panasonic_fallback",
+            "公式サイトで見つかりませんでした",
+            "Google検索にフォールバックします",
+        )
+
     # Phase A: Process cached candidates first (for retry search)
     if cached_candidates:
         logger.info(f"[CACHE] Processing {len(cached_candidates)} cached candidates")
