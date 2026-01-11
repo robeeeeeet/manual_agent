@@ -391,6 +391,10 @@ async def check_existing_pdf(request: ExistingPdfCheckRequest):
     Returns:
         ExistingPdfCheckResponse with PDF info if found
     """
+    from uuid import UUID
+
+    from app.schemas.appliance import DuplicateAppliance, DuplicateInGroup
+    from app.services.appliance_service import check_duplicate_in_group
     from app.services.pdf_storage import find_existing_pdf
     from app.services.supabase_client import get_supabase_client
 
@@ -404,6 +408,7 @@ async def check_existing_pdf(request: ExistingPdfCheckRequest):
             already_owned = False
             existing_appliance_id = None
             existing_appliance_name = None
+            duplicate_in_group = None
 
             # Check if user already owns this appliance
             if request.user_id and shared_appliance_id:
@@ -420,6 +425,27 @@ async def check_existing_pdf(request: ExistingPdfCheckRequest):
                     existing_appliance_id = ownership_check.data[0].get("id")
                     existing_appliance_name = ownership_check.data[0].get("name")
 
+                # Check for duplicates in group
+                duplicate_result = await check_duplicate_in_group(
+                    user_id=UUID(request.user_id),
+                    maker=request.manufacturer,
+                    model_number=request.model_number,
+                )
+
+                if duplicate_result and duplicate_result.get("exists"):
+                    appliances = [
+                        DuplicateAppliance(
+                            id=app["id"],
+                            name=app["name"],
+                            owner_type=app["owner_type"],
+                            owner_name=app["owner_name"],
+                        )
+                        for app in duplicate_result.get("appliances", [])
+                    ]
+                    duplicate_in_group = DuplicateInGroup(
+                        exists=True, appliances=appliances
+                    )
+
             return ExistingPdfCheckResponse(
                 found=True,
                 shared_appliance_id=shared_appliance_id,
@@ -430,11 +456,36 @@ async def check_existing_pdf(request: ExistingPdfCheckRequest):
                 already_owned=already_owned,
                 existing_appliance_id=existing_appliance_id,
                 existing_appliance_name=existing_appliance_name,
+                duplicate_in_group=duplicate_in_group,
             )
         else:
+            # PDF not found, but still check for duplicates
+            duplicate_in_group = None
+            if request.user_id:
+                duplicate_result = await check_duplicate_in_group(
+                    user_id=UUID(request.user_id),
+                    maker=request.manufacturer,
+                    model_number=request.model_number,
+                )
+
+                if duplicate_result and duplicate_result.get("exists"):
+                    appliances = [
+                        DuplicateAppliance(
+                            id=app["id"],
+                            name=app["name"],
+                            owner_type=app["owner_type"],
+                            owner_name=app["owner_name"],
+                        )
+                        for app in duplicate_result.get("appliances", [])
+                    ]
+                    duplicate_in_group = DuplicateInGroup(
+                        exists=True, appliances=appliances
+                    )
+
             return ExistingPdfCheckResponse(
                 found=False,
                 message="保存済みの説明書PDFは見つかりませんでした",
+                duplicate_in_group=duplicate_in_group,
             )
 
     except Exception as e:

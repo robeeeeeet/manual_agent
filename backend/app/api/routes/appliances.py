@@ -22,20 +22,14 @@ from app.schemas.appliance import (
 )
 from app.schemas.tier import TierLimitExceededError
 from app.services.appliance_service import (
-    AlreadySharedError,
     ApplianceNotFoundError,
     ApplianceServiceError,
     DuplicateNameError,
-    NoGroupMembershipError,
     NotGroupMemberError,
-    NotOwnerError,
-    NotSharedError,
     delete_user_appliance,
     get_user_appliance,
     get_user_appliances,
     register_user_appliance,
-    share_appliance,
-    unshare_appliance,
     update_user_appliance,
 )
 from app.services.image_conversion import convert_heic_to_jpeg, is_heic_file
@@ -798,169 +792,6 @@ async def get_upcoming_maintenance_tasks(
 # ============================================================================
 # Appliance Sharing Endpoints (Phase 7: Family Sharing)
 # ============================================================================
-
-
-@router.post(
-    "/{appliance_id}/share",
-    response_model=UserApplianceWithDetails,
-    responses={
-        400: {"model": ErrorResponse},
-        401: {"model": ErrorResponse},
-        403: {"model": ErrorResponse},
-        404: {"model": ErrorResponse},
-        409: {"model": ErrorResponse},
-        500: {"model": ErrorResponse},
-    },
-    summary="Share appliance with group",
-    description="Share a personal appliance with the user's group (one-tap sharing)",
-)
-async def share_appliance_endpoint(
-    appliance_id: UUID,
-    x_user_id: Annotated[str | None, Header()] = None,
-):
-    """
-    Share a personal appliance with the user's group.
-
-    This endpoint transfers ownership from personal to group:
-    - The appliance becomes accessible to all group members
-    - The original owner can still access it as a group member
-
-    Since users can only belong to one group (Phase 7 constraint),
-    no group selection is needed - the appliance is shared with
-    the user's current group automatically.
-
-    Args:
-        appliance_id: Appliance's UUID
-        x_user_id: User's UUID from header (set by BFF)
-
-    Returns:
-        Updated UserApplianceWithDetails (now with is_group_owned=True)
-
-    Raises:
-        HTTPException: If sharing fails
-    """
-    user_id = _get_user_id_from_header(x_user_id)
-
-    try:
-        return await share_appliance(user_id, appliance_id)
-    except NoGroupMembershipError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "Not in a group",
-                "code": "NO_GROUP_MEMBERSHIP",
-                "details": str(e),
-            },
-        ) from e
-    except NotOwnerError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "error": "Not the owner",
-                "code": "NOT_OWNER",
-                "details": str(e),
-            },
-        ) from e
-    except AlreadySharedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "error": "Already shared",
-                "code": "ALREADY_SHARED",
-                "details": str(e),
-            },
-        ) from e
-    except ApplianceNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "error": "Appliance not found",
-                "code": "NOT_FOUND",
-                "details": str(e),
-            },
-        ) from e
-    except ApplianceServiceError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={
-                "error": "Failed to share appliance",
-                "code": "SHARE_ERROR",
-                "details": str(e),
-            },
-        ) from e
-
-
-@router.post(
-    "/{appliance_id}/unshare",
-    response_model=UserApplianceWithDetails,
-    responses={
-        400: {"model": ErrorResponse},
-        401: {"model": ErrorResponse},
-        403: {"model": ErrorResponse},
-        404: {"model": ErrorResponse},
-        500: {"model": ErrorResponse},
-    },
-    summary="Unshare appliance from group",
-    description="Return a group appliance to personal ownership",
-)
-async def unshare_appliance_endpoint(
-    appliance_id: UUID,
-    x_user_id: Annotated[str | None, Header()] = None,
-):
-    """
-    Unshare a group appliance and return it to personal ownership.
-
-    This endpoint transfers ownership from group to personal:
-    - The requesting user becomes the personal owner
-    - Other group members lose access to the appliance
-
-    Args:
-        appliance_id: Appliance's UUID
-        x_user_id: User's UUID from header (set by BFF)
-
-    Returns:
-        Updated UserApplianceWithDetails (now with is_group_owned=False)
-
-    Raises:
-        HTTPException: If unsharing fails
-    """
-    user_id = _get_user_id_from_header(x_user_id)
-
-    try:
-        return await unshare_appliance(user_id, appliance_id)
-    except NotSharedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "Not shared",
-                "code": "NOT_SHARED",
-                "details": str(e),
-            },
-        ) from e
-    except NotGroupMemberError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "error": "Not a group member",
-                "code": "NOT_GROUP_MEMBER",
-                "details": str(e),
-            },
-        ) from e
-    except ApplianceNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "error": "Appliance not found",
-                "code": "NOT_FOUND",
-                "details": str(e),
-            },
-        ) from e
-    except ApplianceServiceError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={
-                "error": "Failed to unshare appliance",
-                "code": "UNSHARE_ERROR",
-                "details": str(e),
-            },
-        ) from e
+# NOTE: Appliance sharing is now automatic when a user joins a group.
+# All appliances registered by group members are automatically shared with the group.
+# The share/unshare endpoints have been removed in favor of this automatic approach.

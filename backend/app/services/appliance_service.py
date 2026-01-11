@@ -159,11 +159,13 @@ async def register_user_appliance(
     This will:
     1. Get or create the shared appliance (by maker/model_number)
     2. Create a user_appliance record linking the user/group to the shared appliance
+    3. If user is in a group and no explicit group_id is provided, auto-share with group
 
     Args:
-        user_id: User's UUID (used for personal ownership or group membership check)
+        user_id: User's UUID (always set as owner/registrant)
         appliance_data: Appliance registration data
-        group_id: Group's UUID (if registering as group appliance)
+        group_id: Group's UUID (if explicitly registering as group appliance)
+                  If None and user is in a group, auto-detect and use user's group
 
     Returns:
         UserApplianceWithDetails with all appliance information
@@ -177,13 +179,20 @@ async def register_user_appliance(
     if not client:
         raise ApplianceServiceError("Supabase client not configured")
 
-    # If group_id is provided, verify membership
+    # Auto-detect user's group if group_id not provided
+    effective_group_id = group_id
+    if effective_group_id is None:
+        user_group = await get_user_group(user_id)
+        if user_group:
+            effective_group_id = UUID(user_group["id"])
+
+    # If group_id is provided or detected, verify membership
     group_name = None
-    if group_id:
+    if effective_group_id:
         membership = (
             client.table("group_members")
             .select("id")
-            .eq("group_id", str(group_id))
+            .eq("group_id", str(effective_group_id))
             .eq("user_id", str(user_id))
             .execute()
         )
@@ -194,7 +203,7 @@ async def register_user_appliance(
         group_result = (
             client.table("groups")
             .select("name")
-            .eq("id", str(group_id))
+            .eq("id", str(effective_group_id))
             .single()
             .execute()
         )
@@ -211,17 +220,16 @@ async def register_user_appliance(
     )
 
     # Create user_appliance record
-    # Either user_id OR group_id is set (XOR constraint in DB)
+    # user_id is ALWAYS set (DB constraint: chk_user_appliances_owner)
+    # group_id is set if registering as group appliance
     insert_data = {
+        "user_id": str(user_id),  # 常に登録者を記録（所有者/元所有者として）
         "shared_appliance_id": str(shared.id),
         "name": appliance_data.name,
     }
 
-    if group_id:
-        insert_data["group_id"] = str(group_id)
-        # user_id is NULL for group appliances
-    else:
-        insert_data["user_id"] = str(user_id)
+    if effective_group_id:
+        insert_data["group_id"] = str(effective_group_id)
 
     if appliance_data.image_url:
         insert_data["image_url"] = appliance_data.image_url
@@ -261,7 +269,7 @@ async def register_user_appliance(
         manual_source_url=shared.manual_source_url,
         stored_pdf_path=shared.stored_pdf_path,
         group_name=group_name,
-        is_group_owned=group_id is not None,
+        is_group_owned=effective_group_id is not None,
     )
 
 
@@ -331,6 +339,55 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
     # Sort by created_at descending
     all_appliances_data.sort(key=lambda x: x.get("created_at", ""), reverse=True)
 
+    # Batch fetch duplicate counts for each shared_appliance_id
+    duplicate_count_map: dict[str, int] = {}
+    shared_appliance_ids = list(
+        {row["shared_appliance_id"] for row in all_appliances_data}
+    )
+
+    if shared_appliance_ids:
+        # Count user_appliances per shared_appliance_id
+        # Only count within user's scope (personal or group)
+        if group_ids:
+            # User is in a group - count group appliances + members' personal appliances
+            # Get all member user IDs from group_members table
+            all_members_result = (
+                client.table("group_members")
+                .select("user_id")
+                .in_("group_id", group_ids)
+                .execute()
+            )
+            member_user_ids = list(
+                {m["user_id"] for m in (all_members_result.data or [])}
+            )
+
+            for shared_id in shared_appliance_ids:
+                # Build OR filter for group appliances or members' personal appliances
+                or_filter = (
+                    f"group_id.in.({','.join(group_ids)}),"
+                    f"and(user_id.in.({','.join(member_user_ids)}),group_id.is.null)"
+                )
+                count_result = (
+                    client.table("user_appliances")
+                    .select("id", count="exact")
+                    .eq("shared_appliance_id", shared_id)
+                    .or_(or_filter)
+                    .execute()
+                )
+                duplicate_count_map[shared_id] = count_result.count or 0
+        else:
+            # No group - only count user's personal appliances
+            for shared_id in shared_appliance_ids:
+                count_result = (
+                    client.table("user_appliances")
+                    .select("id", count="exact")
+                    .eq("shared_appliance_id", shared_id)
+                    .eq("user_id", str(user_id))
+                    .is_("group_id", "null")
+                    .execute()
+                )
+                duplicate_count_map[shared_id] = count_result.count or 0
+
     # Batch fetch all maintenance schedules to avoid N+1 queries
     maintenance_map: dict[str, dict] = {}
     all_appliance_ids = [row["id"] for row in all_appliances_data]
@@ -338,7 +395,8 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
         all_maintenance_result = (
             client.table("maintenance_schedules")
             .select(
-                "user_appliance_id, next_due_at, shared_maintenance_items!inner(task_name, importance)"
+                "user_appliance_id, next_due_at, "
+                "shared_maintenance_items!inner(task_name, importance)"
             )
             .in_("user_appliance_id", all_appliance_ids)
             .not_.is_("next_due_at", "null")
@@ -396,6 +454,7 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
                 next_maintenance=next_maintenance,
                 group_name=group_name,
                 is_group_owned=is_group_owned,
+                duplicate_count=duplicate_count_map.get(row["shared_appliance_id"], 0),
             )
         )
 
@@ -409,8 +468,8 @@ async def get_user_appliance(
     Get a specific appliance for a user.
 
     Access is granted if:
-    - User owns the appliance (personal ownership), OR
-    - User is a member of the group that owns the appliance
+    - For group appliances: User is a member of the group that owns the appliance
+    - For personal appliances: User owns the appliance (user_id matches)
 
     Args:
         user_id: User's UUID
@@ -440,16 +499,13 @@ async def get_user_appliance(
 
     row = result.data[0]
 
-    # Check access: personal ownership OR group membership
+    # Check access: group membership OR personal ownership
     has_access = False
     group_name = None
     is_group_owned = row.get("group_id") is not None
 
-    if row.get("user_id") == str(user_id):
-        # Personal ownership
-        has_access = True
-    elif is_group_owned:
-        # Check group membership
+    if is_group_owned:
+        # Group appliance: MUST check group membership (even if user_id matches)
         membership = (
             client.table("group_members")
             .select("id")
@@ -469,6 +525,9 @@ async def get_user_appliance(
             )
             if group_result.data:
                 group_name = group_result.data["name"]
+    elif row.get("user_id") == str(user_id):
+        # Personal appliance: check ownership
+        has_access = True
 
     if not has_access:
         raise ApplianceNotFoundError(f"Appliance {appliance_id} not found")
@@ -715,42 +774,53 @@ async def get_user_group(user_id: UUID) -> dict | None:
     }
 
 
-async def share_appliance(
-    user_id: UUID, appliance_id: UUID
-) -> UserApplianceWithDetails:
-    """
-    Share a personal appliance with the user's group.
+# share_appliance and unshare_appliance functions removed in favor of automatic group sharing
+# Appliances are now automatically shared with the group when registered by a group member
 
-    Transfers ownership from personal to group while keeping the original owner tracked:
-    - user_id is KEPT (tracks original owner for leave_group logic)
-    - group_id is set to the user's group
+
+async def check_merge_candidates_on_share(
+    user_id: UUID, appliance_id: UUID
+) -> list[dict]:
+    """
+    Check if sharing an appliance would trigger a merge with other members' appliances.
+
+    When a user shares their personal appliance to the group, we need to check
+    if other group members have personal appliances with the same shared_appliance_id.
+    These would be merged (their maintenance_schedules migrated) when sharing.
 
     Args:
         user_id: User's UUID
         appliance_id: Appliance's UUID (user_appliances.id)
 
     Returns:
-        Updated UserApplianceWithDetails
+        List of appliances that would be merged, with owner display_name:
+        [
+            {
+                "id": "...",
+                "name": "...",
+                "owner_display_name": "...",
+                "maintenance_schedule_count": 5
+            }
+        ]
+        Empty list if no merge candidates found.
 
     Raises:
-        NoGroupMembershipError: If user is not a member of any group
-        NotOwnerError: If user is not the personal owner of the appliance
-        AlreadySharedError: If appliance is already shared with a group
-        ApplianceServiceError: If database operation fails
+        ApplianceNotFoundError: If appliance not found
+        NoGroupMembershipError: If user is not in a group
     """
     client = get_supabase_client()
     if not client:
-        raise ApplianceServiceError("Supabase client not configured")
+        return []
 
-    # 1. Get user's group (1 group only due to 00013 constraint)
+    # 1. Get user's group
     group = await get_user_group(user_id)
     if not group:
-        raise NoGroupMembershipError("グループに参加していません")
+        return []  # No group = no merge candidates
 
-    # 2. Get the appliance
+    # 2. Get the appliance to be shared
     result = (
         client.table("user_appliances")
-        .select("*")
+        .select("*, shared_appliance_id")
         .eq("id", str(appliance_id))
         .execute()
     )
@@ -759,82 +829,282 @@ async def share_appliance(
         raise ApplianceNotFoundError(f"Appliance {appliance_id} not found")
 
     appliance = result.data[0]
+    shared_appliance_id = appliance.get("shared_appliance_id")
 
-    # 3. Check ownership - must be personal owner
-    if appliance.get("user_id") != str(user_id):
-        raise NotOwnerError("この家電の所有者ではありません")
+    if not shared_appliance_id:
+        return []  # No shared_appliance_id = no merge candidates
 
-    # 4. Check if already shared
-    if appliance.get("group_id") is not None:
-        raise AlreadySharedError("既に共有されています")
+    # 3. Get all group members (excluding the current user)
+    members_result = (
+        client.table("group_members")
+        .select("user_id")
+        .eq("group_id", group["id"])
+        .neq("user_id", str(user_id))
+        .execute()
+    )
+    other_member_ids = [m["user_id"] for m in (members_result.data or [])]
 
-    # 5. Share with group (keep user_id to track original owner)
-    try:
-        client.table("user_appliances").update(
-            {"group_id": group["id"]}  # Keep user_id, only set group_id
-        ).eq("id", str(appliance_id)).execute()
-    except Exception as e:
-        logger.error(f"Failed to share appliance: {e}")
-        raise ApplianceServiceError(f"Failed to share appliance: {e}") from e
+    if not other_member_ids:
+        return []  # No other members = no merge candidates
 
-    # 6. Return updated appliance
-    return await get_user_appliance(user_id, appliance_id)
+    # 4. Find other members' personal appliances with the same shared_appliance_id
+    # (personal = has user_id but no group_id)
+    candidates_result = (
+        client.table("user_appliances")
+        .select("id, name, user_id")
+        .eq("shared_appliance_id", shared_appliance_id)
+        .in_("user_id", other_member_ids)
+        .is_("group_id", "null")
+        .execute()
+    )
+
+    if not candidates_result.data:
+        return []
+
+    # 5. Get display names and maintenance schedule counts
+    merge_candidates = []
+    for candidate in candidates_result.data:
+        # Get display_name
+        user_result = (
+            client.table("users")
+            .select("display_name")
+            .eq("id", candidate["user_id"])
+            .execute()
+        )
+        display_name = "グループメンバー"
+        if user_result.data and user_result.data[0].get("display_name"):
+            display_name = user_result.data[0]["display_name"]
+
+        # Get maintenance schedule count
+        schedule_result = (
+            client.table("maintenance_schedules")
+            .select("id", count="exact")
+            .eq("user_appliance_id", candidate["id"])
+            .execute()
+        )
+        schedule_count = schedule_result.count or 0
+
+        merge_candidates.append(
+            {
+                "id": candidate["id"],
+                "name": candidate["name"],
+                "owner_display_name": display_name,
+                "maintenance_schedule_count": schedule_count,
+            }
+        )
+
+    return merge_candidates
 
 
-async def unshare_appliance(
-    user_id: UUID, appliance_id: UUID
-) -> UserApplianceWithDetails:
+async def merge_appliances_on_share(
+    target_appliance_id: UUID,
+    source_appliance_ids: list[str],
+) -> dict:
     """
-    Unshare a group appliance and return it to personal ownership.
+    Merge source appliances into the target appliance.
 
-    Only the original owner (user_id in the appliance record) can unshare.
-    Simply clears group_id since user_id is already the original owner.
+    This function:
+    1. Migrates maintenance_schedules from source appliances to target
+    2. Deletes the source appliances
 
     Args:
-        user_id: User's UUID (must be the original owner)
-        appliance_id: Appliance's UUID (user_appliances.id)
+        target_appliance_id: The appliance that will receive the merged data
+        source_appliance_ids: List of appliance IDs to merge into target
 
     Returns:
-        Updated UserApplianceWithDetails
+        dict with merge statistics:
+        {
+            "merged_appliance_count": 2,
+            "migrated_schedule_count": 5
+        }
 
     Raises:
-        NotOwnerError: If user is not the original owner of the appliance
-        NotSharedError: If appliance is not shared (already personal ownership)
         ApplianceServiceError: If database operation fails
     """
     client = get_supabase_client()
     if not client:
         raise ApplianceServiceError("Supabase client not configured")
 
-    # 1. Get the appliance
-    result = (
-        client.table("user_appliances")
-        .select("*")
-        .eq("id", str(appliance_id))
+    if not source_appliance_ids:
+        return {"merged_appliance_count": 0, "migrated_schedule_count": 0}
+
+    total_migrated_schedules = 0
+
+    try:
+        for source_id in source_appliance_ids:
+            # 1. Count schedules before migration
+            count_result = (
+                client.table("maintenance_schedules")
+                .select("id", count="exact")
+                .eq("user_appliance_id", source_id)
+                .execute()
+            )
+            schedule_count = count_result.count or 0
+            total_migrated_schedules += schedule_count
+
+            # 2. Migrate maintenance_schedules to target appliance
+            if schedule_count > 0:
+                client.table("maintenance_schedules").update(
+                    {"user_appliance_id": str(target_appliance_id)}
+                ).eq("user_appliance_id", source_id).execute()
+
+            # 3. Delete the source appliance
+            client.table("user_appliances").delete().eq("id", source_id).execute()
+
+            logger.info(
+                f"Merged appliance {source_id} into {target_appliance_id}, "
+                f"migrated {schedule_count} schedules"
+            )
+
+        return {
+            "merged_appliance_count": len(source_appliance_ids),
+            "migrated_schedule_count": total_migrated_schedules,
+        }
+    except Exception as e:
+        logger.error(f"Failed to merge appliances: {e}")
+        raise ApplianceServiceError(f"Failed to merge appliances: {e}") from e
+
+
+async def check_duplicate_in_group(
+    user_id: UUID,
+    maker: str,
+    model_number: str,
+) -> dict | None:
+    """
+    Check if the same maker + model_number appliance already exists in the user's group.
+
+    Checks:
+    - Group-owned appliances (group_id is set)
+    - Personal appliances of all group members (user_id is set, group_id is null)
+
+    Args:
+        user_id: User's UUID (to find their group)
+        maker: Manufacturer name
+        model_number: Model number
+
+    Returns:
+        dict with duplicate info if found:
+        {
+            "exists": True,
+            "appliances": [
+                {
+                    "id": "...",
+                    "name": "...",
+                    "owner_type": "group" or "personal",
+                    "owner_name": "..." (group name or user display_name)
+                }
+            ]
+        }
+        None if no duplicates found
+    """
+    client = get_supabase_client()
+    if not client:
+        return None
+
+    # Step 1: Get user's group (if any)
+    group = await get_user_group(user_id)
+
+    # Step 2: Find shared_appliance by maker + model_number
+    shared_result = (
+        client.table("shared_appliances")
+        .select("id")
+        .eq("maker", maker)
+        .eq("model_number", model_number)
         .execute()
     )
 
-    if not result.data:
-        raise ApplianceNotFoundError(f"Appliance {appliance_id} not found")
+    if not shared_result.data:
+        # No shared appliance exists yet, so no duplicates
+        return None
 
-    appliance = result.data[0]
+    shared_appliance_id = shared_result.data[0]["id"]
 
-    # 2. Check if it's a group appliance
-    if appliance.get("group_id") is None:
-        raise NotSharedError("この家電は共有されていません")
+    # Step 3: Find all user_appliances referencing this shared_appliance
+    # that belong to the user's scope (personal or group)
+    duplicates = []
 
-    # 3. Check if user is the original owner
-    if appliance.get("user_id") != str(user_id):
-        raise NotOwnerError("この家電の元の所有者ではありません")
+    if group:
+        # User is in a group - check group appliances + all members' personal appliances
+        group_id = group["id"]
 
-    # 4. Return to personal ownership (just clear group_id)
-    try:
-        client.table("user_appliances").update({"group_id": None}).eq(
-            "id", str(appliance_id)
-        ).execute()
-    except Exception as e:
-        logger.error(f"Failed to unshare appliance: {e}")
-        raise ApplianceServiceError(f"Failed to unshare appliance: {e}") from e
+        # Get all group members
+        members_result = (
+            client.table("group_members")
+            .select("user_id")
+            .eq("group_id", group_id)
+            .execute()
+        )
+        member_user_ids = [m["user_id"] for m in (members_result.data or [])]
 
-    # 5. Return updated appliance
-    return await get_user_appliance(user_id, appliance_id)
+        # Find user_appliances with this shared_appliance_id
+        # belonging to this group or its members
+        appliances_result = (
+            client.table("user_appliances")
+            .select("id, name, user_id, group_id")
+            .eq("shared_appliance_id", shared_appliance_id)
+            .execute()
+        )
+
+        for appliance in appliances_result.data or []:
+            # Check if this appliance belongs to the group or its members
+            if appliance.get("group_id") == group_id:
+                # Group-owned appliance
+                duplicates.append(
+                    {
+                        "id": appliance["id"],
+                        "name": appliance["name"],
+                        "owner_type": "group",
+                        "owner_name": group["name"],
+                    }
+                )
+            elif (
+                appliance.get("user_id") in member_user_ids
+                and appliance.get("group_id") is None
+            ):
+                # Personal appliance of a group member
+                # Get member display_name
+                member_result = (
+                    client.table("users")
+                    .select("display_name")
+                    .eq("id", appliance["user_id"])
+                    .execute()
+                )
+                member_name = "グループメンバー"
+                if member_result.data and member_result.data[0].get("display_name"):
+                    if appliance.get("user_id") == str(user_id):
+                        member_name = "あなた"
+                    else:
+                        member_name = member_result.data[0]["display_name"]
+                duplicates.append(
+                    {
+                        "id": appliance["id"],
+                        "name": appliance["name"],
+                        "owner_type": "personal",
+                        "owner_name": member_name,
+                    }
+                )
+    else:
+        # No group - only check user's personal appliances
+        appliances_result = (
+            client.table("user_appliances")
+            .select("id, name")
+            .eq("shared_appliance_id", shared_appliance_id)
+            .eq("user_id", str(user_id))
+            .is_("group_id", "null")
+            .execute()
+        )
+
+        for appliance in appliances_result.data or []:
+            duplicates.append(
+                {
+                    "id": appliance["id"],
+                    "name": appliance["name"],
+                    "owner_type": "personal",
+                    "owner_name": "あなた",
+                }
+            )
+
+    if duplicates:
+        return {"exists": True, "appliances": duplicates}
+
+    return None

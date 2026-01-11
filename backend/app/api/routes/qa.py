@@ -607,8 +607,30 @@ async def get_sessions(
     Raises:
         401: If user is not authenticated
     """
+    from app.services.supabase_client import get_supabase_client
+
     user_id = _get_user_id_from_header(x_user_id)
-    sessions = await get_sessions_for_appliance(str(user_id), shared_appliance_id)
+
+    # ユーザーが参加しているグループを取得
+    group_id = None
+    client = get_supabase_client()
+    if client:
+        try:
+            membership = (
+                client.table("group_members")
+                .select("group_id")
+                .eq("user_id", str(user_id))
+                .maybe_single()
+                .execute()
+            )
+            if membership.data:
+                group_id = membership.data["group_id"]
+        except Exception:
+            pass  # グループ未参加の場合は個人セッションのみ
+
+    sessions = await get_sessions_for_appliance(
+        str(user_id), shared_appliance_id, group_id
+    )
     return QASessionListResponse(sessions=sessions)
 
 

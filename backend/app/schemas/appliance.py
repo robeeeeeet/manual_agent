@@ -121,6 +121,15 @@ class UserApplianceWithDetails(UserAppliance):
         None, description="Next upcoming maintenance task (if any)"
     )
 
+    # 重複カウント（Plan 11: Duplicate Detection）
+    duplicate_count: int = Field(
+        0,
+        description=(
+            "Number of appliances with same maker+model_number "
+            "in user's scope (group or personal)"
+        ),
+    )
+
 
 class UserApplianceUpdate(BaseModel):
     """Schema for updating user appliance"""
@@ -259,6 +268,24 @@ class ExistingPdfCheckRequest(BaseModel):
     user_id: str | None = Field(None, description="User ID to check ownership")
 
 
+class DuplicateAppliance(BaseModel):
+    """Single duplicate appliance info"""
+
+    id: str = Field(..., description="User appliance ID")
+    name: str = Field(..., description="Appliance name")
+    owner_type: Literal["group", "personal"] = Field(..., description="Ownership type")
+    owner_name: str = Field(..., description="Owner name (group or user display name)")
+
+
+class DuplicateInGroup(BaseModel):
+    """Duplicate appliance information in user's group"""
+
+    exists: bool = Field(..., description="Whether duplicates exist")
+    appliances: list[DuplicateAppliance] = Field(
+        default_factory=list, description="List of duplicate appliances"
+    )
+
+
 class ExistingPdfCheckResponse(BaseModel):
     """Response for existing PDF check"""
 
@@ -284,6 +311,9 @@ class ExistingPdfCheckResponse(BaseModel):
     )
     existing_appliance_name: str | None = Field(
         None, description="Name of the existing appliance if already owned"
+    )
+    duplicate_in_group: DuplicateInGroup | None = Field(
+        None, description="Duplicate appliance info in user's group (if any)"
     )
 
 
