@@ -9,6 +9,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Modal from "@/components/ui/Modal";
 import ShareToggle from "@/components/appliance/ShareButton";
 import { QASection } from "@/components/qa/QASection";
+import { SafeHtml } from "@/components/ui/SafeHtml";
 import type {
   UserApplianceWithDetails,
   MaintenanceSchedule,
@@ -634,17 +635,20 @@ export default function ApplianceDetailPage({
                     onClick={() => openDetailModal(schedule)}
                     className="p-3 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 cursor-pointer transition-colors"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      {/* Left: Task name */}
-                      <h4 className="font-medium text-gray-900 flex-1 truncate">
-                        {schedule.task_name}
-                      </h4>
+                    {/* Task name - full width */}
+                    <h4
+                      className="font-medium text-gray-900 leading-snug mb-2"
+                      title={schedule.task_name}
+                    >
+                      {schedule.task_name}
+                    </h4>
 
-                      {/* Right: Badges and complete button */}
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* Bottom row: badges and complete button */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
                         {/* Importance badge */}
                         <span
-                          className={`px-2 py-0.5 text-xs font-medium rounded ${getImportanceBadgeColor(
+                          className={`px-1.5 py-0.5 text-xs font-medium rounded ${getImportanceBadgeColor(
                             schedule.importance
                           )}`}
                         >
@@ -663,23 +667,23 @@ export default function ApplianceDetailPage({
                                 ? "今日"
                                 : `あと${daysUntil}日`}
                         </span>
-
-                        {/* Complete button */}
-                        <Button
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openCompleteModal(schedule);
-                          }}
-                          className={
-                            daysUntil !== null && daysUntil < 0
-                              ? "bg-red-600 hover:bg-red-700"
-                              : ""
-                          }
-                        >
-                          完了
-                        </Button>
                       </div>
+
+                      {/* Complete button */}
+                      <Button
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openCompleteModal(schedule);
+                        }}
+                        className={
+                          daysUntil !== null && daysUntil < 0
+                            ? "bg-red-600 hover:bg-red-700"
+                            : ""
+                        }
+                      >
+                        完了
+                      </Button>
                     </div>
                   </div>
                 );
@@ -909,7 +913,7 @@ export default function ApplianceDetailPage({
                   <h4 className="text-sm font-medium text-gray-500 mb-1">
                     説明
                   </h4>
-                  <p className="text-gray-700">{selectedSchedule.description}</p>
+                  <SafeHtml html={selectedSchedule.description} className="text-gray-700" />
                 </div>
               )}
 

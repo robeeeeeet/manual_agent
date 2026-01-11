@@ -11,6 +11,9 @@
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.89.0",
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/dompurify": "^3.0.5",
+    "dompurify": "^3.3.1",
     "heic2any": "^0.0.4",
     "next": "16.1.1",
     "next-pwa": "^5.6.0",

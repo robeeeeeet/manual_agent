@@ -9,6 +9,7 @@ import Modal from "@/components/ui/Modal";
 import { isHeicFile, convertHeicToJpeg } from "@/lib/heicConverter";
 import { useAuth } from "@/contexts/AuthContext";
 import { createClient } from "@/lib/supabase/client";
+import { SafeHtml } from "@/components/ui/SafeHtml";
 import type {
   ManualSearchResponse,
   MaintenanceExtractionResponse,
@@ -36,6 +37,10 @@ export default function RegisterPage() {
   const [isConverting, setIsConverting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [labelGuide, setLabelGuide] = useState<LabelGuide | null>(null);
+
+  // Step 4: Maintenance item detail modal
+  const [selectedItemForDetail, setSelectedItemForDetail] = useState<SharedMaintenanceItem | null>(null);
+  const [showItemDetailModal, setShowItemDetailModal] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -1855,12 +1860,12 @@ export default function RegisterPage() {
 
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {sharedMaintenanceItems.map((item) => (
-                      <label
+                      <div
                         key={item.id}
-                        className={`block bg-white border rounded-lg p-4 shadow-sm cursor-pointer transition-colors ${
+                        className={`bg-white border rounded-lg p-4 shadow-sm transition-colors ${
                           selectedItemIds.has(item.id)
                             ? "border-blue-500 bg-blue-50"
-                            : "border-gray-200 hover:border-gray-300"
+                            : "border-gray-200"
                         }`}
                       >
                         <div className="flex items-start gap-3">
@@ -1868,17 +1873,30 @@ export default function RegisterPage() {
                             type="checkbox"
                             checked={selectedItemIds.has(item.id)}
                             onChange={() => toggleItemSelection(item.id)}
-                            className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
                           />
-                          <div className="flex-1">
-                            <h4 className="font-medium text-gray-900">
-                              {item.task_name}
-                            </h4>
-                            {item.description && (
-                              <p className="text-sm text-gray-600 mt-1">
-                                {item.description}
-                              </p>
-                            )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="font-medium text-gray-900 flex-1">
+                                {item.task_name}
+                              </h4>
+                              {item.description && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedItemForDetail(item);
+                                    setShowItemDetailModal(true);
+                                  }}
+                                  className="text-xs text-blue-600 hover:text-blue-700 whitespace-nowrap flex items-center gap-1"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  詳細
+                                </button>
+                              )}
+                            </div>
                             <div className="flex flex-wrap gap-2 mt-2">
                               <span
                                 className={`px-2 py-1 text-xs font-medium rounded ${getImportanceBadgeColor(
@@ -1902,7 +1920,7 @@ export default function RegisterPage() {
                             </div>
                           </div>
                         </div>
-                      </label>
+                      </div>
                     ))}
                   </div>
 
@@ -2107,6 +2125,110 @@ export default function RegisterPage() {
             className="max-w-full max-h-[90vh] rounded-lg"
           />
         )}
+      </Modal>
+
+      {/* Maintenance Item Detail Modal */}
+      <Modal
+        isOpen={showItemDetailModal}
+        onClose={() => {
+          setShowItemDetailModal(false);
+          setSelectedItemForDetail(null);
+        }}
+        variant="dialog"
+      >
+        <div className="p-6">
+          {/* Close button */}
+          <button
+            onClick={() => {
+              setShowItemDetailModal(false);
+              setSelectedItemForDetail(null);
+            }}
+            className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+            aria-label="閉じる"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {selectedItemForDetail && (
+            <>
+              {/* Header */}
+              <h3 className="text-lg font-bold text-gray-900 mb-4 pr-8">
+                {selectedItemForDetail.task_name}
+              </h3>
+
+              {/* Description with SafeHtml */}
+              {selectedItemForDetail.description && (
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-gray-500 mb-2">
+                    説明
+                  </h4>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <SafeHtml html={selectedItemForDetail.description} className="text-gray-700" />
+                  </div>
+                </div>
+              )}
+
+              {/* Meta info */}
+              <div className="grid grid-cols-2 gap-4 mb-4 py-4 border-y border-gray-100">
+                <div>
+                  <h4 className="text-xs font-medium text-gray-500 mb-1">
+                    推奨周期
+                  </h4>
+                  <p className="text-sm text-gray-900">
+                    {selectedItemForDetail.recommended_interval_type === "days"
+                      ? `${selectedItemForDetail.recommended_interval_value}日ごと`
+                      : selectedItemForDetail.recommended_interval_type === "months"
+                        ? `${selectedItemForDetail.recommended_interval_value}ヶ月ごと`
+                        : "手動"}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-medium text-gray-500 mb-1">
+                    重要度
+                  </h4>
+                  <span
+                    className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${getImportanceBadgeColor(
+                      selectedItemForDetail.importance
+                    )}`}
+                  >
+                    {importanceLabels[selectedItemForDetail.importance]}
+                  </span>
+                </div>
+              </div>
+
+              {/* Source page */}
+              {selectedItemForDetail.source_page && (
+                <div className="mb-4">
+                  <h4 className="text-xs font-medium text-gray-500 mb-1">
+                    参照ページ
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    📄 {selectedItemForDetail.source_page}
+                  </p>
+                </div>
+              )}
+
+              {/* Selection toggle */}
+              <div className="pt-4 border-t border-gray-100">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedItemIds.has(selectedItemForDetail.id)}
+                    onChange={() => toggleItemSelection(selectedItemForDetail.id)}
+                    className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    {selectedItemIds.has(selectedItemForDetail.id)
+                      ? "登録リストに追加済み"
+                      : "登録リストに追加する"}
+                  </span>
+                </label>
+              </div>
+            </>
+          )}
+        </div>
       </Modal>
     </div>
   );

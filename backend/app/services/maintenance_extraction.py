@@ -220,7 +220,7 @@ async def extract_maintenance_items(
     "maintenance_items": [
         {{
             "item_name": "項目名（例: 庫内の清掃）",
-            "description": "具体的な作業内容",
+            "description": "<p>作業の概要説明</p><ol><li>手順1</li><li>手順2</li></ol>",
             "frequency": "周期（例: 使用後毎回, 週1回, 月1回, 年1回）",
             "frequency_days": 周期を日数で表現（毎日=1, 週1回=7, 月1回=30, 年1回=365。不明な場合は30）,
             "category": "cleaning か inspection か replacement のいずれか1つのみ",
@@ -232,8 +232,33 @@ async def extract_maintenance_items(
 }}
 ```
 
+## description フィールドの書式（重要）
+
+description は **HTML形式** で記述してください。
+
+### 使用可能なHTMLタグ
+- `<p>` - 段落（概要説明に使用）
+- `<ol><li>` - 番号付きリスト（手順説明に使用、必須）
+- `<ul><li>` - 箇条書きリスト（注意点の列挙など）
+- `<strong>` - 強調テキスト
+- `<h4>`, `<h5>` - 小見出し（複数の作業がある場合）
+- `<br>` - 改行
+
+### description の記述例
+```html
+<p>フィルターを取り外して清掃します。</p>
+<ol>
+<li>電源を切り、コンセントを抜く</li>
+<li>フィルターカバーを外す</li>
+<li>フィルターを取り出し、掃除機でホコリを吸い取る</li>
+<li>汚れがひどい場合は水洗いし、完全に乾かす</li>
+<li>フィルターを元に戻し、カバーを閉める</li>
+</ol>
+```
+
 ## 重要なルール
 - **実際に作業を伴う項目のみ**を抽出（「読む」「確認を怠らない」は対象外）
+- **description は必ずHTML形式**で、手順がある場合は `<ol><li>` を使用
 - category は cleaning, inspection, replacement のいずれか1つのみ選択
 - importance は high, medium, low のいずれか1つのみ選択
 - frequency_days は1以上の整数（周期不明の場合は30）
