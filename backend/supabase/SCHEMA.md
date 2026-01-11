@@ -35,20 +35,21 @@
 │  └─────────────────────┘            │                                           │
 │           │                         │                                           │
 │           ↓                         ↓                                           │
-│  ┌───────────────────────────┐   ┌────────────────────────────────┐            │
-│  │ shared_maintenance_items  │   │   maintenance_schedules        │            │
-│  │  (メンテ項目キャッシュ)     │   │   (ユーザースケジュール)         │            │
-│  ├───────────────────────────┤   ├────────────────────────────────┤            │
-│  │ id (PK)                   │←──│ shared_item_id (FK, nullable)  │            │
-│  │ shared_appliance_id (FK)  │   │ id (PK)                        │            │
-│  │ task_name                 │   │ user_appliance_id (FK)         │            │
-│  │ description               │   │ task_name                      │            │
-│  │ recommended_interval_type │   │ interval_type                  │            │
-│  │ recommended_interval_value│   │ interval_value                 │            │
-│  │ source_page               │   │ next_due_at                    │            │
-│  │ importance                │   │ importance                     │            │
-│  │ extracted_at              │   └────────────────────────────────┘            │
-│  └───────────────────────────┘            │                                     │
+│  ┌─────────────────────────────────┐   ┌────────────────────────────────┐    │
+│  │   shared_maintenance_items     │   │   maintenance_schedules        │    │
+│  │  (メンテ項目マスター)            │   │   (ユーザースケジュール)         │    │
+│  ├─────────────────────────────────┤   ├────────────────────────────────┤    │
+│  │ id (PK)                        │←──│ shared_item_id (FK, NOT NULL)  │    │
+│  │ shared_appliance_id (FK, null) │   │ id (PK)                        │    │
+│  │ user_appliance_id (FK, null)   │   │ user_appliance_id (FK)         │    │
+│  │ task_name                      │   │ interval_type                  │    │
+│  │ description                    │   │ interval_value                 │    │
+│  │ recommended_interval_type      │   │ next_due_at                    │    │
+│  │ recommended_interval_value     │   │ last_done_at                   │    │
+│  │ source_page                    │   └────────────────────────────────┘    │
+│  │ importance                     │            │                            │
+│  │ extracted_at                   │            │                            │
+│  └─────────────────────────────────┘            │                            │
 │                                           ↓                                     │
 │                           ┌───────────────────────────────┐                     │
 │                           │   maintenance_logs            │                     │
@@ -193,16 +194,17 @@
 
 **RLS**: 個人所有 OR グループメンバーとして参照・更新・削除可能
 
-### 4. shared_maintenance_items（メンテナンス項目キャッシュ）
+### 4. shared_maintenance_items（メンテナンス項目マスター）
 
-家電マスターごとのメンテナンス項目を管理するテーブル。LLM抽出結果のキャッシュとして機能。
+メンテナンス項目のマスターテーブル。共有項目（LLM抽出）とカスタム項目（ユーザー追加）の両方を管理。
 
 | カラム名 | 型 | NULL | デフォルト | 説明 |
 |---------|-----|------|-----------|------|
 | `id` | UUID | NOT NULL | gen_random_uuid() | 項目ID（PK） |
-| `shared_appliance_id` | UUID | NOT NULL | - | 対象の家電マスターID（FK → shared_appliances） |
+| `shared_appliance_id` | UUID | NULL | - | 共有項目の場合: 家電マスターID（FK → shared_appliances） |
+| `user_appliance_id` | UUID | NULL | - | カスタム項目の場合: ユーザー家電ID（FK → user_appliances） |
 | `task_name` | TEXT | NOT NULL | - | タスク名（例: フィルター清掃） |
-| `description` | TEXT | NULL | - | タスクの詳細説明 |
+| `description` | TEXT | NULL | - | タスクの詳細説明（HTML形式） |
 | `recommended_interval_type` | TEXT | NOT NULL | - | 推奨周期タイプ: 'days', 'months', 'manual' |
 | `recommended_interval_value` | INTEGER | NULL | - | 推奨周期の値（manual の場合は null） |
 | `source_page` | TEXT | NULL | - | 根拠ページ番号 |
@@ -213,52 +215,51 @@
 **制約**:
 - `recommended_interval_type` は 'days', 'months', 'manual' のいずれか
 - `importance` は 'high', 'medium', 'low' のいずれか
-- `(shared_appliance_id, task_name)` はUNIQUE（重複抽出防止）
+- `chk_shared_or_custom`: `shared_appliance_id` と `user_appliance_id` は排他的（どちらか一方のみ設定）
+- `(shared_appliance_id, user_appliance_id, task_name)` はUNIQUE（重複防止）
 
-**インデックス**: `shared_appliance_id`, `importance`
+**インデックス**: `shared_appliance_id`, `user_appliance_id`, `importance`
 
-**RLS**: 全認証済みユーザーが閲覧可能、挿入・更新可能（共有キャッシュのため）
+**RLS**:
+- 共有項目（`user_appliance_id` = NULL）: 全認証済みユーザーが閲覧可能
+- カスタム項目: 家電所有者またはグループメンバーのみアクセス可能
 
 **設計メモ**:
-このテーブルはLLM抽出結果のキャッシュとして機能します。同じ家電（同一メーカー・型番）に対して
-メンテナンス項目を一度だけ抽出し、2人目以降のユーザーは即座に項目一覧を取得できます。
-これにより、LLMコストと処理時間を大幅に削減できます。
+このテーブルは2種類のメンテナンス項目を管理します：
+1. **共有項目**（`shared_appliance_id` 設定）: LLM抽出結果のキャッシュ。同じ家電を持つ全ユーザーで共有。
+2. **カスタム項目**（`user_appliance_id` 設定）: ユーザーが手動で追加した項目。
 
 ### 5. maintenance_schedules
 
-メンテナンススケジュールを管理するテーブル。ユーザーが選択・登録した項目。
+ユーザーのメンテナンススケジュールを管理するテーブル。`shared_maintenance_items` へのFKを持ち、項目詳細はJOINで取得。
 
 | カラム名 | 型 | NULL | デフォルト | 説明 |
 |---------|-----|------|-----------|------|
 | `id` | UUID | NOT NULL | gen_random_uuid() | スケジュールID（PK） |
 | `user_appliance_id` | UUID | NOT NULL | - | 対象の所有関係ID（FK → user_appliances） |
-| `shared_item_id` | UUID | NULL | - | 元の共有項目への参照（FK → shared_maintenance_items） |
-| `task_name` | TEXT | NOT NULL | - | タスク名（例: フィルター清掃） |
-| `description` | TEXT | NULL | - | タスクの詳細説明 |
-| `interval_type` | TEXT | NOT NULL | - | 'days', 'months', 'manual' |
-| `interval_value` | INTEGER | NULL | - | 周期の値（manual の場合は null） |
+| `shared_item_id` | UUID | NOT NULL | - | メンテナンス項目マスターへの参照（FK → shared_maintenance_items） |
+| `interval_type` | TEXT | NOT NULL | - | 'days', 'months', 'manual'（カスタマイズ可能） |
+| `interval_value` | INTEGER | NULL | - | 周期の値（カスタマイズ可能、manual の場合は null） |
 | `last_done_at` | TIMESTAMPTZ | NULL | - | 最後に実施した日時 |
 | `next_due_at` | TIMESTAMPTZ | NULL | - | 次回実施予定日時 |
-| `source_page` | TEXT | NULL | - | 根拠ページ番号 |
-| `importance` | TEXT | NOT NULL | 'medium' | 'high', 'medium', 'low' |
 | `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
 | `updated_at` | TIMESTAMPTZ | NOT NULL | NOW() | 更新日時 |
 
 **制約**:
+- `shared_item_id` は NOT NULL（全スケジュールはマスター項目への参照を持つ）
 - `interval_type` は 'days', 'months', 'manual' のいずれか
-- `importance` は 'high', 'medium', 'low' のいずれか
 - `interval_type = 'manual'` の場合、`interval_value` は NULL
 - `interval_type IN ('days', 'months')` の場合、`interval_value` は正の整数
 
-**インデックス**: `user_appliance_id`, `shared_item_id`, `next_due_at`, `importance`
+**インデックス**: `user_appliance_id`, `shared_item_id`, `next_due_at`
 
 **RLS**: 自分の家電のメンテナンスのみ参照・更新・削除可能
 
 **設計メモ**:
-`shared_item_id` は元の共有メンテナンス項目への参照です。
-- 共有項目から選択した場合: `shared_item_id` に元のIDが設定される
-- ユーザーがカスタム項目を追加した場合: `shared_item_id` は NULL
-ユーザーは周期（interval_value）やタスク名を自由にカスタマイズ可能です。
+- `task_name`, `description`, `source_page`, `importance` は `shared_maintenance_items` から JOIN で取得
+- `interval_type`, `interval_value` はユーザーがカスタマイズ可能（推奨周期と異なる周期を設定可能）
+- 共有項目: `shared_item_id` → `shared_maintenance_items`（`shared_appliance_id` 設定）
+- カスタム項目: `shared_item_id` → `shared_maintenance_items`（`user_appliance_id` 設定）
 
 ### 6. maintenance_logs
 
@@ -559,6 +560,25 @@ EXISTS (
 **注意**: UUID生成には `gen_random_uuid()` を使用（PostgreSQL 13+標準機能、拡張不要）
 
 ## 設計の変更履歴
+
+### 2026-01-11: メンテナンステーブル正規化
+
+**変更内容**:
+- `shared_maintenance_items` に `user_appliance_id` カラムを追加（カスタム項目用）
+- `shared_maintenance_items.shared_appliance_id` を NULL 許可に変更
+- 排他制約 `chk_shared_or_custom` を追加（shared_appliance_id XOR user_appliance_id）
+- `maintenance_schedules.shared_item_id` を NOT NULL に変更
+- `maintenance_schedules` から重複カラムを削除: `task_name`, `description`, `source_page`, `importance`
+
+**設計意図**:
+- `shared_maintenance_items` と `maintenance_schedules` 間の重複カラムを解消
+- `shared_maintenance_items` をメンテナンス項目のマスターテーブルとして拡張
+- 共有項目（LLM抽出）とカスタム項目（ユーザー追加）を同一テーブルで管理
+- `maintenance_schedules` は JOIN で項目詳細を取得
+
+**影響**:
+- バックエンドサービスで SELECT 時に `shared_maintenance_items` への JOIN が必要
+- API レスポンス形式は変更なし（バックエンドでフラット化して返す）
 
 ### 2026-01-09: Phase 7 家族グループ共有機能追加
 

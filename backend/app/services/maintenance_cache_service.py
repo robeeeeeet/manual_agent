@@ -264,15 +264,13 @@ async def register_maintenance_schedules(
             # Approximate months as 30 days
             next_due_at = (now + timedelta(days=interval_value * 30)).isoformat()
 
+        # Note: task_name, description, source_page, importance are now stored
+        # in shared_maintenance_items and retrieved via JOIN
         schedule = {
             "user_appliance_id": user_appliance_id,
             "shared_item_id": item["id"],
-            "task_name": item["task_name"],
-            "description": item.get("description"),
             "interval_type": interval_type,
             "interval_value": interval_value,
-            "source_page": item.get("source_page"),
-            "importance": item.get("importance", "medium"),
             "next_due_at": next_due_at,
         }
 

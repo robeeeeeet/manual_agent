@@ -343,7 +343,9 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
         next_maintenance = None
         maintenance_result = (
             client.table("maintenance_schedules")
-            .select("task_name, next_due_at, importance")
+            .select(
+                "next_due_at, shared_maintenance_items!inner(task_name, importance)"
+            )
             .eq("user_appliance_id", row["id"])
             .not_.is_("next_due_at", "null")
             .order("next_due_at", desc=False)
@@ -353,6 +355,7 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
 
         if maintenance_result.data:
             maintenance = maintenance_result.data[0]
+            item_details = maintenance.get("shared_maintenance_items", {}) or {}
             next_due_at = datetime.fromisoformat(
                 maintenance["next_due_at"].replace("Z", "+00:00")
             )
@@ -360,9 +363,9 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
             days_until_due = (next_due_at - now).days
 
             next_maintenance = NextMaintenanceInfo(
-                task_name=maintenance["task_name"],
+                task_name=item_details.get("task_name", ""),
                 next_due_at=next_due_at,
-                importance=maintenance["importance"],
+                importance=item_details.get("importance", "medium"),
                 days_until_due=days_until_due,
             )
 

@@ -12,6 +12,7 @@ import MaintenanceStatusTabs, {
 import MaintenanceFilter from "@/components/maintenance/MaintenanceFilter";
 import MaintenanceListItem from "@/components/maintenance/MaintenanceListItem";
 import MaintenanceCompleteModal from "@/components/maintenance/MaintenanceCompleteModal";
+import { SafeHtml } from "@/components/ui/SafeHtml";
 import type {
   MaintenanceWithAppliance,
   MaintenanceCounts,
@@ -484,7 +485,7 @@ export default function MaintenancePage() {
                   <h4 className="text-sm font-medium text-gray-500 mb-1">
                     説明
                   </h4>
-                  <p className="text-gray-700">{selectedItem.description}</p>
+                  <SafeHtml html={selectedItem.description} className="text-gray-700" />
                 </div>
               )}
 

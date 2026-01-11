@@ -75,10 +75,15 @@ async def complete_maintenance(
         return {"error": "Database connection not available"}
 
     try:
-        # Fetch the schedule first
+        # Fetch the schedule with shared_maintenance_items JOIN
         schedule_response = (
             client.table("maintenance_schedules")
-            .select("*, user_appliances!inner(user_id)")
+            .select(
+                "id, user_appliance_id, shared_item_id, interval_type, interval_value, "
+                "last_done_at, next_due_at, created_at, updated_at, "
+                "shared_maintenance_items!inner(task_name, description, source_page, importance), "
+                "user_appliances!inner(user_id)"
+            )
             .eq("id", schedule_id)
             .single()
             .execute()
@@ -130,9 +135,17 @@ async def complete_maintenance(
         if not schedule_update_response.data:
             return {"error": "Failed to update schedule"}
 
+        # Flatten the response for backward compatibility
+        updated_schedule = schedule_update_response.data[0]
+        item_details = schedule.get("shared_maintenance_items", {}) or {}
+        updated_schedule["task_name"] = item_details.get("task_name", "")
+        updated_schedule["description"] = item_details.get("description")
+        updated_schedule["source_page"] = item_details.get("source_page")
+        updated_schedule["importance"] = item_details.get("importance", "medium")
+
         return {
             "log": log_response.data[0],
-            "schedule": schedule_update_response.data[0],
+            "schedule": updated_schedule,
         }
 
     except Exception as e:
@@ -239,7 +252,10 @@ async def get_upcoming_maintenance(
         response = (
             client.table("maintenance_schedules")
             .select(
-                "*, user_appliances!inner(id, name, user_id, shared_appliance_id, "
+                "id, user_appliance_id, shared_item_id, interval_type, interval_value, "
+                "last_done_at, next_due_at, created_at, updated_at, "
+                "shared_maintenance_items!inner(task_name, description, source_page, importance), "
+                "user_appliances!inner(id, name, user_id, shared_appliance_id, "
                 "shared_appliances(maker, model_number, category))"
             )
             .eq("user_appliances.user_id", user_id)
@@ -248,7 +264,17 @@ async def get_upcoming_maintenance(
             .execute()
         )
 
-        return response.data or []
+        # Flatten the response for backward compatibility
+        result = []
+        for schedule in response.data or []:
+            item_details = schedule.pop("shared_maintenance_items", {}) or {}
+            schedule["task_name"] = item_details.get("task_name", "")
+            schedule["description"] = item_details.get("description")
+            schedule["source_page"] = item_details.get("source_page")
+            schedule["importance"] = item_details.get("importance", "medium")
+            result.append(schedule)
+
+        return result
 
     except Exception as e:
         logger.error(f"Error fetching upcoming maintenance: {e}")
@@ -300,9 +326,14 @@ async def get_all_maintenance_with_details(
         appliance_map = {a["id"]: a for a in appliances_response.data}
 
         # Step 2: Get all maintenance schedules for these appliances
+        # JOIN shared_maintenance_items to get task_name, description, etc.
         schedules_response = (
             client.table("maintenance_schedules")
-            .select("*")
+            .select(
+                "id, user_appliance_id, shared_item_id, interval_type, interval_value, "
+                "last_done_at, next_due_at, created_at, updated_at, "
+                "shared_maintenance_items!inner(task_name, description, source_page, importance)"
+            )
             .in_("user_appliance_id", appliance_ids)
             .order("next_due_at", desc=False, nullsfirst=False)
             .execute()
@@ -321,6 +352,8 @@ async def get_all_maintenance_with_details(
                 continue
 
             shared = appliance.get("shared_appliances", {}) or {}
+            # Get maintenance item details from JOIN
+            item_details = schedule.get("shared_maintenance_items", {}) or {}
 
             # Calculate status and days until due
             status, days_until_due = _calculate_status(
@@ -339,21 +372,21 @@ async def get_all_maintenance_with_details(
                 continue
             if (
                 importance_filter
-                and schedule.get("importance") not in importance_filter
+                and item_details.get("importance") not in importance_filter
             ):
                 continue
 
             items.append(
                 {
                     "id": schedule["id"],
-                    "task_name": schedule["task_name"],
-                    "description": schedule.get("description"),
+                    "task_name": item_details.get("task_name", ""),
+                    "description": item_details.get("description"),
                     "next_due_at": schedule.get("next_due_at"),
                     "last_done_at": schedule.get("last_done_at"),
-                    "importance": schedule.get("importance", "medium"),
+                    "importance": item_details.get("importance", "medium"),
                     "interval_type": schedule.get("interval_type", "manual"),
                     "interval_value": schedule.get("interval_value"),
-                    "source_page": schedule.get("source_page"),
+                    "source_page": item_details.get("source_page"),
                     "appliance_id": schedule["user_appliance_id"],
                     "appliance_name": appliance["name"],
                     "maker": shared.get("maker", ""),
@@ -432,7 +465,11 @@ async def get_appliance_next_maintenance(
     try:
         response = (
             client.table("maintenance_schedules")
-            .select("*")
+            .select(
+                "id, user_appliance_id, shared_item_id, interval_type, interval_value, "
+                "last_done_at, next_due_at, created_at, updated_at, "
+                "shared_maintenance_items!inner(task_name, description, source_page, importance)"
+            )
             .eq("user_appliance_id", user_appliance_id)
             .not_.is_("next_due_at", "null")
             .order("next_due_at", desc=False)
@@ -441,7 +478,14 @@ async def get_appliance_next_maintenance(
         )
 
         if response.data and len(response.data) > 0:
-            return response.data[0]
+            # Flatten the response for backward compatibility
+            schedule = response.data[0]
+            item_details = schedule.pop("shared_maintenance_items", {}) or {}
+            schedule["task_name"] = item_details.get("task_name", "")
+            schedule["description"] = item_details.get("description")
+            schedule["source_page"] = item_details.get("source_page")
+            schedule["importance"] = item_details.get("importance", "medium")
+            return schedule
         return None
 
     except Exception as e:

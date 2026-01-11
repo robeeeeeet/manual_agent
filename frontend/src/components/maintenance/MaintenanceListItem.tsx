@@ -53,24 +53,33 @@ export default function MaintenanceListItem({
     }
   };
 
+  // Vertical layout for better mobile display
+  // Structure:
+  // - Top: Task name (full width, wraps if needed)
+  // - Middle: Maker + Model number (if showApplianceName)
+  // - Bottom: Importance badge, Status badge, Complete button (horizontal)
+
   if (compact) {
     // Compact version for top page
     return (
-      <div className="flex items-start justify-between py-3 border-b border-gray-100 last:border-b-0 gap-3">
-        <div className="flex-1 min-w-0">
-          <p
-            className="font-medium text-gray-900 line-clamp-2"
-            title={item.task_name}
-          >
-            {item.task_name}
+      <div className="py-3 border-b border-gray-100 last:border-b-0">
+        {/* Task name - full width */}
+        <p
+          className="font-medium text-gray-900 leading-snug mb-1"
+          title={item.task_name}
+        >
+          {item.task_name}
+        </p>
+
+        {/* Maker and model number */}
+        {showApplianceName && (
+          <p className="text-sm text-gray-500 mb-2">
+            {item.maker} {item.model_number}
           </p>
-          {showApplianceName && (
-            <p className="text-sm text-gray-500 truncate mt-1" title={item.appliance_name}>
-              {item.appliance_name}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+        )}
+
+        {/* Bottom row: badges and complete button */}
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <span
               className={`px-1.5 py-0.5 text-xs font-medium rounded ${importanceColors[item.importance]}`}
@@ -85,9 +94,12 @@ export default function MaintenanceListItem({
           </div>
           <Button
             size="sm"
-            variant="outline"
             onClick={() => onComplete(item)}
-            className="whitespace-nowrap"
+            className={`whitespace-nowrap ${
+              item.days_until_due !== null && item.days_until_due < 0
+                ? "bg-red-600 hover:bg-red-700"
+                : ""
+            }`}
           >
             完了
           </Button>
@@ -96,7 +108,7 @@ export default function MaintenanceListItem({
     );
   }
 
-  // Full version for maintenance list page - matching appliance detail page layout
+  // Full version for maintenance list page
   return (
     <div
       onClick={handleClick}
@@ -104,53 +116,54 @@ export default function MaintenanceListItem({
         onItemClick ? "hover:bg-gray-100 cursor-pointer" : ""
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        {/* Left: Task name and appliance info */}
-        <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-gray-900 line-clamp-2" title={item.task_name}>
-            {item.task_name}
-          </h4>
-          {showApplianceName && (
-            <p className="text-sm text-gray-500 truncate" title={item.appliance_name}>
-              {item.appliance_name}
-            </p>
-          )}
-        </div>
+      {/* Task name - full width */}
+      <h4
+        className="font-medium text-gray-900 leading-snug mb-1"
+        title={item.task_name}
+      >
+        {item.task_name}
+      </h4>
 
-        {/* Right: Badges and complete button */}
-        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-          <div className="flex items-center gap-1.5">
-            {/* Importance badge */}
-            <span
-              className={`px-1.5 py-0.5 text-xs font-medium rounded ${importanceColors[item.importance]}`}
-            >
-              {importanceLabels[item.importance]}
-            </span>
+      {/* Maker and model number */}
+      {showApplianceName && (
+        <p className="text-sm text-gray-500 mb-3">
+          {item.maker} {item.model_number}
+        </p>
+      )}
 
-            {/* Due status badge */}
-            <span
-              className={`px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(item.days_until_due, item.status)}`}
-            >
-              {getStatusText(item.days_until_due, item.status)}
-            </span>
-          </div>
-
-          {/* Complete button */}
-          <Button
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              onComplete(item);
-            }}
-            className={
-              item.days_until_due !== null && item.days_until_due < 0
-                ? "bg-red-600 hover:bg-red-700"
-                : ""
-            }
+      {/* Bottom row: badges and complete button */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* Importance badge */}
+          <span
+            className={`px-1.5 py-0.5 text-xs font-medium rounded ${importanceColors[item.importance]}`}
           >
-            完了
-          </Button>
+            {importanceLabels[item.importance]}
+          </span>
+
+          {/* Due status badge */}
+          <span
+            className={`px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(item.days_until_due, item.status)}`}
+          >
+            {getStatusText(item.days_until_due, item.status)}
+          </span>
         </div>
+
+        {/* Complete button */}
+        <Button
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onComplete(item);
+          }}
+          className={
+            item.days_until_due !== null && item.days_until_due < 0
+              ? "bg-red-600 hover:bg-red-700"
+              : ""
+          }
+        >
+          完了
+        </Button>
       </div>
     </div>
   );
