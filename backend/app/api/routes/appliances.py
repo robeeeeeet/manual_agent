@@ -304,10 +304,10 @@ async def register_appliance(
     # Check tier limit for appliance registration
     if appliance.group_id:
         # Group appliance - check owner's tier
-        tier_check = await check_can_add_group_appliance(str(appliance.group_id))
+        tier_check = check_can_add_group_appliance(str(appliance.group_id))
     else:
         # Personal appliance - check user's tier
-        tier_check = await check_can_add_appliance(str(user_id))
+        tier_check = check_can_add_appliance(str(user_id))
 
     if not tier_check["allowed"]:
         return JSONResponse(

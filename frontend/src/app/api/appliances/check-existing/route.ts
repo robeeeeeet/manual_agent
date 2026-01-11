@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -14,6 +15,9 @@ export interface ExistingPdfCheckResponse {
   storage_url?: string | null;
   source_url?: string | null;
   message?: string | null;
+  already_owned?: boolean;
+  existing_appliance_id?: string | null;
+  existing_appliance_name?: string | null;
 }
 
 export async function POST(request: NextRequest) {
@@ -29,6 +33,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get user ID from Supabase auth
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || null;
+
     // Forward the request to the Python backend
     const response = await fetch(`${BACKEND_URL}/api/v1/manuals/check-existing`, {
       method: "POST",
@@ -38,6 +47,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         manufacturer,
         model_number,
+        user_id: userId,
       }),
     });
 

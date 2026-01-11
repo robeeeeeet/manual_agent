@@ -37,7 +37,7 @@ async def check_manual_search_limit(
 ):
     """Check if user can perform manual search (and increment counter)."""
     user_id = _get_user_id_from_header(x_user_id)
-    result = await check_and_increment_manual_search(user_id)
+    result = check_and_increment_manual_search(user_id)
 
     if not result["allowed"]:
         return JSONResponse(
@@ -60,5 +60,5 @@ async def get_usage_stats(
 ):
     """Get user's current tier and usage statistics."""
     user_id = _get_user_id_from_header(x_user_id)
-    stats = await get_user_usage_stats(user_id)
+    stats = get_user_usage_stats(user_id)
     return stats

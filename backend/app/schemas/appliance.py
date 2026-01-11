@@ -256,6 +256,7 @@ class ExistingPdfCheckRequest(BaseModel):
 
     manufacturer: str = Field(..., description="Manufacturer name", min_length=1)
     model_number: str = Field(..., description="Model number", min_length=1)
+    user_id: str | None = Field(None, description="User ID to check ownership")
 
 
 class ExistingPdfCheckResponse(BaseModel):
@@ -275,6 +276,15 @@ class ExistingPdfCheckResponse(BaseModel):
         None, description="Original source URL where PDF was downloaded from"
     )
     message: str | None = Field(None, description="Additional message")
+    already_owned: bool = Field(
+        False, description="Whether the user already owns this appliance"
+    )
+    existing_appliance_id: str | None = Field(
+        None, description="ID of the existing user_appliance if already owned"
+    )
+    existing_appliance_name: str | None = Field(
+        None, description="Name of the existing appliance if already owned"
+    )
 
 
 class ManualSearchResponse(BaseModel):

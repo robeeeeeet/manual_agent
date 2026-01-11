@@ -341,7 +341,7 @@ async def ask_question_stream(
         )
 
     # Check tier limit for QA questions
-    tier_check = await check_and_increment_qa_question(user_id_str)
+    tier_check = check_and_increment_qa_question(user_id_str)
     if not tier_check["allowed"]:
         return JSONResponse(
             status_code=403,
