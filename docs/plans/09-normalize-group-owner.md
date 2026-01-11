@@ -1,237 +1,202 @@
-# 09: グループオーナー情報の正規化
+# グループオーナー情報正規化 実装計画
 
 ## 概要
 
 `groups.owner_id` と `group_members.role` の重複を解消し、オーナー情報を単一の情報源（`groups.owner_id`）に統一する。
 
-## 現状の問題
+- **後方互換性なし**: フロントエンド・バックエンド・データベースの同時デプロイが必要
+- **データ損失なし**: `role` カラムは冗長情報のため、削除しても情報は失われない
+- **RLSポリシー**: `group_members.role` を参照していないことを確認済み ✅
 
-### データ重複
+---
 
-```
-groups テーブル:
-  id: abc-123
-  owner_id: user-001  ← オーナー情報①
+## 全影響箇所（網羅調査済み）
 
-group_members テーブル:
-  group_id: abc-123
-  user_id: user-001
-  role: 'owner'       ← オーナー情報②（重複）
-```
+### バックエンド - group_service.py（10箇所）
 
-### リスク
+| 行 | 関数 | 変更内容 |
+|-----|------|---------|
+| 120-127 | `create_group()` | `role: "owner"` を削除 |
+| 171 | `get_group()` | SELECTから `role` を削除 |
+| 183 | `get_group()` | メンバー構築から `role` を削除 |
+| 238 | `get_user_groups()` | SELECTから `role` を削除 |
+| 250 | `get_user_groups()` | メンバー構築から `role` を削除 |
+| 526-532 | `join_group()` | `role: "member"` を削除 |
+| 663 | `get_group_members()` | SELECTから `role` を削除 |
+| 675 | `get_group_members()` | メンバー構築から `role` を削除 |
 
-- データ不整合の可能性（`groups.owner_id` と `group_members.role='owner'` が異なるユーザーを指す場合）
-- 更新時に2箇所を同期する必要がある
-- ストレージの無駄（`role` カラムは実質的に不要）
+### バックエンド - schemas/group.py（1箇所）
 
-## 設計方針
-
-**オプションB採用**: `group_members.role` カラムを削除し、オーナー判定は `groups.owner_id` のみで行う
-
-### 理由
-
-1. **既存実装との親和性**: バックエンドの `_is_owner()` は既に `groups.owner_id` のみを使用
-2. **シンプルさ**: オーナー情報の単一ソース化
-3. **パフォーマンス**: オーナー判定にJOIN不要（`groups` テーブルのみ参照）
-
-### 変更後のデータモデル
-
-```
-groups テーブル:
-  id: abc-123
-  owner_id: user-001  ← オーナー情報（単一ソース）
-
-group_members テーブル:
-  group_id: abc-123
-  user_id: user-001   ← オーナーもメンバーとして登録（一覧表示用）
-  joined_at: ...
-  （role カラムは削除）
-```
-
-## 影響範囲
-
-### バックエンド
-
-| ファイル | 変更内容 |
-|---------|---------|
-| `backend/app/services/group_service.py` | `create_group()`: `role` 設定を削除 |
-| `backend/app/schemas/group.py` | `GroupMember.role` フィールドを削除 |
-| `backend/app/api/routes/groups.py` | レスポンス形式の調整（必要に応じて） |
-
-### フロントエンド
-
-| ファイル | 変更内容 |
-|---------|---------|
-| `frontend/src/types/group.ts` | `GroupMember.role` を削除 |
-| `frontend/src/app/groups/[id]/page.tsx` | `member.role === "owner"` → `member.user_id === group.owner_id` |
-
-### データベース
-
-| 対象 | 変更内容 |
+| 行 | 変更内容 |
 |-----|---------|
-| `group_members` テーブル | `role` カラムを削除 |
-| RLSポリシー | `role` 参照がないことを確認（現状なし） |
-| CHECK制約 | `role IN ('owner', 'member')` を削除 |
+| 57 | `role: Literal["owner", "member"]` フィールドを削除 |
 
-## 実装手順
+### フロントエンド（3箇所）
 
-### Step 1: マイグレーション作成
+| ファイル | 行 | 変更内容 |
+|---------|-----|---------|
+| `types/group.ts` | 24 | `role` フィールドを削除 |
+| `groups/[id]/page.tsx` | 381 | `member.role === "owner"` → `member.user_id === group.owner_id` |
+| `groups/[id]/page.tsx` | 387 | `member.role !== "owner"` → `member.user_id !== group.owner_id` |
 
-ファイル: `backend/supabase/migrations/00019_normalize_group_owner.sql`
+### データベース（1ファイル新規作成）
+
+| ファイル | 内容 |
+|---------|------|
+| `00019_normalize_group_owner.sql` | role カラム・CHECK制約を削除 |
+
+### ドキュメント（1ファイル）
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `SCHEMA.md` | role カラム説明を削除、オーナー管理方法を明記 |
+
+### 無関係（対応不要を確認済み）
+
+- `qa_session_service.py`: QAチャット用 role ('user'/'assistant')
+- `qa/QASection.tsx`: QAチャット用 role
+- `00016_qa_sessions.sql`: QAメッセージ用 role
+- RLSポリシー: `group_members.role` の参照なし
+
+---
+
+## Step 1: マイグレーション作成
+
+**ファイル**: `backend/supabase/migrations/00019_normalize_group_owner.sql`
 
 ```sql
--- ============================================================
--- Migration: group_members テーブルから role カラムを削除
--- ============================================================
--- 目的:
---   groups.owner_id と group_members.role の重複を解消
---   オーナー判定は groups.owner_id のみで行う
---
--- 変更内容:
---   1. role カラムのCHECK制約を削除
---   2. role カラムを削除
--- ============================================================
+-- Migration: 00019_normalize_group_owner
+-- Description: Remove redundant role column from group_members table
+-- The owner information is already stored in groups.owner_id
 
-BEGIN;
+-- CHECK 制約を先に削除
+ALTER TABLE public.group_members DROP CONSTRAINT IF EXISTS group_members_role_check;
 
--- Step 1: CHECK制約を削除
-ALTER TABLE group_members
-  DROP CONSTRAINT IF EXISTS group_members_role_check;
+-- role カラムを削除
+ALTER TABLE public.group_members DROP COLUMN IF EXISTS role;
 
--- Step 2: role カラムを削除
-ALTER TABLE group_members
-  DROP COLUMN role;
-
--- Step 3: コメント更新
-COMMENT ON TABLE public.group_members IS 'グループメンバーシップを管理するテーブル（オーナー判定は groups.owner_id で行う）';
-
-COMMIT;
+-- コメント更新
+COMMENT ON TABLE public.group_members IS 'グループメンバーシップを管理するテーブル。オーナー情報は groups.owner_id で管理';
 ```
 
-### Step 2: バックエンド修正
+---
 
-#### 2.1 スキーマ修正 (`backend/app/schemas/group.py`)
+## Step 2: バックエンド - スキーマ修正
+
+**ファイル**: `backend/app/schemas/group.py`
+
+`GroupMemberInfo` から `role` フィールドを削除:
 
 ```python
-# Before
-class GroupMember(BaseModel):
-    id: UUID
-    group_id: UUID
-    user_id: UUID
-    role: Literal["owner", "member"] = Field(..., description="Role in the group")
-    joined_at: datetime
+class GroupMemberInfo(BaseModel):
+    id: UUID = Field(..., description="Membership ID")
+    user_id: UUID = Field(..., description="User ID")
+    email: str = Field(..., description="User email")
+    joined_at: datetime = Field(..., description="Join timestamp")
+    # role フィールドを削除
 
-# After
-class GroupMember(BaseModel):
-    id: UUID
-    group_id: UUID
-    user_id: UUID
-    joined_at: datetime
+    model_config = {"from_attributes": True}
 ```
 
-#### 2.2 サービス修正 (`backend/app/services/group_service.py`)
+---
 
+## Step 3: バックエンド - サービス層修正
+
+**ファイル**: `backend/app/services/group_service.py`
+
+### 3.1 `create_group()` (行119-127)
+`role: "owner"` を削除:
 ```python
-# create_group() 内の group_members INSERT を修正
-
-# Before
-await client.table("group_members").insert({
-    "group_id": group_id,
-    "user_id": owner_id,
-    "role": "owner",
-}).execute()
-
-# After
-await client.table("group_members").insert({
-    "group_id": group_id,
+client.table("group_members").insert({
+    "group_id": group["id"],
     "user_id": owner_id,
 }).execute()
 ```
 
-### Step 3: フロントエンド修正
+### 3.2 `get_group()` (行168-185)
+SELECTとメンバー構築から `role` を削除:
+```python
+.select("id, user_id, joined_at, users(email)")
+```
 
-#### 3.1 型定義修正 (`frontend/src/types/group.ts`)
+### 3.3 `get_user_groups()` (行236-253)
+同様に `role` を削除
+
+### 3.4 `join_group()` (行526-532)
+`role: "member"` を削除:
+```python
+client.table("group_members").insert({
+    "group_id": group["id"],
+    "user_id": user_id,
+}).execute()
+```
+
+### 3.5 `get_group_members()` (行660-678)
+同様に `role` を削除
+
+---
+
+## Step 4: フロントエンド - 型定義修正
+
+**ファイル**: `frontend/src/types/group.ts`
 
 ```typescript
-// Before
 export interface GroupMember {
   id: string;
-  group_id: string;
   user_id: string;
-  role: "owner" | "member";
+  email: string;
   joined_at: string;
-  email?: string;
-}
-
-// After
-export interface GroupMember {
-  id: string;
-  group_id: string;
-  user_id: string;
-  joined_at: string;
-  email?: string;
+  // role フィールドを削除
 }
 ```
 
-#### 3.2 UI修正 (`frontend/src/app/groups/[id]/page.tsx`)
+---
 
+## Step 5: フロントエンド - UI修正
+
+**ファイル**: `frontend/src/app/groups/[id]/page.tsx`
+
+### 5.1 行381: オーナー表示
 ```tsx
 // Before
 {member.role === "owner" ? "オーナー" : "メンバー"}
 
 // After
 {member.user_id === group.owner_id ? "オーナー" : "メンバー"}
-
-// Before
-{isOwner && member.role !== "owner" && (
-  <button onClick={() => handleRemoveMember(member.user_id)}>削除</button>
-)}
-
-// After
-{isOwner && member.user_id !== group.owner_id && (
-  <button onClick={() => handleRemoveMember(member.user_id)}>削除</button>
-)}
 ```
 
-### Step 4: SCHEMA.md 更新
+### 5.2 行387: 削除ボタン表示条件
+```tsx
+// Before
+{isOwner && member.user_id !== user.id && member.role !== "owner" && (
 
-`group_members` テーブルの説明から `role` カラムを削除し、オーナー判定方法を明記。
+// After
+{isOwner && member.user_id !== user.id && member.user_id !== group.owner_id && (
+```
 
-### Step 5: テスト
+---
 
-1. グループ作成 → オーナーがメンバー一覧に表示されること
-2. メンバー追加 → 一覧に表示され、「メンバー」ラベルが付くこと
-3. オーナー表示 → `owner_id` と一致するメンバーに「オーナー」ラベルが付くこと
-4. メンバー削除 → オーナー以外のメンバーが削除できること
-5. グループ削除 → オーナーのみ実行可能であること
+## Step 6: SCHEMA.md更新
 
-## リスク・注意点
+**ファイル**: `backend/supabase/SCHEMA.md`
 
-### 移行時の注意
+`group_members` テーブルから `role` カラムの記述を削除し、オーナー情報の管理方法を明記。
 
-- 既存データの `role` カラムは単純に削除するだけでOK（データ移行不要）
-- オーナー情報は `groups.owner_id` に既に存在するため
+---
 
-### 後方互換性
+## 検証手順
 
-- APIレスポンスから `role` フィールドが消えるため、フロントエンドの更新が必須
-- 同時デプロイが望ましい（バックエンド → フロントエンドの順序は不可）
+1. **グループ作成**: オーナーがメンバー一覧に表示されること
+2. **メンバー追加**: 一覧に表示され、「メンバー」ラベルが付くこと
+3. **オーナー表示**: `owner_id` と一致するメンバーに「オーナー」ラベルが付くこと
+4. **メンバー削除**: オーナー以外のメンバーが削除できること
+5. **グループ削除**: オーナーのみ実行可能であること
 
-## 作業チェックリスト
+---
 
-- [ ] マイグレーション作成・適用
-- [ ] `backend/app/schemas/group.py` 修正
-- [ ] `backend/app/services/group_service.py` 修正
-- [ ] `frontend/src/types/group.ts` 修正
-- [ ] `frontend/src/app/groups/[id]/page.tsx` 修正
-- [ ] `backend/supabase/SCHEMA.md` 更新
-- [ ] ローカルテスト実施
-- [ ] 本番デプロイ（バックエンド・フロントエンド同時）
+## リスクと対策
 
-## 見積もり
-
-- 実装: 30分
-- テスト: 15分
-- ドキュメント更新: 10分
-- **合計: 約1時間**
+| リスク | 対策 |
+|-------|------|
+| デプロイのタイミングずれ | メンテナンス時間を設けて同時デプロイ |
+| フロントエンドキャッシュ | Vercelキャッシュパージ、SW更新 |

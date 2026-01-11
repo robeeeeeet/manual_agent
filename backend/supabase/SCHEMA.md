@@ -121,7 +121,6 @@
 │  │   │ id (PK)                       │                                         ││
 │  │   │ group_id (FK → groups)        │                                         ││
 │  │   │ user_id (FK → users)          │                                         ││
-│  │   │ role ('owner'/'member')       │                                         ││
 │  │   │ joined_at                     │                                         ││
 │  │   └───────────────────────────────┘                                         ││
 │  │                                                                             ││
@@ -394,13 +393,13 @@ QA機能に対する違反（不適切な質問）を記録するテーブル。
 ### 12. group_members（グループメンバー）
 
 グループのメンバーシップを管理するテーブル（Phase 7）。
+オーナー情報は `groups.owner_id` で管理（正規化済み）。
 
 | カラム名 | 型 | NULL | デフォルト | 説明 |
 |---------|-----|------|-----------|------|
 | `id` | UUID | NOT NULL | gen_random_uuid() | メンバーシップID（PK） |
 | `group_id` | UUID | NOT NULL | - | 所属グループID（FK → groups） |
 | `user_id` | UUID | NOT NULL | - | メンバーのユーザーID（FK → users） |
-| `role` | TEXT | NOT NULL | 'member' | 役割: 'owner' または 'member' |
 | `joined_at` | TIMESTAMPTZ | NOT NULL | NOW() | 参加日時 |
 
 **制約**: `(group_id, user_id)` は UNIQUE（同一グループに同一ユーザーは1回のみ）
