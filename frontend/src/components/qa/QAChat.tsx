@@ -9,10 +9,12 @@ import {
   QABlockedError,
   InvalidQuestionError,
 } from '@/types/qa';
+import { TierLimitError } from '@/types/user';
 import { QAChatMessage } from './QAChatMessage';
 import { SearchProgressIndicator } from './SearchProgressIndicator';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import TierLimitModal from '@/components/tier/TierLimitModal';
 
 interface QAChatProps {
   sharedApplianceId: string;
@@ -100,6 +102,7 @@ export function QAChat({
   );
   const [showDeletedModal, setShowDeletedModal] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(sessionId);
+  const [tierLimitError, setTierLimitError] = useState<TierLimitError | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 初期メッセージ
@@ -170,6 +173,14 @@ QA機能をご利用いただくには、ログインが必要です。
             timestamp: new Date(),
           };
           setMessages((prev) => [...prev, errorMessage]);
+          setSearchProgress(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // 403 TIER_LIMIT_EXCEEDED
+        if (response.status === 403 && errorData.error === 'TIER_LIMIT_EXCEEDED') {
+          setTierLimitError(errorData as TierLimitError);
           setSearchProgress(null);
           setIsLoading(false);
           return;
@@ -405,6 +416,18 @@ QA機能をご利用いただくには、ログインが必要です。
           </Button>
         </div>
       </Modal>
+
+      {/* Tier Limit Modal */}
+      {tierLimitError && (
+        <TierLimitModal
+          isOpen={!!tierLimitError}
+          onClose={() => setTierLimitError(null)}
+          message={tierLimitError.message}
+          currentUsage={tierLimitError.current_usage}
+          limit={tierLimitError.limit}
+          tierName={tierLimitError.tier_display_name}
+        />
+      )}
     </div>
   );
 }

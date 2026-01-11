@@ -20,6 +20,7 @@ from app.schemas.appliance import (
     UserApplianceUpdate,
     UserApplianceWithDetails,
 )
+from app.schemas.tier import TierLimitExceededError
 from app.services.appliance_service import (
     AlreadySharedError,
     ApplianceNotFoundError,
@@ -43,6 +44,10 @@ from app.services.maintenance_log_service import (
     complete_maintenance,
     get_maintenance_logs,
     get_upcoming_maintenance,
+)
+from app.services.tier_service import (
+    check_can_add_appliance,
+    check_can_add_group_appliance,
 )
 
 router = APIRouter(prefix="/appliances", tags=["appliances"])
@@ -295,6 +300,26 @@ async def register_appliance(
         HTTPException: If registration fails
     """
     user_id = _get_user_id_from_header(x_user_id)
+
+    # Check tier limit for appliance registration
+    if appliance.group_id:
+        # Group appliance - check owner's tier
+        tier_check = check_can_add_group_appliance(str(appliance.group_id))
+    else:
+        # Personal appliance - check user's tier
+        tier_check = check_can_add_appliance(str(user_id))
+
+    if not tier_check["allowed"]:
+        return JSONResponse(
+            status_code=403,
+            content=TierLimitExceededError(
+                message="家電登録数が上限に達しました。プランをアップグレードしてください。",
+                current_usage=tier_check["current_usage"],
+                limit=tier_check["limit"],
+                tier=tier_check["tier_name"],
+                tier_display_name=tier_check["tier_display_name"],
+            ).model_dump(),
+        )
 
     try:
         result = await register_user_appliance(

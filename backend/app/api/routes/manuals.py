@@ -392,6 +392,7 @@ async def check_existing_pdf(request: ExistingPdfCheckRequest):
         ExistingPdfCheckResponse with PDF info if found
     """
     from app.services.pdf_storage import find_existing_pdf
+    from app.services.supabase_client import get_supabase_client
 
     try:
         result = await find_existing_pdf(
@@ -399,13 +400,36 @@ async def check_existing_pdf(request: ExistingPdfCheckRequest):
         )
 
         if result:
+            shared_appliance_id = result.get("id")
+            already_owned = False
+            existing_appliance_id = None
+            existing_appliance_name = None
+
+            # Check if user already owns this appliance
+            if request.user_id and shared_appliance_id:
+                supabase = get_supabase_client()
+                ownership_check = (
+                    supabase.table("user_appliances")
+                    .select("id, name")
+                    .eq("user_id", request.user_id)
+                    .eq("shared_appliance_id", shared_appliance_id)
+                    .execute()
+                )
+                if ownership_check.data and len(ownership_check.data) > 0:
+                    already_owned = True
+                    existing_appliance_id = ownership_check.data[0].get("id")
+                    existing_appliance_name = ownership_check.data[0].get("name")
+
             return ExistingPdfCheckResponse(
                 found=True,
-                shared_appliance_id=result.get("id"),
+                shared_appliance_id=shared_appliance_id,
                 storage_path=result.get("storage_path"),
                 storage_url=result.get("public_url"),
                 source_url=result.get("source_url"),
                 message="保存済みの説明書PDFが見つかりました",
+                already_owned=already_owned,
+                existing_appliance_id=existing_appliance_id,
+                existing_appliance_name=existing_appliance_name,
             )
         else:
             return ExistingPdfCheckResponse(

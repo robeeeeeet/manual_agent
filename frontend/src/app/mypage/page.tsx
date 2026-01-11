@@ -6,7 +6,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardBody } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import NotificationPermission from "@/components/notification/NotificationPermission";
-import { MaintenanceStats, UserSettings } from "@/types/user";
+import { MaintenanceStats, UserSettings, UserUsageStats } from "@/types/user";
+import UsageBar from "@/components/tier/UsageBar";
 
 export default function MyPage() {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -14,8 +15,10 @@ export default function MyPage() {
 
   const [stats, setStats] = useState<MaintenanceStats | null>(null);
   const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [usageStats, setUsageStats] = useState<UserUsageStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [settingsLoading, setSettingsLoading] = useState(true);
+  const [usageLoading, setUsageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -69,6 +72,22 @@ export default function MyPage() {
     }
   };
 
+  // Fetch usage statistics
+  const fetchUsageStats = async () => {
+    setUsageLoading(true);
+    try {
+      const response = await fetch("/api/user/usage");
+      if (response.ok) {
+        const data = await response.json();
+        setUsageStats(data);
+      }
+    } catch (err) {
+      console.error("Error fetching usage stats:", err);
+    } finally {
+      setUsageLoading(false);
+    }
+  };
+
   // Update notification time
   const updateNotifyTime = async (time: string) => {
     setSaving(true);
@@ -111,6 +130,7 @@ export default function MyPage() {
     if (!authLoading && user) {
       fetchStats();
       fetchSettings();
+      fetchUsageStats();
     }
   }, [authLoading, user]);
 
@@ -143,6 +163,47 @@ export default function MyPage() {
           <p className="text-red-600 text-sm">{error}</p>
         </div>
       )}
+
+      {/* プラン & 利用状況 */}
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <span>📋</span>
+          <span>プラン & 利用状況</span>
+        </h2>
+        {usageLoading ? (
+          <div className="flex justify-center py-8">
+            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : usageStats ? (
+          <Card>
+            <CardBody>
+              <div className="mb-4">
+                <span className="text-sm text-gray-600">現在のプラン: </span>
+                <span className="font-semibold text-blue-600">
+                  {usageStats.tier.display_name}
+                </span>
+              </div>
+              <div className="space-y-3">
+                <UsageBar
+                  label="登録家電"
+                  current={usageStats.appliance_count}
+                  limit={usageStats.tier.max_appliances}
+                />
+                <UsageBar
+                  label="説明書検索（今日）"
+                  current={usageStats.daily_usage.manual_searches}
+                  limit={usageStats.tier.max_manual_searches_per_day}
+                />
+                <UsageBar
+                  label="QA質問（今日）"
+                  current={usageStats.daily_usage.qa_questions}
+                  limit={usageStats.tier.max_qa_questions_per_day}
+                />
+              </div>
+            </CardBody>
+          </Card>
+        ) : null}
+      </section>
 
       {/* Maintenance Statistics */}
       <section className="mb-8">

@@ -21,6 +21,8 @@ import type {
   PdfCandidate,
 } from "@/types/appliance";
 import type { GroupWithMembers } from "@/types/group";
+import { TierLimitError } from "@/types/user";
+import TierLimitModal from "@/components/tier/TierLimitModal";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -41,6 +43,9 @@ export default function RegisterPage() {
   // Step 4: Maintenance item detail modal
   const [selectedItemForDetail, setSelectedItemForDetail] = useState<SharedMaintenanceItem | null>(null);
   const [showItemDetailModal, setShowItemDetailModal] = useState(false);
+
+  // Tier limit error
+  const [tierLimitError, setTierLimitError] = useState<TierLimitError | null>(null);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -94,6 +99,12 @@ export default function RegisterPage() {
   const [excludedUrls, setExcludedUrls] = useState<string[]>([]);
   const [showRetryOptions, setShowRetryOptions] = useState(false);
   const [cachedCandidates, setCachedCandidates] = useState<PdfCandidate[]>([]);
+
+  // Step 3: Already owned appliance state
+  const [alreadyOwnedAppliance, setAlreadyOwnedAppliance] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Step 4: Maintenance extraction (legacy)
   const [isExtractingMaintenance, setIsExtractingMaintenance] = useState(false);
@@ -262,6 +273,18 @@ export default function RegisterPage() {
 
         if (checkResponse.ok) {
           const checkData = await checkResponse.json();
+
+          // Check if user already owns this appliance
+          if (checkData.already_owned) {
+            console.log("User already owns this appliance:", checkData.existing_appliance_name);
+            setAlreadyOwnedAppliance({
+              id: checkData.existing_appliance_id || "",
+              name: checkData.existing_appliance_name || `${formData.manufacturer} ${formData.modelNumber}`,
+            });
+            setIsSearchingManual(false);
+            return;
+          }
+
           if (checkData.found && checkData.storage_url) {
             // Found existing PDF - use it directly without searching
             console.log("Found existing PDF in storage:", checkData.storage_url);
@@ -674,6 +697,14 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+
+        // Check for tier limit exceeded
+        if (response.status === 403 && errorData.error === "TIER_LIMIT_EXCEEDED") {
+          setTierLimitError(errorData);
+          setIsSaving(false);
+          return;
+        }
+
         throw new Error(
           errorData.details ||
             errorData.error ||
@@ -817,6 +848,8 @@ export default function RegisterPage() {
     setExcludedUrls([]);
     setShowRetryOptions(false);
     setCachedCandidates([]);
+    // Reset already owned state
+    setAlreadyOwnedAppliance(null);
     // Also reset maintenance state since it depends on the search result
     setMaintenanceResult(null);
     setMaintenanceError(null);
@@ -824,6 +857,41 @@ export default function RegisterPage() {
     setSelectedItemIds(new Set());
     setIsMaintenanceCached(false);
   }, [formData.manufacturer, formData.modelNumber]);
+
+  // Auto-check for existing ownership when entering Step 3
+  useEffect(() => {
+    if (currentStep === 3 && formData.manufacturer && formData.modelNumber && !alreadyOwnedAppliance && !manualSearchResult && !isSearchingManual) {
+      // Automatically check if user already owns this appliance
+      const checkOwnership = async () => {
+        try {
+          const checkResponse = await fetch("/api/appliances/check-existing", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              manufacturer: formData.manufacturer,
+              model_number: formData.modelNumber,
+            }),
+          });
+
+          if (checkResponse.ok) {
+            const checkData = await checkResponse.json();
+            if (checkData.already_owned) {
+              console.log("User already owns this appliance:", checkData.existing_appliance_name);
+              setAlreadyOwnedAppliance({
+                id: checkData.existing_appliance_id || "",
+                name: checkData.existing_appliance_name || `${formData.manufacturer} ${formData.modelNumber}`,
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error checking ownership:", error);
+        }
+      };
+      checkOwnership();
+    }
+  }, [currentStep, formData.manufacturer, formData.modelNumber, alreadyOwnedAppliance, manualSearchResult, isSearchingManual]);
 
   // Category label mapping
   const categoryLabels: Record<MaintenanceItem["category"], string> = {
@@ -1378,7 +1446,61 @@ export default function RegisterPage() {
                 <p className="text-sm text-gray-500">{formData.category}</p>
               </div>
 
-              {!manualSearchResult && !isSearchingManual && (
+              {/* Already Owned Appliance Message */}
+              {alreadyOwnedAppliance && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <svg
+                      className="w-6 h-6 text-amber-600 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
+                    </svg>
+                    <div className="flex-1">
+                      <p className="font-medium text-amber-800">
+                        この製品はすでに登録済みです
+                      </p>
+                      <p className="text-sm text-amber-700 mt-1">
+                        「{alreadyOwnedAppliance.name}」として登録されています。
+                      </p>
+                      <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                        {alreadyOwnedAppliance.id ? (
+                          <Link href={`/appliances/${alreadyOwnedAppliance.id}`} className="flex-1">
+                            <Button className="w-full">
+                              登録済みの家電を見る
+                            </Button>
+                          </Link>
+                        ) : (
+                          <Link href="/appliances" className="flex-1">
+                            <Button className="w-full">
+                              家電一覧を見る
+                            </Button>
+                          </Link>
+                        )}
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setAlreadyOwnedAppliance(null);
+                            setCurrentStep(2);
+                          }}
+                          className="flex-1"
+                        >
+                          製品情報を変更する
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!manualSearchResult && !isSearchingManual && !alreadyOwnedAppliance && (
                 <div className="text-center py-4">
                   <p className="text-gray-600 mb-4">
                     製品の説明書を保存済みデータまたはWebから検索します。
@@ -1803,9 +1925,10 @@ export default function RegisterPage() {
                       <div className="text-center pt-2">
                         <button
                           className="text-sm text-gray-500 hover:text-gray-700"
-                          onClick={() => setCurrentStep(5)}
+                          onClick={handleSave}
+                          disabled={isSaving}
                         >
-                          メンテナンス項目なしで登録を続ける →
+                          {isSaving ? "保存中..." : "メンテナンス項目なしで登録を続ける →"}
                         </button>
                       </div>
                     </div>
@@ -2230,6 +2353,18 @@ export default function RegisterPage() {
           )}
         </div>
       </Modal>
+
+      {/* Tier Limit Modal */}
+      {tierLimitError && (
+        <TierLimitModal
+          isOpen={!!tierLimitError}
+          onClose={() => setTierLimitError(null)}
+          message={tierLimitError.message}
+          currentUsage={tierLimitError.current_usage}
+          limit={tierLimitError.limit}
+          tierName={tierLimitError.tier_display_name}
+        />
+      )}
     </div>
   );
 }

@@ -18,6 +18,7 @@ from app.api.routes import (
     notifications,
     push_subscriptions,
     qa,  # Import separately to avoid linter removal
+    tiers,
     users,
 )
 from app.config import settings
@@ -120,6 +121,10 @@ app.include_router(
 )
 app.include_router(
     maintenance.router,
+    prefix=settings.api_v1_prefix,
+)
+app.include_router(
+    tiers.router,
     prefix=settings.api_v1_prefix,
 )
 

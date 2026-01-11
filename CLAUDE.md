@@ -169,6 +169,28 @@ cd backend && uv run python ../scripts/generate-vapid-keys.py
 ./scripts/deploy-backend.sh deploy   # デプロイのみ
 ./scripts/setup-secrets.sh           # Secret Manager にシークレット登録
 ./scripts/setup-secrets.sh --list    # シークレット一覧表示
+
+# サーバー起動確認（重要: lsof ではなく ss を使用）
+ss -tlnp | grep -E "3000|8000"        # 両サーバーの状態確認
+```
+
+### サーバー起動確認の注意点
+
+**重要**: `lsof -i :3000` ではなく `ss -tlnp` を使用すること。
+
+| サーバー | ポート | Listen アドレス | lsof | ss |
+|----------|--------|-----------------|------|-----|
+| Backend (uvicorn) | 8000 | `0.0.0.0` (IPv4) | ✅ | ✅ |
+| Frontend (Next.js) | 3000 | `*` (IPv6) | ❌ | ✅ |
+
+**理由**: Next.js はデフォルトで IPv6 (`::`) でリッスンする。WSL2 環境では `lsof` が IPv6 ソケットを正しく列挙できないため、フロントエンドが起動していても検出されない。
+
+```bash
+# ❌ 誤った確認方法（フロントエンドが検出されない）
+lsof -i :3000 -i :8000 | grep LISTEN
+
+# ✅ 正しい確認方法
+ss -tlnp | grep -E "3000|8000"
 ```
 
 ## 環境変数
