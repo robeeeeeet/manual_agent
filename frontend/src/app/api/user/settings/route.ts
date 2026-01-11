@@ -42,11 +42,11 @@ export async function GET() {
       return NextResponse.json(data, { status: response.status });
     }
 
-    // プロファイルから設定部分のみを返す
-    const profile = data.profile;
+    // バックエンドは直接プロファイルオブジェクトを返す
     return NextResponse.json({
-      notify_time: profile?.notify_time?.substring(0, 5) || "09:00", // "HH:MM:SS" -> "HH:MM"
-      timezone: profile?.timezone || "Asia/Tokyo",
+      display_name: data?.display_name || "",
+      notify_time: data?.notify_time?.substring(0, 5) || "09:00", // "HH:MM:SS" -> "HH:MM"
+      timezone: data?.timezone || "Asia/Tokyo",
     });
   } catch (error) {
     return NextResponse.json(
@@ -105,6 +105,7 @@ export async function PATCH(request: NextRequest) {
     // バックエンドは { settings: {...} } を返すので、整形して返す
     const settings = data.settings;
     return NextResponse.json({
+      display_name: settings?.display_name || "",
       notify_time: settings?.notify_time?.substring(0, 5) || "09:00", // "HH:MM:SS" -> "HH:MM"
       timezone: settings?.timezone || "Asia/Tokyo",
       updated_at: settings?.updated_at,

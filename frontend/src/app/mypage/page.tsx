@@ -21,6 +21,8 @@ export default function MyPage() {
   const [usageLoading, setUsageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editingDisplayName, setEditingDisplayName] = useState(false);
+  const [displayNameInput, setDisplayNameInput] = useState("");
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -117,6 +119,58 @@ export default function MyPage() {
     }
   };
 
+  // Update display name
+  const updateDisplayName = async () => {
+    const trimmed = displayNameInput.trim();
+    if (!trimmed) {
+      alert("表示名を入力してください");
+      return;
+    }
+    if (trimmed.length > 20) {
+      alert("表示名は20文字以内で入力してください");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch("/api/user/settings", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ display_name: trimmed }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "表示名の更新に失敗しました");
+      }
+
+      const data = await response.json();
+      setSettings(data);
+      setEditingDisplayName(false);
+    } catch (err) {
+      console.error("Error updating display name:", err);
+      alert(
+        err instanceof Error ? err.message : "表示名の更新に失敗しました"
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Start editing display name
+  const startEditingDisplayName = () => {
+    setDisplayNameInput(settings?.display_name || "");
+    setEditingDisplayName(true);
+  };
+
+  // Cancel editing display name
+  const cancelEditingDisplayName = () => {
+    setEditingDisplayName(false);
+    setDisplayNameInput("");
+  };
+
   // Handle logout
   const handleSignOut = async () => {
     const { error } = await signOut();
@@ -203,6 +257,75 @@ export default function MyPage() {
             </CardBody>
           </Card>
         ) : null}
+      </section>
+
+      {/* Profile Settings */}
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <span>👤</span>
+          <span>プロフィール</span>
+        </h2>
+        <Card>
+          <CardBody>
+            {settingsLoading ? (
+              <div className="flex justify-center py-4">
+                <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : settings ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    表示名
+                  </label>
+                  {editingDisplayName ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={displayNameInput}
+                        onChange={(e) => setDisplayNameInput(e.target.value)}
+                        maxLength={20}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="表示名を入力"
+                        disabled={saving}
+                      />
+                      <button
+                        onClick={updateDisplayName}
+                        disabled={saving}
+                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {saving ? "保存中..." : "保存"}
+                      </button>
+                      <button
+                        onClick={cancelEditingDisplayName}
+                        disabled={saving}
+                        className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-900">{settings.display_name}</span>
+                      <button
+                        onClick={startEditingDisplayName}
+                        className="text-sm text-blue-600 hover:text-blue-700"
+                      >
+                        編集
+                      </button>
+                    </div>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    グループで家電を共有する際に表示されます
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">
+                プロフィールの読み込みに失敗しました
+              </p>
+            )}
+          </CardBody>
+        </Card>
       </section>
 
       {/* Maintenance Statistics */}
@@ -317,6 +440,55 @@ export default function MyPage() {
                 設定の読み込みに失敗しました
               </p>
             )}
+          </CardBody>
+        </Card>
+      </section>
+
+      {/* Help */}
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <span>📚</span>
+          <span>サポート</span>
+        </h2>
+        <Card>
+          <CardBody>
+            <a
+              href="/help"
+              className="flex items-center gap-3 text-gray-700 hover:text-blue-600 transition-colors"
+            >
+              <svg
+                className="w-6 h-6 text-blue-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <div>
+                <div className="font-semibold text-gray-900">使い方ガイド</div>
+                <div className="text-sm text-gray-600">
+                  アプリの使い方やよくある質問を確認
+                </div>
+              </div>
+              <svg
+                className="w-5 h-5 ml-auto text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </a>
           </CardBody>
         </Card>
       </section>
