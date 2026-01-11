@@ -1,5 +1,5 @@
 -- =====================================================
--- Migration: 00021_create_user_daily_usage
+-- Migration: 00022_create_user_daily_usage
 -- Description: Create user_daily_usage table for tracking daily usage limits
 -- =====================================================
 

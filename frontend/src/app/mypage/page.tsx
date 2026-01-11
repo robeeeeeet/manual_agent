@@ -254,6 +254,9 @@ export default function MyPage() {
                   limit={usageStats.tier.max_qa_questions_per_day}
                 />
               </div>
+              <p className="mt-4 text-xs text-gray-500">
+                ※ 説明書検索とQA質問の回数は毎日午前4時にリセットされます
+              </p>
             </CardBody>
           </Card>
         ) : null}

@@ -15,6 +15,8 @@
 │                              ├──────────────┤                                   │
 │                              │ id (PK)      │←──────────────┐                   │
 │                              │ email        │               │                   │
+│                              │ display_name │               │                   │
+│                              │ tier_id (FK) │──→ user_tiers.id                  │
 │                              │ notify_time  │               │                   │
 │                              │ timezone     │               │                   │
 │                              └──────────────┘               │                   │
@@ -121,6 +123,7 @@
 │  │   │ id (PK)                       │                                         ││
 │  │   │ group_id (FK → groups)        │                                         ││
 │  │   │ user_id (FK → users)          │                                         ││
+│  │   │ role ('owner'/'member')       │                                         ││
 │  │   │ joined_at                     │                                         ││
 │  │   └───────────────────────────────┘                                         ││
 │  │                                                                             ││
@@ -139,14 +142,16 @@
 |---------|-----|------|-----------|------|
 | `id` | UUID | NOT NULL | - | ユーザーID（PK、auth.users参照） |
 | `email` | TEXT | NOT NULL | - | メールアドレス |
+| `display_name` | TEXT | NOT NULL | - | グループ内での表示名 |
+| `tier_id` | UUID | NOT NULL | (free tier) | ユーザーティアID（FK → user_tiers） |
 | `notify_time` | TIME | NOT NULL | '09:00:00' | 通知時刻 |
 | `timezone` | TEXT | NOT NULL | 'Asia/Tokyo' | タイムゾーン |
 | `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
 | `updated_at` | TIMESTAMPTZ | NOT NULL | NOW() | 更新日時 |
 
-**インデックス**: なし（PKのみ）
+**インデックス**: `tier_id`
 
-**RLS**: 自分のレコードのみ参照・更新可能
+**RLS**: 自分のレコードのみ参照・更新可能。グループメンバーは他メンバーの `display_name` を参照可能
 
 ### 2. shared_appliances（家電マスター）
 
@@ -176,8 +181,8 @@
 | カラム名 | 型 | NULL | デフォルト | 説明 |
 |---------|-----|------|-----------|------|
 | `id` | UUID | NOT NULL | gen_random_uuid() | 所有関係ID（PK） |
-| `user_id` | UUID | NULL | - | 所有者のユーザーID（個人所有の場合、FK → users） |
-| `group_id` | UUID | NULL | - | 所有グループID（グループ所有の場合、FK → groups） |
+| `user_id` | UUID | NOT NULL | - | 所有者のユーザーID（常に必須、FK → users） |
+| `group_id` | UUID | NULL | - | 共有先グループID（グループ共有時に設定、FK → groups） |
 | `shared_appliance_id` | UUID | NOT NULL | - | 家電マスターID（FK → shared_appliances） |
 | `name` | TEXT | NOT NULL | - | ユーザー固有の表示名（例: リビングのエアコン） |
 | `image_url` | TEXT | NULL | - | ユーザーがアップロードした画像URL |
@@ -185,13 +190,19 @@
 | `updated_at` | TIMESTAMPTZ | NOT NULL | NOW() | 更新日時 |
 
 **制約**:
-- `(user_id, name)` は条件付きUNIQUE（個人所有の場合）
-- `(group_id, name)` は条件付きUNIQUE（グループ所有の場合）
-- `chk_user_appliances_owner`: `user_id` と `group_id` のいずれか一方のみ設定
+- `(user_id, name)` は条件付きUNIQUE（`user_id IS NOT NULL` の場合）
+- `(group_id, name)` は条件付きUNIQUE（`group_id IS NOT NULL` の場合）
+- `chk_user_appliances_owner`: `user_id IS NOT NULL`（元の所有者を常に保持）
 
 **インデックス**: `user_id`, `group_id`, `shared_appliance_id`
 
 **RLS**: 個人所有 OR グループメンバーとして参照・更新・削除可能
+
+**設計メモ**:
+- `user_id` は常に設定（元の所有者を追跡）
+- グループ共有時: `user_id`（元所有者）+ `group_id`（共有先グループ）の両方が設定
+- 個人所有時: `user_id` のみ設定、`group_id` は NULL
+- グループ脱退・削除時は `group_id` をクリアするだけで元の所有者に戻る
 
 ### 4. shared_maintenance_items（メンテナンス項目マスター）
 
@@ -393,20 +404,156 @@ QA機能に対する違反（不適切な質問）を記録するテーブル。
 ### 12. group_members（グループメンバー）
 
 グループのメンバーシップを管理するテーブル（Phase 7）。
-オーナー情報は `groups.owner_id` で管理（正規化済み）。
 
 | カラム名 | 型 | NULL | デフォルト | 説明 |
 |---------|-----|------|-----------|------|
 | `id` | UUID | NOT NULL | gen_random_uuid() | メンバーシップID（PK） |
 | `group_id` | UUID | NOT NULL | - | 所属グループID（FK → groups） |
 | `user_id` | UUID | NOT NULL | - | メンバーのユーザーID（FK → users） |
+| `role` | TEXT | NOT NULL | 'member' | 役割: 'owner'（オーナー）, 'member'（一般） |
 | `joined_at` | TIMESTAMPTZ | NOT NULL | NOW() | 参加日時 |
 
-**制約**: `(group_id, user_id)` は UNIQUE（同一グループに同一ユーザーは1回のみ）
+**制約**:
+- `(group_id, user_id)` は UNIQUE（同一グループに同一ユーザーは1回のみ）
+- `uq_group_members_user`: `user_id` は UNIQUE（1ユーザー1グループのみ参加可能）
 
 **インデックス**: `group_id`, `user_id`
 
 **RLS**: 同グループメンバーのみ閲覧可能、本人またはオーナーが削除可能
+
+**設計メモ**:
+- `role='owner'` はグループ作成時にトリガーで自動設定される
+- `role='member'` は招待コードで参加した際のデフォルト
+- オーナー判定は `groups.owner_id` と `group_members.role` の両方で可能（冗長だが参照しやすい）
+
+### 13. manufacturer_domains（メーカードメイン学習）
+
+メーカー名と公式ドメインのマッピングを学習するテーブル。PDF取得成功時に自動更新。
+
+| カラム名 | 型 | NULL | デフォルト | 説明 |
+|---------|-----|------|-----------|------|
+| `id` | UUID | NOT NULL | gen_random_uuid() | ID（PK） |
+| `manufacturer_normalized` | TEXT | NOT NULL | - | 正規化されたメーカー名（小文字、空白除去） |
+| `manufacturer_original` | TEXT | NOT NULL | - | 元のメーカー名（表示用） |
+| `domain` | TEXT | NOT NULL | - | PDFが見つかったドメイン |
+| `success_count` | INTEGER | NOT NULL | 1 | このドメインでPDFが見つかった回数（信頼度） |
+| `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
+| `updated_at` | TIMESTAMPTZ | NOT NULL | NOW() | 更新日時 |
+
+**制約**: `(manufacturer_normalized, domain)` は UNIQUE
+
+**インデックス**: `manufacturer_normalized`
+
+**RLS**: 全認証済みユーザーが読み取り可能、INSERT/UPDATE/DELETEはservice_roleのみ
+
+### 14. qa_ratings（QA評価）
+
+QA質問に対するユーザー評価（helpful/not helpful）を記録するテーブル。
+
+| カラム名 | 型 | NULL | デフォルト | 説明 |
+|---------|-----|------|-----------|------|
+| `id` | UUID | NOT NULL | gen_random_uuid() | 評価ID（PK） |
+| `shared_appliance_id` | UUID | NOT NULL | - | 評価対象のQAが属する製品ID（FK → shared_appliances） |
+| `question_hash` | TEXT | NOT NULL | - | 質問テキストのSHA256ハッシュ（先頭32文字） |
+| `question_text` | TEXT | NOT NULL | - | 質問の元テキスト（デバッグ・分析用） |
+| `user_id` | UUID | NOT NULL | - | 評価したユーザーID（FK → users） |
+| `is_helpful` | BOOLEAN | NOT NULL | - | true: helpful, false: not helpful |
+| `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 評価日時 |
+
+**インデックス**: `(shared_appliance_id, question_hash)`, `user_id`, `(shared_appliance_id, question_hash, user_id)`
+
+**RLS**: 全認証済みユーザーが閲覧可能、自分の評価のみ作成・削除可能
+
+### 15. qa_sessions（QA会話セッション）
+
+QA機能の会話セッションを管理するテーブル。ユーザーが家電ごとに複数の会話を持ち、過去の会話から再開できる。
+
+| カラム名 | 型 | NULL | デフォルト | 説明 |
+|---------|-----|------|-----------|------|
+| `id` | UUID | NOT NULL | gen_random_uuid() | セッションID（PK） |
+| `user_id` | UUID | NOT NULL | - | ユーザーID（FK → auth.users） |
+| `shared_appliance_id` | UUID | NOT NULL | - | 対象製品ID（FK → shared_appliances） |
+| `group_id` | UUID | NULL | - | グループID（グループ共有時に設定、FK → groups） |
+| `summary` | TEXT | NULL | - | セッションタイトル（LLMで自動生成） |
+| `is_active` | BOOLEAN | NOT NULL | true | アクティブかどうか |
+| `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
+| `last_activity_at` | TIMESTAMPTZ | NOT NULL | NOW() | 最終アクティビティ日時 |
+
+**制約**:
+- `(user_id, shared_appliance_id)` はアクティブセッションで条件付きUNIQUE（`is_active = true AND group_id IS NULL`）
+- `(group_id, shared_appliance_id)` はアクティブセッションで条件付きUNIQUE（`is_active = true AND group_id IS NOT NULL`）
+
+**インデックス**: `(user_id, shared_appliance_id)`, `last_activity_at`, `group_id`
+
+**RLS**: 自分のセッション OR グループメンバーとして参照可能
+
+### 16. qa_session_messages（QAセッションメッセージ）
+
+QAセッション内のメッセージ（質問と回答）を記録するテーブル。
+
+| カラム名 | 型 | NULL | デフォルト | 説明 |
+|---------|-----|------|-----------|------|
+| `id` | UUID | NOT NULL | gen_random_uuid() | メッセージID（PK） |
+| `session_id` | UUID | NOT NULL | - | セッションID（FK → qa_sessions） |
+| `role` | TEXT | NOT NULL | - | 'user' または 'assistant' |
+| `content` | TEXT | NOT NULL | - | メッセージ内容 |
+| `source` | TEXT | NULL | - | 回答ソース: 'qa', 'text_cache', 'pdf', 'none' |
+| `reference` | TEXT | NULL | - | 参照ページ番号等 |
+| `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
+
+**制約**: `role` は 'user', 'assistant' のいずれか
+
+**インデックス**: `(session_id, created_at)`
+
+**RLS**: セッション所有者またはグループメンバーのみ参照可能
+
+### 17. user_tiers（ユーザーティア定義）
+
+ユーザーティア（プラン）の定義と利用制限を管理するマスターテーブル。
+
+| カラム名 | 型 | NULL | デフォルト | 説明 |
+|---------|-----|------|-----------|------|
+| `id` | UUID | NOT NULL | uuid_generate_v4() | ティアID（PK） |
+| `name` | TEXT | NOT NULL | - | ティア識別子（UNIQUE）: 'free', 'basic', 'premium', 'admin' |
+| `display_name` | TEXT | NOT NULL | - | 表示名（日本語） |
+| `max_appliances` | INTEGER | NOT NULL | 3 | 最大家電登録数（-1 = 無制限） |
+| `max_manual_searches_per_day` | INTEGER | NOT NULL | 5 | 1日あたり最大説明書検索数（-1 = 無制限） |
+| `max_qa_questions_per_day` | INTEGER | NOT NULL | 10 | 1日あたり最大QA質問数（-1 = 無制限） |
+| `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
+
+**制約**: `name` は UNIQUE
+
+**インデックス**: `name`
+
+**RLS**: 全ユーザーが読み取り可能、INSERT/UPDATE/DELETEはservice_roleのみ
+
+**初期データ**:
+| name | display_name | max_appliances | max_manual_searches_per_day | max_qa_questions_per_day |
+|------|--------------|----------------|-----------------------------|-----------------------------|
+| free | 無料プラン | 3 | 5 | 10 |
+| basic | ベーシック | 10 | 20 | 50 |
+| premium | プレミアム | -1 | 100 | 500 |
+| admin | 管理者 | -1 | -1 | -1 |
+
+### 18. user_daily_usage（日次使用量）
+
+ユーザーの日次API使用量を追跡するテーブル。ティア制限のエンフォースメントに使用。
+
+| カラム名 | 型 | NULL | デフォルト | 説明 |
+|---------|-----|------|-----------|------|
+| `id` | UUID | NOT NULL | uuid_generate_v4() | ID（PK） |
+| `user_id` | UUID | NOT NULL | - | ユーザーID（FK → users） |
+| `date` | DATE | NOT NULL | CURRENT_DATE | 使用日（UTC） |
+| `manual_searches` | INTEGER | NOT NULL | 0 | 当日の説明書検索（画像認識）回数 |
+| `qa_questions` | INTEGER | NOT NULL | 0 | 当日のQA質問回数 |
+| `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
+| `updated_at` | TIMESTAMPTZ | NOT NULL | NOW() | 更新日時 |
+
+**制約**: `(user_id, date)` は UNIQUE
+
+**インデックス**: `(user_id, date)`, `date`
+
+**RLS**: 自分の使用量のみ閲覧可能、INSERT/UPDATE/DELETEはservice_roleのみ
 
 ## Row Level Security (RLS) ポリシー
 
@@ -547,8 +694,36 @@ EXISTS (
 - `maintenance_schedules`
 - `push_subscriptions`
 - `qa_restrictions`
+- `manufacturer_domains`
+- `user_daily_usage`
+- `groups`
 
 **トリガー関数**: `update_updated_at_column()`
+
+### auth.users 同期トリガー
+
+`auth.users` と `public.users` を自動同期するトリガー：
+
+- `on_auth_user_created`: 新規ユーザー作成時に `public.users` にレコードを自動作成
+- `on_auth_user_deleted`: ユーザー削除時に `public.users` のレコードも自動削除
+
+**トリガー関数**: `handle_new_user()`, `handle_user_delete()`
+
+### グループ作成時のオーナー自動追加トリガー
+
+グループ作成時に、オーナーを `group_members` に自動追加するトリガー：
+
+- `after_group_insert_add_owner`: グループ作成後にオーナーを `role='owner'` で `group_members` に追加
+
+**トリガー関数**: `add_owner_to_group_members()`
+
+### グループ削除時の家電移管トリガー
+
+グループ削除前に、グループ家電を元の所有者の個人所有に戻すトリガー：
+
+- `before_group_delete_transfer_appliances`: グループ削除前に `group_id` をクリア
+
+**トリガー関数**: `transfer_group_appliances_to_owner()`
 
 ## 拡張機能
 
@@ -559,6 +734,72 @@ EXISTS (
 **注意**: UUID生成には `gen_random_uuid()` を使用（PostgreSQL 13+標準機能、拡張不要）
 
 ## 設計の変更履歴
+
+### 2026-01-12: group_members に role カラム追加
+
+**変更内容**:
+- `group_members` テーブルに `role` カラムを追加（TEXT NOT NULL DEFAULT 'member'）
+- `add_owner_to_group_members()` 関数とトリガー `after_group_insert_add_owner` を追加
+- グループ作成時にオーナーが自動的に `role='owner'` で `group_members` に追加される
+
+**設計意図**:
+- グループメンバーの役割（オーナー/一般メンバー）を明示的に管理
+- `groups.owner_id` との冗長性はあるが、クエリの簡便性を優先
+
+### 2026-01-12: グループ自動共有機能
+
+**変更内容**:
+- グループ参加者の個人家電を自動的にグループ家電に変換
+- `qa_sessions` に `group_id` カラムを追加（グループ内セッション共有用）
+- RLSポリシーをグループ対応に簡略化
+- アクティブセッションのユニーク制約を個人/グループ別に分離
+
+**設計意図**:
+- グループ参加時に既存の個人家電も自動的にグループで共有
+- QA会話履歴もグループメンバー間で共有可能に
+- よりシンプルで一貫したアクセス制御
+
+### 2026-01-12: ユーザー表示名追加
+
+**変更内容**:
+- `users` テーブルに `display_name` カラムを追加
+- `handle_new_user()` 関数を更新し、サインアップ時に `display_name` を設定
+- グループメンバーが他メンバーの `display_name` を参照できるRLSポリシーを追加
+
+**設計意図**:
+- グループ内でメールアドレスではなく分かりやすい名前で表示
+- 重複家電検出時に「○○さんが同じ家電を持っています」と表示
+
+### 2026-01-12: ユーザーティア機能追加
+
+**追加されたもの**:
+- `user_tiers` テーブル: ティア定義（free/basic/premium/admin）と利用制限
+- `user_daily_usage` テーブル: 日次API使用量の追跡
+- `users.tier_id` カラム: ユーザーのティアへの参照
+
+**設計意図**:
+- API利用量に基づく段階的な制限機能
+- 早期利用者には basic ティアを自動付与（優遇）
+- 新規ユーザーは free ティアからスタート
+
+**ティア制限**:
+| ティア | 家電登録数 | 説明書検索/日 | QA質問/日 |
+|--------|-----------|---------------|----------|
+| free | 3 | 5 | 10 |
+| basic | 10 | 20 | 50 |
+| premium | 無制限 | 100 | 500 |
+| admin | 無制限 | 無制限 | 無制限 |
+
+### 2026-01-11: QA会話履歴機能追加
+
+**追加されたもの**:
+- `qa_sessions` テーブル: QA会話セッションの管理
+- `qa_session_messages` テーブル: セッション内メッセージの記録
+
+**設計意図**:
+- ユーザーが過去のQA会話を参照・再開できるように
+- セッションタイトルをLLMで自動生成
+- 6時間の非アクティブでセッションを自動クローズ
 
 ### 2026-01-11: メンテナンステーブル正規化
 

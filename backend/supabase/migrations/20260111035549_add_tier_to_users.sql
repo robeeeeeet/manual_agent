@@ -1,5 +1,5 @@
 -- =====================================================
--- Migration: 00020_add_tier_to_users
+-- Migration: 00021_add_tier_to_users
 -- Description: Add tier_id column to users table
 -- =====================================================
 

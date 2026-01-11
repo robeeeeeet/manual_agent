@@ -95,7 +95,8 @@ manual_agent/
 │   │   ├── groups/        # グループ管理ページ
 │   │   │   └── [id]/      # グループ詳細ページ（動的ルート）
 │   │   ├── maintenance/   # メンテナンス一覧ページ
-│   │   └── mypage/        # マイページ（統計、設定、ログアウト）
+│   │   ├── mypage/        # マイページ（統計、設定、ログアウト）
+│   │   └── help/          # ヘルプ・使い方ガイドページ
 │   ├── src/components/    # UIコンポーネント
 │   │   ├── appliance/     # 家電コンポーネント（ShareButton）
 │   │   ├── auth/          # 認証関連（AuthForm）
@@ -103,7 +104,8 @@ manual_agent/
 │   │   ├── maintenance/   # メンテナンス関連（MaintenanceCompleteModal, MaintenanceStatusTabs, MaintenanceFilter, MaintenanceListItem）
 │   │   ├── notification/  # 通知コンポーネント（NotificationPermission, NotificationPermissionModal, NotificationOnboarding）
 │   │   ├── qa/            # QA機能（QASection, QAChat, QAChatMessage, QAFeedbackButtons, SearchProgressIndicator, QASessionHistory）
-│   │   └── ui/            # Button, Card, Modal, SafeHtml
+│   │   ├── tier/          # ティア関連（UsageBar, TierLimitModal）
+│   │   └── ui/            # Button, Card, Modal, SafeHtml, FeatureCard
 │   ├── src/hooks/         # カスタムフック（usePushNotification, useDeviceContext, useAppliances, useMaintenance）
 │   ├── src/types/         # 型定義（appliance.ts, user.ts, qa.ts, group.ts）
 │   ├── src/contexts/      # React Context（AuthContext）
@@ -114,7 +116,7 @@ manual_agent/
 │   └── package.json
 ├── backend/               # FastAPI アプリケーション
 │   ├── app/
-│   │   ├── api/routes/    # APIルート（appliances, manuals, maintenance, notifications, push, users, qa, cron, groups）
+│   │   ├── api/routes/    # APIルート（appliances, manuals, maintenance, notifications, push, users, qa, cron, groups, tiers）
 │   │   ├── schemas/       # Pydanticスキーマ
 │   │   ├── services/      # ビジネスロジック
 │   │   │   ├── image_recognition.py     # 画像認識
@@ -131,6 +133,8 @@ manual_agent/
 │   │   │   ├── group_service.py         # グループCRUD・招待コード・メンバー管理
 │   │   │   ├── supabase_client.py       # Supabaseクライアント
 │   │   │   ├── manufacturer_domain.py   # メーカードメイン
+│   │   │   ├── tier_service.py          # ユーザーティア・利用制限
+│   │   │   ├── panasonic_manual.py      # パナソニック製品説明書検索
 │   │   │   ├── qa_service.py            # QA検索・生成サービス
 │   │   │   ├── qa_chat_service.py       # QAチャット（LLM対話）
 │   │   │   ├── qa_rating_service.py     # QAフィードバック評価
@@ -340,6 +344,12 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
   - **パフォーマンス改善**: N+1問題解消（appliance_service, maintenance_notification_service）、SWR導入（useAppliances, useMaintenance フック）
   - **認証フロー改善**: パスワードリセット機能（`/reset-password`）、resetPassword/updatePassword メソッド
   - **UI改善**: トップページコンパクト化、テキスト見切れ対策、家電詳細ページ総合改善
+  - **ユーザーティア機能**: tier_service.py（利用制限）、UsageBar/TierLimitModal（UI）、日次使用量トラッキング
+  - **ヘルプページ**: `/help` 使い方ガイド、FAQ、トラブルシューティング
+  - **display_name機能**: ユーザー表示名設定、グループメンバー一覧での表示
+  - **パナソニック製品検索**: panasonic_manual.py（公式サイト直接検索、Google CSE不要）
+  - **グループ自動共有**: グループ所属ユーザーが登録した家電を自動的にグループ共有
+  - **登録済み家電検出**: 同一メーカー・型番の重複警告機能
 
 ### 次のフェーズ
 - Phase 8: 追加機能・改善（検討中）
@@ -377,3 +387,6 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
 22. **SWRによるデータフェッチ**: クライアントサイドキャッシュとリバリデーションでUX向上（dedupingInterval=60秒、revalidateOnFocus=false）
 23. **N+1問題の解消**: ループ内クエリを`in_()`による一括クエリに変更し、DB負荷を70〜97%削減
 24. **リッチテキスト表示**: DOMPurifyによるサニタイズ済みHTML表示でセキュアなリッチテキスト対応
+25. **ユーザーティア機能**: 無料ティアでの利用制限（家電登録数、説明書検索回数/日、QA質問回数/日）を実装、日次使用量をトラッキング
+26. **パナソニック製品直接検索**: Panasonic公式サイトから説明書PDFを直接取得（Google CSE不要、より確実なPDF取得）
+27. **グループ自動共有**: グループ所属ユーザーが新規登録した家電は自動的にグループ共有される

@@ -1,5 +1,5 @@
 -- =====================================================
--- Migration: 00019_create_user_tiers
+-- Migration: 00020_create_user_tiers
 -- Description: Create user_tiers table for tier-based limits
 -- =====================================================
 

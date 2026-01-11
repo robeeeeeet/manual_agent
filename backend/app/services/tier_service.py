@@ -1,9 +1,29 @@
 import logging
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from app.services.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
+
+# 日本標準時 (JST = UTC+9)
+JST = timezone(timedelta(hours=9))
+
+# 日次リセット時刻（日本時間）
+DAILY_RESET_HOUR_JST = 4
+
+
+def get_usage_date() -> date:
+    """
+    Get the usage date based on JST 4:00 AM reset.
+
+    The daily usage resets at 4:00 AM JST.
+    - Before 4:00 AM JST: previous day's date
+    - After 4:00 AM JST: current day's date
+    """
+    now_jst = datetime.now(JST)
+    if now_jst.hour < DAILY_RESET_HOUR_JST:
+        return (now_jst - timedelta(days=1)).date()
+    return now_jst.date()
 
 
 def get_user_tier(user_id: str) -> dict | None:
@@ -48,7 +68,7 @@ def get_or_create_daily_usage(user_id: str, today: date | None = None) -> dict:
     Returns dict with user_id, date, manual_searches, qa_questions.
     """
     if today is None:
-        today = date.today()
+        today = get_usage_date()
 
     client = get_supabase_client()
     try:
@@ -255,8 +275,8 @@ def check_and_increment_manual_search(user_id: str) -> dict:
             "tier_display_name": tier_display_name,
         }
 
-    # Get or create daily usage
-    today = date.today()
+    # Get or create daily usage (resets at 4:00 AM JST)
+    today = get_usage_date()
     usage = get_or_create_daily_usage(user_id, today)
     current_usage = usage.get("manual_searches", 0)
 
@@ -306,8 +326,8 @@ def check_and_increment_qa_question(user_id: str) -> dict:
             "tier_display_name": tier_display_name,
         }
 
-    # Get or create daily usage
-    today = date.today()
+    # Get or create daily usage (resets at 4:00 AM JST)
+    today = get_usage_date()
     usage = get_or_create_daily_usage(user_id, today)
     current_usage = usage.get("qa_questions", 0)
 
@@ -343,7 +363,7 @@ def get_user_usage_stats(user_id: str) -> dict:
     if not tier:
         tier = _get_default_tier()
 
-    today = date.today()
+    today = get_usage_date()
     daily_usage = get_or_create_daily_usage(user_id, today)
 
     # Count personal appliances

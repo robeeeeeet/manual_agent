@@ -20,7 +20,6 @@ import type {
   SharedMaintenanceItemList,
   PdfCandidate,
 } from "@/types/appliance";
-import type { GroupWithMembers } from "@/types/group";
 import { TierLimitError } from "@/types/user";
 import TierLimitModal from "@/components/tier/TierLimitModal";
 
@@ -133,10 +132,6 @@ export default function RegisterPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedApplianceId, setSavedApplianceId] = useState<string | null>(null);
-
-  // Group selection (Phase 7: Family Sharing)
-  const [groups, setGroups] = useState<GroupWithMembers[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
 
   // Dynamic categories - can be extended by AI
   const [categories, setCategories] = useState([
@@ -755,7 +750,6 @@ export default function RegisterPage() {
           category: formData.category,
           manual_source_url: manualUrl || null,
           stored_pdf_path: storedPdfPath || null,
-          group_id: selectedGroupId || undefined,
         }),
       });
 
@@ -880,23 +874,6 @@ export default function RegisterPage() {
         return "bg-gray-100 text-gray-700";
     }
   };
-
-  // Fetch user's groups on mount (Phase 7: Family Sharing)
-  useEffect(() => {
-    const fetchGroups = async () => {
-      if (!user) return;
-      try {
-        const response = await fetch("/api/groups");
-        if (response.ok) {
-          const data = await response.json();
-          setGroups(data.groups || []);
-        }
-      } catch (error) {
-        console.error("Failed to fetch groups:", error);
-      }
-    };
-    fetchGroups();
-  }, [user]);
 
   // Reset Step 3 state when product info changes
   useEffect(() => {
@@ -1451,30 +1428,6 @@ export default function RegisterPage() {
                   入力しない場合は「メーカー名 型番」で表示されます
                 </p>
               </div>
-
-              {/* Group Selection (Phase 7: Family Sharing) */}
-              {groups.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    登録先
-                  </label>
-                  <select
-                    value={selectedGroupId}
-                    onChange={(e) => setSelectedGroupId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">個人の家電として登録</option>
-                    {groups.map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {group.name}（グループ共有）
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    グループに登録すると、メンバー全員で家電を管理できます
-                  </p>
-                </div>
-              )}
 
               <div className="flex gap-4 pt-4">
                 <Button
@@ -2248,29 +2201,6 @@ export default function RegisterPage() {
                 を登録しました。
               </p>
 
-              {groups.length > 0 && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    <svg
-                      className="w-4 h-4 inline mr-1"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                    </svg>
-                    <span className="font-medium">
-                      この家電はグループ「{groups[0].name}」で共有されます
-                    </span>
-                  </p>
-                </div>
-              )}
-
               {selectedItemIds.size > 0 && (
                 <p className="text-sm text-gray-500 mb-6">
                   {selectedItemIds.size}件のメンテナンス項目も登録されました。
@@ -2310,7 +2240,6 @@ export default function RegisterPage() {
                     setSharedMaintenanceItems([]);
                     setSelectedItemIds(new Set());
                     setIsMaintenanceCached(false);
-                    setSelectedGroupId("");
                   }}
                 >
                   続けて登録する
