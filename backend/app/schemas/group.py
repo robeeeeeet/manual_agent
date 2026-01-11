@@ -1,7 +1,6 @@
 """Pydantic schemas for group-related API operations (Phase 7: Family Sharing)"""
 
 from datetime import datetime
-from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -54,7 +53,6 @@ class GroupMemberInfo(BaseModel):
     id: UUID = Field(..., description="Membership ID")
     user_id: UUID = Field(..., description="User ID")
     email: str = Field(..., description="User email")
-    role: Literal["owner", "member"] = Field(..., description="Role in the group")
     joined_at: datetime = Field(..., description="Join timestamp")
 
     model_config = {"from_attributes": True}
