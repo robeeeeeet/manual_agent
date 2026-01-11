@@ -21,6 +21,8 @@ import type {
   PdfCandidate,
 } from "@/types/appliance";
 import type { GroupWithMembers } from "@/types/group";
+import { TierLimitError } from "@/types/user";
+import TierLimitModal from "@/components/tier/TierLimitModal";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -41,6 +43,9 @@ export default function RegisterPage() {
   // Step 4: Maintenance item detail modal
   const [selectedItemForDetail, setSelectedItemForDetail] = useState<SharedMaintenanceItem | null>(null);
   const [showItemDetailModal, setShowItemDetailModal] = useState(false);
+
+  // Tier limit error
+  const [tierLimitError, setTierLimitError] = useState<TierLimitError | null>(null);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -674,6 +679,14 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+
+        // Check for tier limit exceeded
+        if (response.status === 403 && errorData.error === "TIER_LIMIT_EXCEEDED") {
+          setTierLimitError(errorData);
+          setIsSaving(false);
+          return;
+        }
+
         throw new Error(
           errorData.details ||
             errorData.error ||
@@ -2230,6 +2243,18 @@ export default function RegisterPage() {
           )}
         </div>
       </Modal>
+
+      {/* Tier Limit Modal */}
+      {tierLimitError && (
+        <TierLimitModal
+          isOpen={!!tierLimitError}
+          onClose={() => setTierLimitError(null)}
+          message={tierLimitError.message}
+          currentUsage={tierLimitError.current_usage}
+          limit={tierLimitError.limit}
+          tierName={tierLimitError.tier_display_name}
+        />
+      )}
     </div>
   );
 }

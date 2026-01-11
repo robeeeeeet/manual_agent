@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -54,6 +55,44 @@ export async function POST(request: NextRequest) {
         JSON.stringify({ error: "manufacturer and model_number are required" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
+    }
+
+    // Get authenticated user
+    const supabase = await createClient();
+    if (!supabase) {
+      return new Response(
+        JSON.stringify({ error: "Service unavailable", code: "SERVICE_UNAVAILABLE" }),
+        { status: 503, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", code: "UNAUTHORIZED" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check tier limit before search
+    const tierCheckResponse = await fetch(`${BACKEND_URL}/api/v1/tiers/check-manual-search`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-ID": user.id,
+      },
+    });
+
+    if (!tierCheckResponse.ok) {
+      const errorData = await tierCheckResponse.json();
+      return new Response(JSON.stringify(errorData), {
+        status: tierCheckResponse.status,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // First, check for existing stored PDF (unless explicitly skipped)

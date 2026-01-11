@@ -22,6 +22,7 @@ from app.schemas.qa import (
     QASessionListResponse,
 )
 from app.schemas.qa_abuse import InvalidQuestionError, QABlockedError
+from app.schemas.tier import TierLimitExceededError
 from app.services.pdf_storage import MANUALS_BUCKET
 from app.services.qa_abuse_service import (
     check_user_restriction,
@@ -48,6 +49,7 @@ from app.services.qa_session_service import (
     reset_active_session,
 )
 from app.services.supabase_client import get_supabase_client
+from app.services.tier_service import check_and_increment_qa_question
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/qa", tags=["qa"])
@@ -336,6 +338,20 @@ async def ask_question_stream(
         return JSONResponse(
             status_code=403,
             content=error_response.model_dump(mode="json"),
+        )
+
+    # Check tier limit for QA questions
+    tier_check = await check_and_increment_qa_question(user_id_str)
+    if not tier_check["allowed"]:
+        return JSONResponse(
+            status_code=403,
+            content=TierLimitExceededError(
+                message="本日のQA質問回数が上限に達しました",
+                current_usage=tier_check["current_usage"],
+                limit=tier_check["limit"],
+                tier=tier_check["tier_name"],
+                tier_display_name=tier_check["tier_display_name"],
+            ).model_dump(),
         )
 
     appliance = await get_shared_appliance(shared_appliance_id)
