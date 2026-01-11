@@ -1,100 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Button from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import FeatureCard from "@/components/ui/FeatureCard";
 import { useAuth } from "@/contexts/AuthContext";
 import MaintenanceListItem from "@/components/maintenance/MaintenanceListItem";
 import MaintenanceCompleteModal from "@/components/maintenance/MaintenanceCompleteModal";
+import { useAppliances } from "@/hooks/useAppliances";
+import { useMaintenance } from "@/hooks/useMaintenance";
 import {
-  UserApplianceWithDetails,
   MaintenanceWithAppliance,
-  MaintenanceListResponse,
   MaintenanceSchedule,
 } from "@/types/appliance";
 
-interface HomeMaintenanceSchedule {
-  id: string;
-  task_name: string;
-  next_due_at: string;
-  importance: "high" | "medium" | "low";
-}
-
-// Extended type for home page (includes maintenance schedules for future use)
-interface ApplianceWithMaintenance extends UserApplianceWithDetails {
-  maintenance_schedules?: HomeMaintenanceSchedule[];
-}
-
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
-  const [appliances, setAppliances] = useState<ApplianceWithMaintenance[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Urgent maintenance state
-  const [urgentMaintenance, setUrgentMaintenance] = useState<
-    MaintenanceWithAppliance[]
-  >([]);
-  const [maintenanceLoading, setMaintenanceLoading] = useState(true);
+  // SWR hooks for data fetching
+  const { appliances: allAppliances, isLoading: appliancesLoading } = useAppliances();
+  const { items: urgentMaintenance, isLoading: maintenanceLoading, refetch: refetchMaintenance } = useMaintenance("overdue,upcoming");
+
+  // Limit appliances to 3 for home page
+  const appliances = allAppliances.slice(0, 3);
+  // Limit urgent maintenance to 5 for home page
+  const limitedUrgentMaintenance = urgentMaintenance.slice(0, 5);
 
   // Complete modal state
   const [selectedItem, setSelectedItem] =
     useState<MaintenanceWithAppliance | null>(null);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
-
-  // Fetch appliances and maintenance data
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!user) {
-        setIsLoading(false);
-        setMaintenanceLoading(false);
-        return;
-      }
-
-      try {
-        // Fetch appliances and maintenance in parallel
-        const [appliancesRes, maintenanceRes] = await Promise.all([
-          fetch("/api/appliances"),
-          fetch("/api/maintenance?status=overdue,upcoming"),
-        ]);
-
-        if (appliancesRes.ok) {
-          const appliancesData = await appliancesRes.json();
-          setAppliances(appliancesData.slice(0, 3));
-        }
-
-        if (maintenanceRes.ok) {
-          const maintenanceData: MaintenanceListResponse =
-            await maintenanceRes.json();
-          // Show up to 5 urgent items
-          setUrgentMaintenance(maintenanceData.items.slice(0, 5));
-        }
-      } catch (err) {
-        console.error("Error fetching data:", err);
-      } finally {
-        setIsLoading(false);
-        setMaintenanceLoading(false);
-      }
-    };
-
-    if (!authLoading) {
-      fetchData();
-    }
-  }, [user, authLoading]);
-
-  // Refetch maintenance after completion
-  const refetchMaintenance = async () => {
-    try {
-      const response = await fetch("/api/maintenance?status=overdue,upcoming");
-      if (response.ok) {
-        const data: MaintenanceListResponse = await response.json();
-        setUrgentMaintenance(data.items.slice(0, 5));
-      }
-    } catch (err) {
-      console.error("Error refetching maintenance:", err);
-    }
-  };
 
   // Handle completion modal
   const openCompleteModal = (item: MaintenanceWithAppliance) => {
@@ -105,7 +41,7 @@ export default function Home() {
   const handleCompleteSuccess = () => {
     setShowCompleteModal(false);
     setSelectedItem(null);
-    refetchMaintenance();
+    refetchMaintenance(); // Already returns the mutate function from SWR
   };
 
   // Convert MaintenanceWithAppliance to MaintenanceSchedule for modal
@@ -126,46 +62,6 @@ export default function Home() {
         updated_at: "",
       }
     : null;
-
-  // Get the nearest due maintenance for an appliance
-  const getNearestDueMaintenance = (
-    schedules: HomeMaintenanceSchedule[]
-  ): HomeMaintenanceSchedule | null => {
-    if (!schedules || schedules.length === 0) return null;
-
-    const sortedSchedules = [...schedules].sort(
-      (a, b) =>
-        new Date(a.next_due_at).getTime() - new Date(b.next_due_at).getTime()
-    );
-
-    return sortedSchedules[0] || null;
-  };
-
-  // Get days until due
-  const getDaysUntilDue = (dateString: string): number => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const dueDate = new Date(dateString);
-    dueDate.setHours(0, 0, 0, 0);
-    return Math.floor(
-      (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-    );
-  };
-
-  // Get status badge color based on days until due
-  const getDueStatusColor = (daysUntil: number): string => {
-    if (daysUntil < 0) return "bg-red-100 text-red-700";
-    if (daysUntil <= 7) return "bg-yellow-100 text-yellow-700";
-    return "bg-green-100 text-green-700";
-  };
-
-  // Get status text based on days until due
-  const getDueStatusText = (daysUntil: number): string => {
-    if (daysUntil < 0) return `${Math.abs(daysUntil)}日超過`;
-    if (daysUntil === 0) return "今日";
-    if (daysUntil === 1) return "明日";
-    return `${daysUntil}日後`;
-  };
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -200,7 +96,7 @@ export default function Home() {
       </section>
 
       {/* Urgent Maintenance Section */}
-      {user && !authLoading && !maintenanceLoading && urgentMaintenance.length > 0 && (
+      {user && !authLoading && !maintenanceLoading && limitedUrgentMaintenance.length > 0 && (
         <section className="py-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-gray-900">
@@ -215,7 +111,7 @@ export default function Home() {
           </div>
           <Card>
             <CardBody className="py-2">
-              {urgentMaintenance.map((item) => (
+              {limitedUrgentMaintenance.map((item) => (
                 <MaintenanceListItem
                   key={item.id}
                   item={item}
@@ -244,7 +140,7 @@ export default function Home() {
         </div>
 
         {/* Loading State */}
-        {(authLoading || isLoading) && user && (
+        {(authLoading || appliancesLoading) && user && (
           <Card>
             <CardBody className="py-12">
               <div className="flex justify-center">
@@ -292,7 +188,7 @@ export default function Home() {
         )}
 
         {/* Empty State */}
-        {!authLoading && !isLoading && user && appliances.length === 0 && (
+        {!authLoading && !appliancesLoading && user && appliances.length === 0 && (
           <Card>
             <CardBody className="py-16 text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -324,91 +220,64 @@ export default function Home() {
         )}
 
         {/* Appliance Cards */}
-        {!authLoading && !isLoading && appliances.length > 0 && (
+        {!authLoading && !appliancesLoading && appliances.length > 0 && (
           <div className="space-y-4">
-            {appliances.map((appliance) => {
-              const nearestMaintenance = getNearestDueMaintenance(
-                appliance.maintenance_schedules || []
-              );
-              const daysUntil = nearestMaintenance
-                ? getDaysUntilDue(nearestMaintenance.next_due_at)
-                : null;
+            {appliances.map((appliance) => (
+              <Card key={appliance.id}>
+                <CardBody>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-bold text-gray-900">
+                          {appliance.name}
+                        </h3>
+                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">
+                          {appliance.category}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {appliance.maker} {appliance.model_number}
+                      </p>
 
-              return (
-                <Card key={appliance.id}>
-                  <CardBody>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-gray-900">
-                            {appliance.name}
-                          </h3>
-                          <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">
-                            {appliance.category}
+                      {/* Maintenance info from next_maintenance */}
+                      {appliance.next_maintenance && (
+                        <div className="mt-3">
+                          <span className="text-sm text-gray-600">
+                            次回: {appliance.next_maintenance.task_name}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-600">
-                          {appliance.maker} {appliance.model_number}
-                        </p>
-
-                        {/* Maintenance info */}
-                        {nearestMaintenance && daysUntil !== null && (
-                          <div className="mt-3 flex items-center gap-2 min-w-0">
-                            <span
-                              className={`px-2 py-1 text-xs font-medium rounded flex-shrink-0 ${getDueStatusColor(
-                                daysUntil
-                              )}`}
-                            >
-                              {getDueStatusText(daysUntil)}
-                            </span>
-                            <span
-                              className="text-sm text-gray-600 line-clamp-2"
-                              title={nearestMaintenance.task_name}
-                            >
-                              {nearestMaintenance.task_name}
-                            </span>
-                          </div>
-                        )}
-
-                        {appliance.maintenance_schedules &&
-                          appliance.maintenance_schedules.length > 0 && (
-                            <p className="text-xs text-gray-500 mt-2">
-                              {appliance.maintenance_schedules.length}
-                              件のメンテナンス項目
-                            </p>
-                          )}
-                      </div>
-
-                      <div className="flex flex-col items-end gap-2">
-                        {appliance.manual_source_url && (
-                          <a
-                            href={appliance.manual_source_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                          >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                              />
-                            </svg>
-                            説明書
-                          </a>
-                        )}
-                      </div>
+                      )}
                     </div>
-                  </CardBody>
-                </Card>
-              );
-            })}
+
+                    <div className="flex flex-col items-end gap-2">
+                      {appliance.manual_source_url && (
+                        <a
+                          href={appliance.manual_source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                            />
+                          </svg>
+                          説明書
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
           </div>
         )}
       </section>
