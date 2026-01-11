@@ -18,7 +18,8 @@ interface AuthContextType {
   loading: boolean;
   signUp: (
     email: string,
-    password: string
+    password: string,
+    displayName: string
   ) => Promise<{ error: AuthError | null }>;
   signIn: (
     email: string,
@@ -77,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const signUp = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, displayName: string) => {
       if (!supabase) {
         return { error: { message: "Supabase client not initialized" } as AuthError };
       }
@@ -86,6 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            display_name: displayName,
+          },
         },
       });
       return { error };

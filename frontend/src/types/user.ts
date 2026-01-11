@@ -13,6 +13,7 @@ export interface UserProfile {
  * ユーザー設定情報
  */
 export interface UserSettings {
+  display_name: string; // 表示名
   notify_time: string; // "HH:MM" 形式
   timezone: string; // IANA timezone
   updated_at: string; // ISO 8601
@@ -22,6 +23,7 @@ export interface UserSettings {
  * ユーザー設定更新リクエスト
  */
 export interface UserSettingsUpdate {
+  display_name?: string; // 表示名
   notify_time?: string; // "HH:MM" 形式
 }
 

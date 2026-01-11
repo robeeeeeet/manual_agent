@@ -106,6 +106,17 @@ export default function RegisterPage() {
     name: string;
   } | null>(null);
 
+  // Duplicate detection state (Plan 11)
+  interface DuplicateAppliance {
+    id: string;
+    name: string;
+    owner_type: "group" | "personal";
+    owner_name: string;
+  }
+  const [duplicateAppliances, setDuplicateAppliances] = useState<DuplicateAppliance[]>([]);
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [duplicateNameConflict, setDuplicateNameConflict] = useState(false);
+
   // Step 4: Maintenance extraction (legacy)
   const [isExtractingMaintenance, setIsExtractingMaintenance] = useState(false);
   const [maintenanceResult, setMaintenanceResult] =
@@ -413,6 +424,59 @@ export default function RegisterPage() {
     } finally {
       setIsSearchingManual(false);
     }
+  };
+
+  // Step 2 to Step 3: Check for duplicates
+  const handleStep2ToStep3 = async () => {
+    // Check for existing PDF and duplicates
+    try {
+      const response = await fetch("/api/appliances/check-existing", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          manufacturer: formData.manufacturer,
+          model_number: formData.modelNumber,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // Check for duplicates in group
+        if (data.duplicate_in_group?.exists && data.duplicate_in_group.appliances.length > 0) {
+          setDuplicateAppliances(data.duplicate_in_group.appliances);
+
+          // Check if any duplicate has the same name
+          const hasNameConflict = data.duplicate_in_group.appliances.some(
+            (app: DuplicateAppliance) => app.name === formData.name
+          );
+          setDuplicateNameConflict(hasNameConflict);
+
+          // Show warning dialog
+          setShowDuplicateWarning(true);
+          return; // Don't proceed yet
+        }
+      }
+    } catch (error) {
+      console.error("Failed to check duplicates:", error);
+      // Continue anyway if check fails
+    }
+
+    // No duplicates or check failed - proceed to step 3
+    setCurrentStep(3);
+  };
+
+  // Handle duplicate warning confirmation
+  const handleDuplicateConfirm = () => {
+    setShowDuplicateWarning(false);
+    if (duplicateNameConflict) {
+      // Name conflict - don't proceed, ask user to change name
+      return;
+    }
+    // No name conflict - proceed to step 3
+    setCurrentStep(3);
   };
 
   // Step 3: Confirm manual PDF
@@ -1421,7 +1485,7 @@ export default function RegisterPage() {
                   戻る
                 </Button>
                 <Button
-                  onClick={() => setCurrentStep(3)}
+                  onClick={handleStep2ToStep3}
                   className="flex-1"
                   disabled={
                     !formData.manufacturer ||
@@ -2184,6 +2248,29 @@ export default function RegisterPage() {
                 を登録しました。
               </p>
 
+              {groups.length > 0 && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <svg
+                      className="w-4 h-4 inline mr-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
+                    </svg>
+                    <span className="font-medium">
+                      この家電はグループ「{groups[0].name}」で共有されます
+                    </span>
+                  </p>
+                </div>
+              )}
+
               {selectedItemIds.size > 0 && (
                 <p className="text-sm text-gray-500 mb-6">
                   {selectedItemIds.size}件のメンテナンス項目も登録されました。
@@ -2364,6 +2451,137 @@ export default function RegisterPage() {
           limit={tierLimitError.limit}
           tierName={tierLimitError.tier_display_name}
         />
+      )}
+
+      {/* Duplicate Warning Modal (Plan 11 - 重複登録禁止) */}
+      {showDuplicateWarning && (
+        <Modal
+          isOpen={showDuplicateWarning}
+          onClose={() => {
+            setShowDuplicateWarning(false);
+            setDuplicateAppliances([]);
+          }}
+          variant="dialog"
+        >
+          <div className="p-6 space-y-4">
+            {/* Determine the duplicate type */}
+            {(() => {
+              const ownedBySelf = duplicateAppliances.find(app => app.owner_name === "あなた");
+              const ownedByGroup = duplicateAppliances.find(app => app.owner_type === "group");
+              const ownedByMember = duplicateAppliances.find(app => app.owner_type === "personal" && app.owner_name !== "あなた");
+
+              // Case C: Already owned by self
+              if (ownedBySelf) {
+                return (
+                  <>
+                    <h2 className="text-xl font-bold text-gray-900">
+                      この家電は既に登録されています
+                    </h2>
+                    <p className="text-sm text-gray-700">
+                      同じメーカー・型番の家電は既に登録済みです。
+                    </p>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="font-medium text-blue-900">{ownedBySelf.name}</p>
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setShowDuplicateWarning(false);
+                          setDuplicateAppliances([]);
+                        }}
+                        className="flex-1"
+                      >
+                        閉じる
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          window.location.href = `/appliances/${ownedBySelf.id}`;
+                        }}
+                        className="flex-1"
+                      >
+                        登録済みの家電を見る
+                      </Button>
+                    </div>
+                  </>
+                );
+              }
+
+              // Case B: Already shared with group
+              if (ownedByGroup) {
+                return (
+                  <>
+                    <h2 className="text-xl font-bold text-gray-900">
+                      この家電はグループで共有されています
+                    </h2>
+                    <p className="text-sm text-gray-700">
+                      同じメーカー・型番の家電はグループ「{ownedByGroup.owner_name}」で既に共有されています。
+                    </p>
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                      <p className="font-medium text-purple-900">{ownedByGroup.name}</p>
+                      <p className="text-sm text-purple-700">グループ共有</p>
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setShowDuplicateWarning(false);
+                          setDuplicateAppliances([]);
+                        }}
+                        className="flex-1"
+                      >
+                        閉じる
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          window.location.href = `/appliances/${ownedByGroup.id}`;
+                        }}
+                        className="flex-1"
+                      >
+                        共有済みの家電を見る
+                      </Button>
+                    </div>
+                  </>
+                );
+              }
+
+              // Case A: Owned by group member (personal)
+              if (ownedByMember) {
+                return (
+                  <>
+                    <h2 className="text-xl font-bold text-gray-900">
+                      グループメンバーが同じ家電を持っています
+                    </h2>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-medium">{ownedByMember.owner_name}</span>さんが同じメーカー・型番の家電を登録しています。
+                    </p>
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                      <p className="font-medium text-yellow-900">{ownedByMember.name}</p>
+                      <p className="text-sm text-yellow-700">{ownedByMember.owner_name}さんが所有</p>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      {ownedByMember.owner_name}さんに家電をグループで共有してもらうよう依頼してください。
+                    </p>
+                    <div className="flex gap-3 pt-2">
+                      <Button
+                        onClick={() => {
+                          setShowDuplicateWarning(false);
+                          setDuplicateAppliances([]);
+                        }}
+                        className="flex-1"
+                      >
+                        閉じる
+                      </Button>
+                    </div>
+                  </>
+                );
+              }
+
+              // Fallback (shouldn't happen)
+              return null;
+            })()}
+          </div>
+        </Modal>
       )}
     </div>
   );

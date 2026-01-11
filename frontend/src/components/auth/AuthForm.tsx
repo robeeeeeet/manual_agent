@@ -15,6 +15,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -59,6 +60,18 @@ export default function AuthForm({ mode }: AuthFormProps) {
       return;
     }
 
+    if (!isLogin && !displayName.trim()) {
+      setError("表示名を入力してください");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!isLogin && displayName.trim().length > 20) {
+      setError("表示名は20文字以内で入力してください");
+      setIsLoading(false);
+      return;
+    }
+
     if (password.length < 6) {
       setError("パスワードは6文字以上で入力してください");
       setIsLoading(false);
@@ -83,7 +96,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
           return; // isLoadingをfalseにしない（ナビゲーション中のため）
         }
       } else {
-        const { error } = await signUp(email, password);
+        const { error } = await signUp(email, password, displayName.trim());
         if (error) {
           if (error.message.includes("already registered")) {
             setError("このメールアドレスは既に登録されています");
@@ -389,6 +402,30 @@ export default function AuthForm({ mode }: AuthFormProps) {
                   autoComplete="new-password"
                   disabled={isLoading}
                 />
+              </div>
+            )}
+
+            {!isLogin && (
+              <div>
+                <label
+                  htmlFor="displayName"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  表示名 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="displayName"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  placeholder="グループ内で表示される名前"
+                  maxLength={20}
+                  disabled={isLoading}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  グループで家電を共有する際に表示されます（20文字以内）
+                </p>
               </div>
             )}
 
