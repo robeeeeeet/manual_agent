@@ -31,6 +31,7 @@ export async function POST(
 
     const { sharedApplianceId } = await params;
     const body = await request.json();
+    const { question, session_id } = body;
 
     // Call backend API with user ID in header
     const response = await fetch(
@@ -41,7 +42,7 @@ export async function POST(
           'Content-Type': 'application/json',
           'X-User-ID': user.id,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ question, session_id }),
       }
     );
 

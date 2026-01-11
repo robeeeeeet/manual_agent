@@ -25,6 +25,7 @@ export interface QAGetResponse {
 // 質問リクエスト
 export interface QAAskRequest {
   question: string;
+  session_id?: string; // 会話履歴セッションID
 }
 
 // 質問レスポンス
@@ -71,6 +72,7 @@ export interface QAStreamEvent {
   reference?: string | null;
   added_to_qa?: boolean;
   error?: string;
+  session_id?: string; // 会話履歴セッションID
 }
 
 // 検索ステップの進捗状態
@@ -104,3 +106,50 @@ export type QAError =
   | QABlockedError
   | InvalidQuestionError
   | { error: string; code?: string };
+
+// --- QAセッション関連の型 ---
+
+// セッションのメッセージ（バックエンドからの履歴）
+export interface ChatHistoryMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  source?: 'qa' | 'text_cache' | 'pdf' | 'none' | null;
+  reference?: string | null;
+  created_at: string;
+}
+
+// セッション一覧用のサマリー
+export interface QASessionSummary {
+  id: string;
+  shared_appliance_id: string;
+  is_active: boolean;
+  message_count: number;
+  summary: string | null; // LLMで要約された会話タイトル
+  first_message: string | null; // プレビュー用（summaryがない場合のフォールバック）
+  created_at: string;
+  last_activity_at: string;
+}
+
+// セッション詳細（メッセージ含む）
+export interface QASessionDetail {
+  id: string;
+  user_id: string;
+  shared_appliance_id: string;
+  is_active: boolean;
+  messages: ChatHistoryMessage[];
+  created_at: string;
+  last_activity_at: string;
+}
+
+// セッション一覧レスポンス
+export interface QASessionListResponse {
+  sessions: QASessionSummary[];
+}
+
+// セッションリセットレスポンス
+export interface QAResetSessionResponse {
+  success: boolean;
+  message: string;
+  new_session_id: string | null;
+}
