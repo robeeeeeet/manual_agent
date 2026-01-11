@@ -13,8 +13,8 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "説明書管理 - メンテナンスリマインドアプリ",
-  description: "家電や住宅設備の説明書を管理し、メンテナンス項目をリマインドするWebアプリ",
+  title: "トリセツコンシェルジュ - AIが取説検索・メンテ管理・疑問解決",
+  description: "AIが「取説検索」「メンテ管理」「疑問解決」を全自動で。",
   manifest: "/manifest.json",
   themeColor: "#3b82f6",
   viewport: {
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "説明書管理",
+    title: "トリセツコンシェルジュ",
   },
 };
 

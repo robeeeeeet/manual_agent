@@ -68,12 +68,10 @@ export default function Home() {
       {/* Hero Section */}
       <section className="text-center py-12">
         <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-          説明書管理 & メンテナンスリマインド
+          トリセツコンシェルジュ
         </h1>
         <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-          家電や住宅設備の説明書を管理し、
-          <br className="hidden sm:inline" />
-          メンテナンス項目を自動でリマインドします
+          AIが「取説検索」「メンテ管理」「疑問解決」を全自動で。
         </p>
         <Link href="/register">
           <Button size="lg">

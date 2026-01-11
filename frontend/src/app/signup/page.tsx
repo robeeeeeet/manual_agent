@@ -2,8 +2,8 @@ import { Suspense } from "react";
 import AuthForm from "@/components/auth/AuthForm";
 
 export const metadata = {
-  title: "新規登録 - 説明書管理アプリ",
-  description: "説明書管理アプリの新規アカウント作成",
+  title: "新規登録 - トリセツコンシェルジュ",
+  description: "トリセツコンシェルジュの新規アカウント作成",
 };
 
 function SignupFormFallback() {

@@ -1,7 +1,7 @@
 {
-  "name": "説明書管理",
-  "short_name": "説明書管理",
-  "description": "家電や住宅設備の説明書を管理し、メンテナンス項目をリマインドするWebアプリ",
+  "name": "トリセツコンシェルジュ",
+  "short_name": "トリセツ",
+  "description": "AIが「取説検索」「メンテ管理」「疑問解決」を全自動で。",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
