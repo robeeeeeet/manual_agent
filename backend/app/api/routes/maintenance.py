@@ -16,6 +16,7 @@ from app.schemas.appliance import (
 from app.services.maintenance_log_service import (
     MaintenanceAccessDeniedError,
     MaintenanceNotFoundError,
+    archive_maintenance_schedule,
     delete_maintenance_schedule,
     get_all_maintenance_with_details,
 )
@@ -36,6 +37,7 @@ async def get_maintenance_list(
     status: str | None = None,
     importance: str | None = None,
     appliance_id: str | None = None,
+    include_archived: bool = False,
 ) -> MaintenanceListResponse:
     """
     Get all maintenance schedules for the authenticated user.
@@ -45,6 +47,7 @@ async def get_maintenance_list(
         status: Filter by status (comma-separated: overdue,upcoming,scheduled,manual)
         importance: Filter by importance (comma-separated: high,medium,low)
         appliance_id: Filter by specific appliance UUID
+        include_archived: If True, include archived schedules (default: False)
 
     Returns:
         MaintenanceListResponse with items and counts by status
@@ -76,6 +79,7 @@ async def get_maintenance_list(
         status_filter=status_filter,
         importance_filter=importance_filter,
         appliance_id=appliance_id,
+        include_archived=include_archived,
     )
 
     return MaintenanceListResponse(
@@ -112,6 +116,78 @@ async def delete_maintenance(
 
     try:
         result = await delete_maintenance_schedule(user_id, schedule_id)
+        return result
+    except MaintenanceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except MaintenanceAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+
+
+@router.patch("/{schedule_id}/archive")
+async def archive_maintenance(
+    schedule_id: str,
+    x_user_id: Annotated[str | None, Header()] = None,
+) -> dict:
+    """
+    Archive a maintenance schedule.
+
+    Authorization: User must have access to the appliance that the schedule belongs to.
+    This means either:
+    - User is the personal owner of the appliance, OR
+    - User is a member of the group that owns the appliance
+
+    Args:
+        schedule_id: Maintenance schedule UUID
+        x_user_id: User ID from header (required)
+
+    Returns:
+        dict with result: {"success": True, "schedule_id": "...", "is_archived": True}
+
+    Raises:
+        404: If schedule not found
+        403: If user doesn't have access
+    """
+    user_id = _get_user_id_from_header(x_user_id)
+
+    try:
+        result = await archive_maintenance_schedule(user_id, schedule_id, archived=True)
+        return result
+    except MaintenanceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except MaintenanceAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+
+
+@router.patch("/{schedule_id}/unarchive")
+async def unarchive_maintenance(
+    schedule_id: str,
+    x_user_id: Annotated[str | None, Header()] = None,
+) -> dict:
+    """
+    Unarchive (restore) a maintenance schedule.
+
+    Authorization: User must have access to the appliance that the schedule belongs to.
+    This means either:
+    - User is the personal owner of the appliance, OR
+    - User is a member of the group that owns the appliance
+
+    Args:
+        schedule_id: Maintenance schedule UUID
+        x_user_id: User ID from header (required)
+
+    Returns:
+        dict with result: {"success": True, "schedule_id": "...", "is_archived": False}
+
+    Raises:
+        404: If schedule not found
+        403: If user doesn't have access
+    """
+    user_id = _get_user_id_from_header(x_user_id)
+
+    try:
+        result = await archive_maintenance_schedule(
+            user_id, schedule_id, archived=False
+        )
         return result
     except MaintenanceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

@@ -68,6 +68,13 @@ export default function ApplianceDetailPage({
     useState<MaintenanceSchedule | null>(null);
   const [isDeletingSchedule, setIsDeletingSchedule] = useState(false);
 
+  // Archive state
+  const [archivedSchedules, setArchivedSchedules] = useState<
+    MaintenanceSchedule[]
+  >([]);
+  const [showArchivedSection, setShowArchivedSection] = useState(false);
+  const [isArchiving, setIsArchiving] = useState<string | null>(null);
+
   // Fetch appliance details
   useEffect(() => {
     const fetchData = async () => {
@@ -88,13 +95,16 @@ export default function ApplianceDetailPage({
         const applianceData: UserApplianceWithDetails = await response.json();
         setAppliance(applianceData);
 
-        // Fetch maintenance schedules via BFF API
-        const maintenanceResponse = await fetch(`/api/maintenance?appliance_id=${id}`);
+        // Fetch maintenance schedules via BFF API (include archived for separation)
+        const maintenanceResponse = await fetch(
+          `/api/maintenance?appliance_id=${id}&include_archived=true`
+        );
         if (maintenanceResponse.ok) {
-          const maintenanceData: MaintenanceListResponse = await maintenanceResponse.json();
+          const maintenanceData: MaintenanceListResponse =
+            await maintenanceResponse.json();
           // Convert MaintenanceWithAppliance to MaintenanceSchedule
-          const convertedSchedules: MaintenanceSchedule[] = maintenanceData.items.map(
-            (item: MaintenanceWithAppliance) => ({
+          const convertedSchedules: MaintenanceSchedule[] =
+            maintenanceData.items.map((item: MaintenanceWithAppliance) => ({
               id: item.id,
               user_appliance_id: item.appliance_id,
               shared_item_id: null,
@@ -108,9 +118,13 @@ export default function ApplianceDetailPage({
               importance: item.importance,
               created_at: "",
               updated_at: "",
-            })
-          );
-          setSchedules(convertedSchedules);
+              is_archived: item.is_archived,
+            }));
+          // Separate active and archived schedules
+          const active = convertedSchedules.filter((s) => !s.is_archived);
+          const archived = convertedSchedules.filter((s) => s.is_archived);
+          setSchedules(active);
+          setArchivedSchedules(archived);
         }
       } catch (err) {
         console.error("Error fetching appliance:", err);
@@ -155,12 +169,15 @@ export default function ApplianceDetailPage({
   // Fetch maintenance schedules
   const fetchSchedules = async () => {
     try {
-      const maintenanceResponse = await fetch(`/api/maintenance?appliance_id=${id}`);
+      const maintenanceResponse = await fetch(
+        `/api/maintenance?appliance_id=${id}&include_archived=true`
+      );
       if (maintenanceResponse.ok) {
-        const maintenanceData: MaintenanceListResponse = await maintenanceResponse.json();
+        const maintenanceData: MaintenanceListResponse =
+          await maintenanceResponse.json();
         // Convert MaintenanceWithAppliance to MaintenanceSchedule
-        const convertedSchedules: MaintenanceSchedule[] = maintenanceData.items.map(
-          (item: MaintenanceWithAppliance) => ({
+        const convertedSchedules: MaintenanceSchedule[] =
+          maintenanceData.items.map((item: MaintenanceWithAppliance) => ({
             id: item.id,
             user_appliance_id: item.appliance_id,
             shared_item_id: null,
@@ -174,12 +191,56 @@ export default function ApplianceDetailPage({
             importance: item.importance,
             created_at: "",
             updated_at: "",
-          })
-        );
-        setSchedules(convertedSchedules);
+            is_archived: item.is_archived,
+          }));
+        // Separate active and archived schedules
+        const active = convertedSchedules.filter((s) => !s.is_archived);
+        const archived = convertedSchedules.filter((s) => s.is_archived);
+        setSchedules(active);
+        setArchivedSchedules(archived);
       }
     } catch (err) {
       console.error("Error fetching schedules:", err);
+    }
+  };
+
+  // Archive a maintenance schedule
+  const handleArchive = async (scheduleId: string) => {
+    setIsArchiving(scheduleId);
+    try {
+      const response = await fetch(`/api/maintenance/${scheduleId}/archive`, {
+        method: "PATCH",
+      });
+      if (response.ok) {
+        await fetchSchedules();
+      } else {
+        const data = await response.json();
+        console.error("Archive error:", data.error);
+      }
+    } catch (err) {
+      console.error("Archive error:", err);
+    } finally {
+      setIsArchiving(null);
+    }
+  };
+
+  // Unarchive a maintenance schedule
+  const handleUnarchive = async (scheduleId: string) => {
+    setIsArchiving(scheduleId);
+    try {
+      const response = await fetch(`/api/maintenance/${scheduleId}/unarchive`, {
+        method: "PATCH",
+      });
+      if (response.ok) {
+        await fetchSchedules();
+      } else {
+        const data = await response.json();
+        console.error("Unarchive error:", data.error);
+      }
+    } catch (err) {
+      console.error("Unarchive error:", err);
+    } finally {
+      setIsArchiving(null);
     }
   };
 
@@ -669,6 +730,32 @@ export default function ApplianceDetailPage({
 
                       {/* Action buttons */}
                       <div className="flex items-center gap-2">
+                        {/* Archive button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleArchive(schedule.id);
+                          }}
+                          disabled={isArchiving === schedule.id}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+                          title="アーカイブ"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
+                            />
+                          </svg>
+                        </button>
+
                         {/* Delete button */}
                         <button
                           type="button"
@@ -714,6 +801,57 @@ export default function ApplianceDetailPage({
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Archived Section */}
+          {archivedSchedules.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => setShowArchivedSection(!showArchivedSection)}
+                className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <svg
+                  className={`w-4 h-4 transition-transform ${showArchivedSection ? "rotate-90" : ""}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+                アーカイブ済み ({archivedSchedules.length}件)
+              </button>
+
+              {showArchivedSection && (
+                <div className="mt-3 space-y-2">
+                  {archivedSchedules.map((schedule) => (
+                    <div
+                      key={schedule.id}
+                      className="p-3 bg-gray-100 rounded-lg opacity-70"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600 line-through">
+                          {schedule.task_name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleUnarchive(schedule.id)}
+                          disabled={isArchiving === schedule.id}
+                          className="text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                        >
+                          {isArchiving === schedule.id ? "復元中..." : "復元"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </CardBody>

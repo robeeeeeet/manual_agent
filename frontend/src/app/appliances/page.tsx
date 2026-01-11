@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import Button from "@/components/ui/Button";
@@ -182,9 +181,16 @@ export default function AppliancesPage() {
                           {appliance.category}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mb-2">
+                      <p className="text-sm text-gray-600 mb-1">
                         {appliance.maker} {appliance.model_number}
                       </p>
+
+                      {/* Owner display name */}
+                      {appliance.owner_display_name && (
+                        <p className="text-xs text-gray-500 mb-2">
+                          登録者: {appliance.owner_display_name}さん
+                        </p>
+                      )}
 
                       {/* Next maintenance info */}
                       {appliance.next_maintenance ? (

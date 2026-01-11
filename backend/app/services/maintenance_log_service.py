@@ -325,6 +325,7 @@ async def get_all_maintenance_with_details(
     status_filter: list[str] | None = None,
     importance_filter: list[str] | None = None,
     appliance_id: str | None = None,
+    include_archived: bool = False,
 ) -> dict:
     """
     Get all maintenance schedules for a user with appliance details.
@@ -336,6 +337,7 @@ async def get_all_maintenance_with_details(
         status_filter: Filter by status ('overdue', 'upcoming', 'scheduled', 'manual')
         importance_filter: Filter by importance ('high', 'medium', 'low')
         appliance_id: Filter by specific appliance
+        include_archived: If True, include archived schedules (default: False)
 
     Returns:
         dict with:
@@ -426,17 +428,23 @@ async def get_all_maintenance_with_details(
 
         # Step 4: Get all maintenance schedules for these appliances
         # JOIN shared_maintenance_items to get task_name, description, etc.
-        schedules_response = (
+        query = (
             client.table("maintenance_schedules")
             .select(
                 "id, user_appliance_id, shared_item_id, interval_type, interval_value, "
-                "last_done_at, next_due_at, created_at, updated_at, "
+                "last_done_at, next_due_at, created_at, updated_at, is_archived, "
                 "shared_maintenance_items!inner(task_name, description, source_page, importance)"
             )
             .in_("user_appliance_id", appliance_ids)
-            .order("next_due_at", desc=False, nullsfirst=False)
-            .execute()
         )
+
+        # Filter archived schedules by default
+        if not include_archived:
+            query = query.eq("is_archived", False)
+
+        schedules_response = query.order(
+            "next_due_at", desc=False, nullsfirst=False
+        ).execute()
 
         if not schedules_response.data:
             return {"items": [], "counts": _empty_counts()}
@@ -462,9 +470,12 @@ async def get_all_maintenance_with_details(
                 seven_days_later,
             )
 
-            # Update counts
-            counts[status] += 1
-            counts["total"] += 1
+            is_archived = schedule.get("is_archived", False)
+
+            # Update counts (only for non-archived items)
+            if not is_archived:
+                counts[status] += 1
+                counts["total"] += 1
 
             # Apply filters
             if status_filter and status not in status_filter:
@@ -493,6 +504,7 @@ async def get_all_maintenance_with_details(
                     "category": shared.get("category", ""),
                     "status": status,
                     "days_until_due": days_until_due,
+                    "is_archived": is_archived,
                 }
             )
 
@@ -705,3 +717,105 @@ async def delete_maintenance_schedule(
     except Exception as e:
         logger.error(f"Error deleting maintenance schedule: {e}")
         raise MaintenanceNotFoundError(f"Failed to delete: {e}") from e
+
+
+async def archive_maintenance_schedule(
+    user_id: str,
+    schedule_id: str,
+    archived: bool = True,
+) -> dict:
+    """
+    Archive or unarchive a maintenance schedule.
+
+    Authorization: User must have access to the appliance that the schedule belongs to.
+    This means either:
+    - User is the personal owner of the appliance, OR
+    - User is a member of the group that owns the appliance
+
+    Args:
+        user_id: User's UUID
+        schedule_id: Maintenance schedule UUID
+        archived: True to archive, False to unarchive (default: True)
+
+    Returns:
+        dict with result: {"success": True, "schedule_id": "...", "is_archived": True/False}
+
+    Raises:
+        MaintenanceNotFoundError: If schedule not found
+        MaintenanceAccessDeniedError: If user doesn't have access
+    """
+    client = get_supabase_client()
+    if not client:
+        raise MaintenanceNotFoundError("Database not available")
+
+    try:
+        # 1. Get the schedule and its associated appliance
+        schedule_result = (
+            client.table("maintenance_schedules")
+            .select("id, user_appliance_id")
+            .eq("id", schedule_id)
+            .execute()
+        )
+
+        if not schedule_result.data:
+            raise MaintenanceNotFoundError(
+                f"Maintenance schedule {schedule_id} not found"
+            )
+
+        schedule = schedule_result.data[0]
+        user_appliance_id = schedule["user_appliance_id"]
+
+        # 2. Get the appliance to check ownership
+        appliance_result = (
+            client.table("user_appliances")
+            .select("id, user_id, group_id")
+            .eq("id", user_appliance_id)
+            .execute()
+        )
+
+        if not appliance_result.data:
+            raise MaintenanceNotFoundError("Associated appliance not found")
+
+        appliance = appliance_result.data[0]
+
+        # 3. Check access
+        has_access = False
+
+        # Check personal ownership
+        if appliance.get("user_id") == user_id:
+            has_access = True
+
+        # Check group membership
+        if not has_access and appliance.get("group_id"):
+            membership_result = (
+                client.table("group_members")
+                .select("id")
+                .eq("group_id", appliance["group_id"])
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if membership_result.data:
+                has_access = True
+
+        if not has_access:
+            raise MaintenanceAccessDeniedError(
+                "You don't have permission to archive this maintenance schedule"
+            )
+
+        # 4. Update is_archived
+        client.table("maintenance_schedules").update({"is_archived": archived}).eq(
+            "id", schedule_id
+        ).execute()
+
+        action = "Archived" if archived else "Unarchived"
+        logger.info(f"{action} maintenance schedule {schedule_id} by user {user_id}")
+
+        return {"success": True, "schedule_id": schedule_id, "is_archived": archived}
+
+    except MaintenanceNotFoundError:
+        raise
+    except MaintenanceAccessDeniedError:
+        raise
+    except Exception as e:
+        logger.error(f"Error archiving maintenance schedule: {e}")
+        raise MaintenanceNotFoundError(f"Failed to archive: {e}") from e

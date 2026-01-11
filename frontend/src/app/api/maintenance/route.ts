@@ -11,6 +11,7 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
  * - status: comma-separated status filter (overdue,upcoming,scheduled,manual)
  * - importance: comma-separated importance filter (high,medium,low)
  * - appliance_id: filter by specific appliance
+ * - include_archived: include archived schedules (default: false)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -43,10 +44,13 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const importance = searchParams.get("importance");
     const applianceId = searchParams.get("appliance_id");
+    const includeArchived = searchParams.get("include_archived");
 
     if (status) backendUrl.searchParams.set("status", status);
     if (importance) backendUrl.searchParams.set("importance", importance);
     if (applianceId) backendUrl.searchParams.set("appliance_id", applianceId);
+    if (includeArchived)
+      backendUrl.searchParams.set("include_archived", includeArchived);
 
     // Call backend API with user ID in header
     const response = await fetch(backendUrl.toString(), {
