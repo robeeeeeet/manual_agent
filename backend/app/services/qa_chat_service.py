@@ -48,8 +48,7 @@ async def search_qa_markdown(qa_content: str, question: str) -> dict | None:
 【指示】
 - 質問に対する回答がFAQにある場合は、その回答と参照ページを返してください
 - 回答がない場合は「NOT_FOUND」とだけ返してください
-- 回答はプレーンテキストで返してください（マークダウン記法は使用しない）
-- 回答がある場合は以下のJSON形式で返してください:
+- 回答がある場合は以下のJSON形式で返してください（answerフィールド内ではマークダウン記法を使用しない）:
 {{"answer": "回答内容", "reference": "P.XX"}}
 """
 
@@ -101,8 +100,7 @@ async def ask_text_cache(text_cache: str, question: str) -> dict | None:
 【指示】
 - 説明書の内容に基づいて回答してください
 - 説明書に記載がない場合は「NOT_FOUND」とだけ返してください
-- 回答はプレーンテキストで返してください（マークダウン記法は使用しない）
-- 回答がある場合は以下のJSON形式で返してください:
+- 回答がある場合は以下のJSON形式で返してください（answerフィールド内ではマークダウン記法を使用しない）:
 {{"answer": "回答内容", "reference": "P.XX（該当ページがあれば）"}}
 """
 
@@ -147,8 +145,7 @@ async def ask_pdf_directly(pdf_bytes: bytes, question: str) -> dict:
 【指示】
 - 説明書の内容に基づいて正確に回答してください
 - 該当するページ番号を含めてください
-- 回答はプレーンテキストで返してください（マークダウン記法は使用しない）
-- 以下のJSON形式で回答してください:
+- 以下のJSON形式で回答してください（answerフィールド内ではマークダウン記法を使用しない）:
 {{"answer": "回答内容", "reference": "P.XX"}}
 """
 
