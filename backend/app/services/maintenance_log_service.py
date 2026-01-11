@@ -82,7 +82,7 @@ async def complete_maintenance(
                 "id, user_appliance_id, shared_item_id, interval_type, interval_value, "
                 "last_done_at, next_due_at, created_at, updated_at, "
                 "shared_maintenance_items!inner(task_name, description, source_page, importance), "
-                "user_appliances!inner(user_id)"
+                "user_appliances!inner(user_id, group_id)"
             )
             .eq("id", schedule_id)
             .single()
@@ -93,9 +93,28 @@ async def complete_maintenance(
             return {"error": "Schedule not found"}
 
         schedule = schedule_response.data
+        appliance_info = schedule.get("user_appliances", {})
+        appliance_user_id = appliance_info.get("user_id")
+        appliance_group_id = appliance_info.get("group_id")
 
-        # Verify the user owns this schedule
-        if schedule.get("user_appliances", {}).get("user_id") != user_id:
+        # Verify the user has access to this schedule
+        # Either: user owns the appliance OR user is a member of the appliance's group
+        is_authorized = False
+        if appliance_user_id == user_id:
+            is_authorized = True
+        elif appliance_group_id:
+            # Check if user is a member of the group
+            member_check = (
+                client.table("group_members")
+                .select("id")
+                .eq("group_id", appliance_group_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if member_check.data:
+                is_authorized = True
+
+        if not is_authorized:
             return {"error": "Not authorized to complete this maintenance"}
 
         # Record the completion
@@ -183,10 +202,10 @@ async def get_maintenance_logs(
         }
 
     try:
-        # Verify user owns this schedule
+        # Verify user has access to this schedule (owner or group member)
         schedule_response = (
             client.table("maintenance_schedules")
-            .select("id, user_appliances!inner(user_id)")
+            .select("id, user_appliances!inner(user_id, group_id)")
             .eq("id", schedule_id)
             .single()
             .execute()
@@ -195,7 +214,27 @@ async def get_maintenance_logs(
         if not schedule_response.data:
             return {"error": "Schedule not found", "logs": [], "total_count": 0}
 
-        if schedule_response.data.get("user_appliances", {}).get("user_id") != user_id:
+        appliance_data = schedule_response.data.get("user_appliances", {})
+        appliance_user_id = appliance_data.get("user_id")
+        appliance_group_id = appliance_data.get("group_id")
+
+        # Check if user has access (owner or group member)
+        has_access = False
+        if appliance_user_id == user_id:
+            has_access = True
+        elif appliance_group_id:
+            # Check if user is a member of the group
+            membership_response = (
+                client.table("group_members")
+                .select("id")
+                .eq("group_id", appliance_group_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if membership_response.data:
+                has_access = True
+
+        if not has_access:
             return {"error": "Not authorized", "logs": [], "total_count": 0}
 
         # Get total count
@@ -290,6 +329,8 @@ async def get_all_maintenance_with_details(
     """
     Get all maintenance schedules for a user with appliance details.
 
+    Includes both personal appliances and group appliances (if user is in a group).
+
     Args:
         user_id: UUID of the user
         status_filter: Filter by status ('overdue', 'upcoming', 'scheduled', 'manual')
@@ -309,23 +350,81 @@ async def get_all_maintenance_with_details(
         now = datetime.now(UTC)
         seven_days_later = now + timedelta(days=7)
 
-        # Step 1: Get user's appliance IDs
-        appliances_query = (
-            client.table("user_appliances")
-            .select("id, name, shared_appliances(maker, model_number, category)")
-            .eq("user_id", user_id)
-        )
-        if appliance_id:
-            appliances_query = appliances_query.eq("id", appliance_id)
+        # Step 1: Get user's personal appliances (not in any group)
+        personal_appliances_data = []
+        if not appliance_id:
+            personal_result = (
+                client.table("user_appliances")
+                .select("id, name, shared_appliances(maker, model_number, category)")
+                .eq("user_id", user_id)
+                .is_("group_id", "null")
+                .execute()
+            )
+            personal_appliances_data = personal_result.data or []
+        else:
+            # When filtering by specific appliance, check if it's accessible
+            specific_result = (
+                client.table("user_appliances")
+                .select(
+                    "id, name, user_id, group_id, shared_appliances(maker, model_number, category)"
+                )
+                .eq("id", appliance_id)
+                .execute()
+            )
+            if specific_result.data:
+                row = specific_result.data[0]
+                # Check access: personal ownership OR group membership
+                if row.get("user_id") == user_id:
+                    personal_appliances_data = [row]
+                elif row.get("group_id"):
+                    # Will be handled in group appliances section
+                    pass
 
-        appliances_response = appliances_query.execute()
-        if not appliances_response.data:
+        # Step 2: Get user's group memberships
+        memberships_result = (
+            client.table("group_members")
+            .select("group_id")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        group_ids = [m["group_id"] for m in (memberships_result.data or [])]
+
+        # Step 3: Get group appliances
+        group_appliances_data = []
+        if group_ids:
+            if appliance_id:
+                # Check if specific appliance belongs to user's group
+                group_appliance_result = (
+                    client.table("user_appliances")
+                    .select(
+                        "id, name, shared_appliances(maker, model_number, category)"
+                    )
+                    .eq("id", appliance_id)
+                    .in_("group_id", group_ids)
+                    .execute()
+                )
+                group_appliances_data = group_appliance_result.data or []
+            else:
+                group_appliance_result = (
+                    client.table("user_appliances")
+                    .select(
+                        "id, name, shared_appliances(maker, model_number, category)"
+                    )
+                    .in_("group_id", group_ids)
+                    .execute()
+                )
+                group_appliances_data = group_appliance_result.data or []
+
+        # Combine personal and group appliances
+        all_appliances_data = personal_appliances_data + group_appliances_data
+
+        if not all_appliances_data:
             return {"items": [], "counts": _empty_counts()}
 
-        appliance_ids = [a["id"] for a in appliances_response.data]
-        appliance_map = {a["id"]: a for a in appliances_response.data}
+        appliance_ids = [a["id"] for a in all_appliances_data]
+        appliance_map = {a["id"]: a for a in all_appliances_data}
 
-        # Step 2: Get all maintenance schedules for these appliances
+        # Step 4: Get all maintenance schedules for these appliances
         # JOIN shared_maintenance_items to get task_name, description, etc.
         schedules_response = (
             client.table("maintenance_schedules")
@@ -342,7 +441,7 @@ async def get_all_maintenance_with_details(
         if not schedules_response.data:
             return {"items": [], "counts": _empty_counts()}
 
-        # Step 3: Calculate status and build response
+        # Step 5: Calculate status and build response
         items = []
         counts = {"overdue": 0, "upcoming": 0, "scheduled": 0, "manual": 0, "total": 0}
 
@@ -491,3 +590,118 @@ async def get_appliance_next_maintenance(
     except Exception as e:
         logger.error(f"Error fetching next maintenance: {e}")
         return None
+
+
+class MaintenanceNotFoundError(Exception):
+    """Raised when a maintenance schedule is not found."""
+
+    pass
+
+
+class MaintenanceAccessDeniedError(Exception):
+    """Raised when user doesn't have access to the maintenance schedule."""
+
+    pass
+
+
+async def delete_maintenance_schedule(
+    user_id: str,
+    schedule_id: str,
+) -> dict:
+    """
+    Delete a maintenance schedule.
+
+    Authorization: User must have access to the appliance that the schedule belongs to.
+    This means either:
+    - User is the personal owner of the appliance, OR
+    - User is a member of the group that owns the appliance
+
+    Args:
+        user_id: User's UUID
+        schedule_id: Maintenance schedule UUID
+
+    Returns:
+        dict with deletion result: {"deleted": True, "schedule_id": "..."}
+
+    Raises:
+        MaintenanceNotFoundError: If schedule not found
+        MaintenanceAccessDeniedError: If user doesn't have access
+    """
+    client = get_supabase_client()
+    if not client:
+        raise MaintenanceNotFoundError("Database not available")
+
+    try:
+        # 1. Get the schedule and its associated appliance
+        schedule_result = (
+            client.table("maintenance_schedules")
+            .select("id, user_appliance_id")
+            .eq("id", schedule_id)
+            .execute()
+        )
+
+        if not schedule_result.data:
+            raise MaintenanceNotFoundError(
+                f"Maintenance schedule {schedule_id} not found"
+            )
+
+        schedule = schedule_result.data[0]
+        user_appliance_id = schedule["user_appliance_id"]
+
+        # 2. Get the appliance to check ownership
+        appliance_result = (
+            client.table("user_appliances")
+            .select("id, user_id, group_id")
+            .eq("id", user_appliance_id)
+            .execute()
+        )
+
+        if not appliance_result.data:
+            raise MaintenanceNotFoundError("Associated appliance not found")
+
+        appliance = appliance_result.data[0]
+
+        # 3. Check access
+        has_access = False
+
+        # Check personal ownership
+        if appliance.get("user_id") == user_id:
+            has_access = True
+
+        # Check group membership
+        if not has_access and appliance.get("group_id"):
+            membership_result = (
+                client.table("group_members")
+                .select("id")
+                .eq("group_id", appliance["group_id"])
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if membership_result.data:
+                has_access = True
+
+        if not has_access:
+            raise MaintenanceAccessDeniedError(
+                "You don't have permission to delete this maintenance schedule"
+            )
+
+        # 4. Delete the schedule (maintenance_logs will be cascade deleted or kept based on FK)
+        # First delete related maintenance_logs
+        client.table("maintenance_logs").delete().eq(
+            "schedule_id", schedule_id
+        ).execute()
+
+        # Then delete the schedule
+        client.table("maintenance_schedules").delete().eq("id", schedule_id).execute()
+
+        logger.info(f"Deleted maintenance schedule {schedule_id} by user {user_id}")
+
+        return {"deleted": True, "schedule_id": schedule_id}
+
+    except MaintenanceNotFoundError:
+        raise
+    except MaintenanceAccessDeniedError:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting maintenance schedule: {e}")
+        raise MaintenanceNotFoundError(f"Failed to delete: {e}") from e

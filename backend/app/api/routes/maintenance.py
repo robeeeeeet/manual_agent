@@ -13,7 +13,12 @@ from app.schemas.appliance import (
     MaintenanceListResponse,
     MaintenanceWithAppliance,
 )
-from app.services.maintenance_log_service import get_all_maintenance_with_details
+from app.services.maintenance_log_service import (
+    MaintenanceAccessDeniedError,
+    MaintenanceNotFoundError,
+    delete_maintenance_schedule,
+    get_all_maintenance_with_details,
+)
 
 router = APIRouter(prefix="/maintenance", tags=["maintenance"])
 
@@ -77,3 +82,38 @@ async def get_maintenance_list(
         items=[MaintenanceWithAppliance(**item) for item in result["items"]],
         counts=MaintenanceCounts(**result["counts"]),
     )
+
+
+@router.delete("/{schedule_id}")
+async def delete_maintenance(
+    schedule_id: str,
+    x_user_id: Annotated[str | None, Header()] = None,
+) -> dict:
+    """
+    Delete a maintenance schedule.
+
+    Authorization: User must have access to the appliance that the schedule belongs to.
+    This means either:
+    - User is the personal owner of the appliance, OR
+    - User is a member of the group that owns the appliance
+
+    Args:
+        schedule_id: Maintenance schedule UUID
+        x_user_id: User ID from header (required)
+
+    Returns:
+        dict with deletion result: {"deleted": True, "schedule_id": "..."}
+
+    Raises:
+        404: If schedule not found
+        403: If user doesn't have access
+    """
+    user_id = _get_user_id_from_header(x_user_id)
+
+    try:
+        result = await delete_maintenance_schedule(user_id, schedule_id)
+        return result
+    except MaintenanceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except MaintenanceAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e

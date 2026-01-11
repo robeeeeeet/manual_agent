@@ -277,7 +277,14 @@ async def register_maintenance_schedules(
         try:
             result = client.table("maintenance_schedules").insert(schedule).execute()
             if result.data:
-                created_schedules.append(result.data[0])
+                # Add task_name and importance from shared_maintenance_items
+                # for API response validation
+                schedule_data = result.data[0]
+                schedule_data["task_name"] = item.get("task_name")
+                schedule_data["description"] = item.get("description")
+                schedule_data["source_page"] = item.get("source_page")
+                schedule_data["importance"] = item.get("importance")
+                created_schedules.append(schedule_data)
         except Exception as e:
             print(f"Error creating schedule for '{item['task_name']}': {e}")
 
