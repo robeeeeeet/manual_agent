@@ -100,17 +100,19 @@ manual_agent/
 - メンテナンス項目キャッシュシステム（shared_maintenance_items）
 - 家電CRUD API（バックエンド + BFF層）
 - 説明書検索・PDF保存・確認フロー
+- パナソニック製品の公式サイト直接検索（panasonic_manual.py）
 - メンテナンス項目抽出・登録フロー
 - 家電一覧ページ（/appliances）
 - 家電詳細ページ（/appliances/[id]）、メンテナンス詳細モーダル
 - 家電登録画面（ラベル位置ガイド、手動入力、カテゴリ選択）
+- 登録済み家電検出機能（同一メーカー・型番の重複警告）
 - メンテナンス項目選択UI（チェックボックス式）
 - メンテナンス完了記録API（バックエンド + BFF層）
 - 履歴取得API（バックエンド + BFF層）
 - 完了記録UI（完了ボタン、メモ入力モーダル）
 - 履歴表示UI（履歴モーダル、日時・メモ表示）
 - 家電一覧の次回メンテナンス表示（バッジ）
-- フロントエンド型定義（src/types/appliance.ts, src/types/qa.ts, src/types/group.ts）
+- フロントエンド型定義（src/types/appliance.ts, src/types/qa.ts, src/types/group.ts, src/types/user.ts）
 - Modalコンポーネント
 - **PWA対応（manifest.json, Service Worker, アイコン）**
 - **Push通知基盤（購読管理、通知送信サービス）**
@@ -120,6 +122,14 @@ manual_agent/
 - **デバイスコンテキスト検知フック（useDeviceContext: PC/スマホ、ブラウザ/PWA判別）**
 - **マイページ機能（メンテナンス統計、通知設定、通知時刻変更、ログアウト）**
 - **ユーザー設定API（プロファイル取得、設定更新、統計取得）**
+- **ユーザーティア機能（tier_service.py）** ← NEW
+  - ティア別の利用制限（家電登録数、説明書検索回数、QA質問回数）
+  - 日次使用量トラッキング（daily_usage テーブル）
+  - 利用量統計表示（UsageBar.tsx, TierLimitModal.tsx）
+  - マイページでのプラン・利用状況表示
+- **display_name（表示名）機能** ← NEW
+  - ユーザープロファイルに表示名を追加
+  - グループメンバー一覧での表示
 - **QA質問応答機能（家電詳細ページに統合）**
   - QAチャットUI（QASection, QAChat, QAChatMessage）
   - 3段階フォールバック検索（QA検索 → テキスト検索 → PDF分析）
@@ -131,7 +141,7 @@ manual_agent/
     - 認証必須化（ログインユーザーのみQA機能利用可）
     - ルールベース + LLM ハイブリッド質問検証
     - 違反記録・段階的利用制限（1回目=警告、2回目=1時間、3回目=24時間、4回目以降=7日間）
-  - **QA会話履歴機能（qa_session_service）** ← NEW
+  - **QA会話履歴機能（qa_session_service）**
     - セッション管理（作成・取得・再開・リセット）
     - LLMによるセッションタイトル自動生成
     - 会話履歴UI（QASessionHistory.tsx）
@@ -146,17 +156,21 @@ manual_agent/
   - 家電共有/解除（トグルスイッチ）
   - メンバー管理（オーナーによる削除）
   - グループページ（/groups, /groups/[id]）
-- **リッチテキスト対応** ← NEW
+- **リッチテキスト対応**
   - SafeHtmlコンポーネント（DOMPurifyによるサニタイズ）
   - メンテナンス説明のHTML表示対応
   - DBスキーマ正規化（00015マイグレーション）
-- **パフォーマンス改善** ← NEW
+- **パフォーマンス改善**
   - N+1問題解消（appliance_service, maintenance_notification_service）
   - SWR導入（useAppliances, useMaintenanceフック）
   - キャッシュ最適化（dedupingInterval=60秒）
-- **認証フロー改善** ← NEW
+- **認証フロー改善**
   - パスワードリセット機能（/reset-password）
   - パスワードリセットメール送信
+- **ヘルプページ（/help）** ← NEW
+  - 使い方ガイド（アコーディオン形式）
+  - FAQ、トラブルシューティング
+  - ティア/利用制限の説明
 
 ### 次のフェーズ
 - Phase 8: 追加機能・改善（検討中）
@@ -176,3 +190,5 @@ manual_agent/
 9. **auth.users同期トリガー**: `auth.users`への登録・削除時に`public.users`を自動同期（00007マイグレーション）
 10. **QA会話履歴**: セッション単位で会話を管理し、文脈を保持した質問応答を実現（6時間タイムアウト）
 11. **SWRによるデータフェッチ**: クライアントサイドキャッシュとリバリデーションでUX向上
+12. **ユーザーティア機能**: 無料ティアでの利用制限を実装（家電登録数、説明書検索回数/日、QA質問回数/日）
+13. **パナソニック製品の直接検索**: Panasonic公式サイトから説明書PDFを直接取得（Google CSE不要）

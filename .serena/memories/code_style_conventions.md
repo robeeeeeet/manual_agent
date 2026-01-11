@@ -8,12 +8,16 @@
 - `app/services/` - ビジネスロジック
   - 画像認識（image_recognition.py）
   - 説明書検索（manual_search.py）
+  - パナソニック説明書検索（panasonic_manual.py）
   - メンテナンス抽出（maintenance_extraction.py）
   - メンテナンスキャッシュ（maintenance_cache_service.py）
   - 家電CRUD（appliance_service.py）
   - PDFストレージ（pdf_storage.py）
   - Supabaseクライアント（supabase_client.py）
   - メーカードメイン（manufacturer_domain.py）
+  - ユーザーティア管理（tier_service.py）
+  - グループ管理（group_service.py）
+  - ユーザー管理（user_service.py）
 - `app/config.py` - 設定（pydantic-settings）
 
 ### スタイル
@@ -48,18 +52,22 @@ async def endpoint_name(request: RequestSchema):
   - `api/` - BFF層 API Routes
   - `auth/` - 認証関連ルート（callback）
   - `login/`, `signup/` - 認証ページ
+  - `reset-password/` - パスワードリセットページ
   - `register/` - 家電登録ページ
   - `appliances/` - 家電一覧ページ
   - `maintenance/` - メンテナンス一覧ページ
+  - `groups/` - グループ管理ページ
   - `mypage/` - マイページ
+  - `help/` - 使い方ガイドページ
 - `src/components/` - Reactコンポーネント
   - `auth/` - 認証関連（AuthForm）
   - `layout/` - レイアウトコンポーネント（Header, Footer）
-  - `ui/` - 汎用UIコンポーネント（Button, Card, Modal）
+  - `ui/` - 汎用UIコンポーネント（Button, Card, Modal, SafeHtml, FeatureCard）
   - `appliances/` - 家電関連コンポーネント
   - `maintenance/` - メンテナンス関連（MaintenanceCompleteModal, MaintenanceStatusTabs, MaintenanceFilter, MaintenanceListItem）
   - `notification/` - 通知関連（NotificationPermission, NotificationPermissionModal, NotificationOnboarding）
-  - `qa/` - QA機能関連（QASection, QAChat, QAChatMessage, QAFeedbackButtons, SearchProgressIndicator）
+  - `qa/` - QA機能関連（QASection, QAChat, QAChatMessage, QAFeedbackButtons, SearchProgressIndicator, QASessionHistory）
+  - `tier/` - ティア関連（UsageBar, TierLimitModal）
 - `src/types/` - 型定義（appliance.ts）
 - `src/contexts/` - React Context（AuthContext）
 - `src/lib/` - ユーティリティ
