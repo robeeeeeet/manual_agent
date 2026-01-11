@@ -4,10 +4,10 @@ import { NextResponse } from "next/server";
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
 /**
- * POST /api/appliances/[id]/unshare
- * Unshare a group appliance and return it to personal ownership
+ * DELETE /api/maintenance/[id]
+ * Delete a maintenance schedule
  */
-export async function POST(
+export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -30,34 +30,26 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const response = await fetch(
-      `${BACKEND_URL}/api/v1/appliances/${id}/unshare`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-ID": user.id,
-        },
-      }
-    );
+    const response = await fetch(`${BACKEND_URL}/api/v1/maintenance/${id}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-ID": user.id,
+      },
+    });
 
     const data = await response.json();
 
     if (!response.ok) {
-      const errorDetail = data.detail || data;
       return NextResponse.json(
-        {
-          error: errorDetail.error || "Failed to unshare appliance",
-          code: errorDetail.code || "UNSHARE_ERROR",
-          details: errorDetail.details || null,
-        },
+        { error: data.detail || "Failed to delete maintenance schedule" },
         { status: response.status }
       );
     }
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Unshare appliance error:", error);
+    console.error("Delete maintenance schedule error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

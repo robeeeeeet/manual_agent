@@ -7,7 +7,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import Button from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Modal from "@/components/ui/Modal";
-import ShareToggle from "@/components/appliance/ShareButton";
 import { QASection } from "@/components/qa/QASection";
 import { SafeHtml } from "@/components/ui/SafeHtml";
 import type {
@@ -63,23 +62,11 @@ export default function ApplianceDetailPage({
   // Detail modal state
   const [showDetailModal, setShowDetailModal] = useState(false);
 
-  // Group membership state
-  const [hasGroup, setHasGroup] = useState(false);
-
-  // Check if user is in a group
-  const checkGroupMembership = async () => {
-    try {
-      const response = await fetch("/api/groups");
-      if (response.ok) {
-        const data = await response.json();
-        // API returns { groups: [...], count: number }
-        const groups = data.groups || data;
-        setHasGroup(Array.isArray(groups) && groups.length > 0);
-      }
-    } catch (err) {
-      console.error("Error checking group membership:", err);
-    }
-  };
+  // Maintenance schedule delete state
+  const [showDeleteScheduleModal, setShowDeleteScheduleModal] = useState(false);
+  const [scheduleToDelete, setScheduleToDelete] =
+    useState<MaintenanceSchedule | null>(null);
+  const [isDeletingSchedule, setIsDeletingSchedule] = useState(false);
 
   // Fetch appliance details
   useEffect(() => {
@@ -137,25 +124,10 @@ export default function ApplianceDetailPage({
 
     if (!authLoading && user) {
       fetchData();
-      checkGroupMembership();
     } else if (!authLoading && !user) {
       setIsLoading(false);
     }
   }, [id, user, authLoading]);
-
-  // Refetch appliance after share/unshare
-  const refetchAppliance = async () => {
-    if (!user) return;
-    try {
-      const response = await fetch(`/api/appliances/${id}`);
-      if (response.ok) {
-        const applianceData: UserApplianceWithDetails = await response.json();
-        setAppliance(applianceData);
-      }
-    } catch (err) {
-      console.error("Error refetching appliance:", err);
-    }
-  };
 
   // Delete appliance
   const handleDelete = async () => {
@@ -279,6 +251,46 @@ export default function ApplianceDetailPage({
     }
   };
 
+  // Open delete schedule modal
+  const openDeleteScheduleModal = (schedule: MaintenanceSchedule) => {
+    setScheduleToDelete(schedule);
+    setShowDeleteScheduleModal(true);
+  };
+
+  // Handle delete schedule
+  const handleDeleteSchedule = async () => {
+    if (!scheduleToDelete) return;
+
+    setIsDeletingSchedule(true);
+    try {
+      const response = await fetch(
+        `/api/maintenance/${scheduleToDelete.id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "削除に失敗しました");
+      }
+
+      // Refresh schedules
+      await fetchSchedules();
+
+      // Close modal
+      setShowDeleteScheduleModal(false);
+      setScheduleToDelete(null);
+    } catch (err) {
+      console.error("Delete schedule error:", err);
+      setError(
+        err instanceof Error ? err.message : "削除に失敗しました"
+      );
+    } finally {
+      setIsDeletingSchedule(false);
+    }
+  };
+
   // Fetch history
   const fetchHistory = async (scheduleId: string) => {
     setIsLoadingHistory(true);
@@ -317,13 +329,24 @@ export default function ApplianceDetailPage({
     });
   };
 
-  // Calculate days until due
+  // Calculate days until due (date-only comparison, ignoring time)
   const getDaysUntilDue = (nextDueAt: string | null): number | null => {
     if (!nextDueAt) return null;
     const now = new Date();
     const dueDate = new Date(nextDueAt);
-    const diffTime = dueDate.getTime() - now.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    // Compare dates only, ignoring time
+    const nowDateOnly = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+    const dueDateOnly = new Date(
+      dueDate.getFullYear(),
+      dueDate.getMonth(),
+      dueDate.getDate()
+    );
+    const diffTime = dueDateOnly.getTime() - nowDateOnly.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
   };
 
@@ -468,24 +491,6 @@ export default function ApplianceDetailPage({
               <span className="px-3 py-1 text-sm font-medium rounded-full bg-gray-100 text-gray-700">
                 {appliance.category}
               </span>
-              {appliance.is_group_owned && appliance.group_name && (
-                <span className="px-3 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-700 flex items-center gap-1">
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                    />
-                  </svg>
-                  {appliance.group_name}
-                </span>
-              )}
             </div>
           </div>
         </CardHeader>
@@ -572,13 +577,6 @@ export default function ApplianceDetailPage({
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4 border-t items-center">
-              <ShareToggle
-                applianceId={appliance.id}
-                isGroupOwned={appliance.is_group_owned}
-                hasGroup={hasGroup}
-                isOriginalOwner={appliance.user_id === user?.id}
-                onShareChange={refetchAppliance}
-              />
               <Button
                 variant="outline"
                 onClick={() => setShowDeleteModal(true)}
@@ -669,21 +667,49 @@ export default function ApplianceDetailPage({
                         </span>
                       </div>
 
-                      {/* Complete button */}
-                      <Button
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openCompleteModal(schedule);
-                        }}
-                        className={
-                          daysUntil !== null && daysUntil < 0
-                            ? "bg-red-600 hover:bg-red-700"
-                            : ""
-                        }
-                      >
-                        完了
-                      </Button>
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-2">
+                        {/* Delete button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteScheduleModal(schedule);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                          title="削除"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                        </button>
+
+                        {/* Complete button */}
+                        <Button
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openCompleteModal(schedule);
+                          }}
+                          className={
+                            daysUntil !== null && daysUntil < 0
+                              ? "bg-red-600 hover:bg-red-700"
+                              : ""
+                          }
+                        >
+                          完了
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1011,6 +1037,49 @@ export default function ApplianceDetailPage({
               </div>
             </>
           )}
+        </div>
+      </Modal>
+
+      {/* Delete Schedule Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteScheduleModal}
+        onClose={() => {
+          setShowDeleteScheduleModal(false);
+          setScheduleToDelete(null);
+        }}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            メンテナンス項目を削除
+          </h3>
+          <p className="text-gray-600 mb-4">
+            「{scheduleToDelete?.task_name}」を削除しますか？
+            この操作は取り消せません。
+          </p>
+
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setShowDeleteScheduleModal(false);
+                setScheduleToDelete(null);
+              }}
+              disabled={isDeletingSchedule}
+            >
+              キャンセル
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleDeleteSchedule}
+              isLoading={isDeletingSchedule}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              削除
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

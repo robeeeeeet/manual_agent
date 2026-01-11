@@ -8,6 +8,18 @@ export interface ExistingPdfCheckRequest {
   model_number: string;
 }
 
+export interface DuplicateAppliance {
+  id: string;
+  name: string;
+  owner_type: "group" | "personal";
+  owner_name: string;
+}
+
+export interface DuplicateInGroup {
+  exists: boolean;
+  appliances: DuplicateAppliance[];
+}
+
 export interface ExistingPdfCheckResponse {
   found: boolean;
   shared_appliance_id?: string | null;
@@ -18,6 +30,7 @@ export interface ExistingPdfCheckResponse {
   already_owned?: boolean;
   existing_appliance_id?: string | null;
   existing_appliance_name?: string | null;
+  duplicate_in_group?: DuplicateInGroup | null;
 }
 
 export async function POST(request: NextRequest) {
@@ -35,6 +48,12 @@ export async function POST(request: NextRequest) {
 
     // Get user ID from Supabase auth
     const supabase = await createClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: "Failed to create Supabase client" },
+        { status: 500 }
+      );
+    }
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || null;
 

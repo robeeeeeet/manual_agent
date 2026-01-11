@@ -131,6 +131,8 @@ export interface UserApplianceWithDetails extends UserAppliance {
   is_group_owned: boolean;
   // Next maintenance info (if any)
   next_maintenance: NextMaintenanceInfo | null;
+  // Duplicate count (Plan 11: Duplicate Detection)
+  duplicate_count?: number;
 }
 
 export interface UserApplianceCreate {
