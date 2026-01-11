@@ -84,6 +84,18 @@ async def create_group(owner_id: str, name: str) -> dict:
         return {"error": "Database connection not available"}
 
     try:
+        # Check if user is already a member of another group
+        existing_membership = (
+            client.table("group_members")
+            .select("id, group_id")
+            .eq("user_id", owner_id)
+            .execute()
+        )
+        if existing_membership.data:
+            return {
+                "error": "You are already a member of another group. Leave it first."
+            }
+
         # Generate unique invite code
         invite_code = _generate_invite_code()
 
@@ -117,13 +129,21 @@ async def create_group(owner_id: str, name: str) -> dict:
 
         group = group_response.data[0]
 
-        # Add owner as a member
-        client.table("group_members").insert(
-            {
-                "group_id": group["id"],
-                "user_id": owner_id,
-            }
-        ).execute()
+        # Add owner as a member with 'owner' role
+        try:
+            client.table("group_members").insert(
+                {
+                    "group_id": group["id"],
+                    "user_id": owner_id,
+                    "role": "owner",
+                }
+            ).execute()
+        except Exception as member_error:
+            # Ignore duplicate key error - owner may already be added by trigger
+            error_str = str(member_error)
+            if "duplicate key" not in error_str and "23505" not in error_str:
+                raise member_error
+            logger.info("Owner already added to group_members (possibly by trigger)")
 
         return {"group": group}
 
@@ -399,7 +419,7 @@ async def regenerate_invite_code(group_id: str, owner_id: str) -> dict:
             invite_code = _generate_invite_code()
 
         # Update invite code
-        response = (
+        (
             client.table("groups")
             .update(
                 {
@@ -408,15 +428,12 @@ async def regenerate_invite_code(group_id: str, owner_id: str) -> dict:
                 }
             )
             .eq("id", group_id)
-            .select("invite_code")
-            .single()
             .execute()
         )
 
-        if not response.data:
-            return {"error": "Failed to regenerate invite code"}
-
-        return {"invite_code": response.data["invite_code"]}
+        # Supabase Python client: update()後のresponse.dataは更新件数のみ
+        # 生成済みのinvite_codeを直接返す
+        return {"invite_code": invite_code}
 
     except Exception as e:
         logger.error(f"Error regenerating invite code: {e}")
@@ -475,17 +492,23 @@ async def get_group_by_invite_code(invite_code: str) -> dict:
 # ============================================================================
 
 
-async def join_group(user_id: str, invite_code: str) -> dict:
+async def join_group(
+    user_id: str, invite_code: str, migrate_personal_appliances: bool = True
+) -> dict:
     """
     Join a group using invite code.
 
     Args:
         user_id: UUID of the joining user
         invite_code: Invite code
+        migrate_personal_appliances: If True, migrate personal appliances to group
 
     Returns:
         dict with:
         - group: Joined group data
+        - has_personal_appliances: True if user had personal appliances
+        - migrated_count: Number of appliances migrated to group (if migration performed)
+        - merged_count: Number of appliances merged (if duplicates found)
         - error: Error message if any
     """
     client = get_supabase_client()
@@ -507,8 +530,8 @@ async def join_group(user_id: str, invite_code: str) -> dict:
 
         group = group_response.data
 
-        # Check if already a member
-        existing = (
+        # Check if already a member of THIS group
+        existing_same_group = (
             client.table("group_members")
             .select("id")
             .eq("group_id", group["id"])
@@ -516,39 +539,114 @@ async def join_group(user_id: str, invite_code: str) -> dict:
             .execute()
         )
 
-        if existing.data:
+        if existing_same_group.data:
             return {"error": "You are already a member of this group"}
 
-        # Add as member
+        # Check if already a member of ANY other group
+        existing_any_group = (
+            client.table("group_members")
+            .select("id, group_id")
+            .eq("user_id", user_id)
+            .execute()
+        )
+
+        if existing_any_group.data:
+            return {
+                "error": "You are already a member of another group. Leave it first."
+            }
+
+        # Check for personal appliances before joining
+        personal_appliances = (
+            client.table("user_appliances")
+            .select("id, name, shared_appliance_id")
+            .eq("user_id", user_id)
+            .is_("group_id", "null")
+            .execute()
+        )
+        has_personal = bool(personal_appliances.data)
+
+        # Add as member first
         client.table("group_members").insert(
             {
                 "group_id": group["id"],
                 "user_id": user_id,
+                "role": "member",
             }
         ).execute()
 
-        return {"group": group}
+        migrated_count = 0
+        merged_count = 0
+
+        # If user has personal appliances and migration is enabled
+        if has_personal and migrate_personal_appliances:
+            # Migrate personal appliances to group
+            for appliance in personal_appliances.data or []:
+                # Check for duplicates in group
+                existing_group_appliance = (
+                    client.table("user_appliances")
+                    .select("id")
+                    .eq("shared_appliance_id", appliance["shared_appliance_id"])
+                    .eq("group_id", group["id"])
+                    .execute()
+                )
+
+                if existing_group_appliance.data:
+                    # Duplicate found - merge maintenance schedules then delete
+                    target_id = existing_group_appliance.data[0]["id"]
+
+                    # Migrate maintenance schedules
+                    client.table("maintenance_schedules").update(
+                        {"user_appliance_id": target_id}
+                    ).eq("user_appliance_id", appliance["id"]).execute()
+
+                    # Delete duplicate
+                    client.table("user_appliances").delete().eq(
+                        "id", appliance["id"]
+                    ).execute()
+                    merged_count += 1
+                else:
+                    # No duplicate - just transfer to group
+                    # user_id は維持（元の所有者情報として保持、DB制約もあり）
+                    client.table("user_appliances").update(
+                        {"group_id": group["id"]}
+                    ).eq("id", appliance["id"]).execute()
+                    migrated_count += 1
+
+            logger.info(
+                f"User {user_id} joined group {group['id']}: "
+                f"migrated {migrated_count} appliances, merged {merged_count}"
+            )
+
+        result = {
+            "group": group,
+            "has_personal_appliances": has_personal,
+        }
+        if has_personal and migrate_personal_appliances:
+            result["migrated_count"] = migrated_count
+            result["merged_count"] = merged_count
+
+        return result
 
     except Exception as e:
         logger.error(f"Error joining group: {e}")
         return {"error": str(e)}
 
 
-async def leave_group(user_id: str, group_id: str) -> dict:
+async def leave_group(
+    user_id: str, group_id: str, take_appliances: bool = False
+) -> dict:
     """
     Leave a group (owner cannot leave).
-
-    When leaving, any appliances the user shared with the group are returned
-    to their personal ownership (group_id is set to NULL).
 
     Args:
         user_id: UUID of the leaving user
         group_id: UUID of the group
+        take_appliances: If True, create copies of group appliances for personal ownership
 
     Returns:
         dict with:
         - success: True if left successfully
-        - transferred_count: Number of appliances returned to personal ownership
+        - copied_count: Number of appliances copied to personal ownership
         - error: Error message if any
     """
     client = get_supabase_client()
@@ -564,28 +662,100 @@ async def leave_group(user_id: str, group_id: str) -> dict:
         if not await _is_member(client, group_id, user_id):
             return {"error": "You are not a member of this group"}
 
-        # Transfer shared appliances back to personal ownership
-        # Find appliances where user_id = leaving_user AND group_id = this_group
-        transfer_result = (
-            client.table("user_appliances")
-            .update({"group_id": None})
-            .eq("user_id", user_id)
-            .eq("group_id", group_id)
-            .execute()
-        )
-        transferred_count = len(transfer_result.data) if transfer_result.data else 0
+        copied_count = 0
 
-        logger.info(
-            f"Transferred {transferred_count} appliances to personal ownership "
-            f"for user {user_id} leaving group {group_id}"
-        )
+        # If take_appliances, create copies of all group appliances
+        if take_appliances:
+            # Get all group appliances
+            group_appliances = (
+                client.table("user_appliances")
+                .select("*, shared_appliances(*)")
+                .eq("group_id", group_id)
+                .execute()
+            )
 
-        # Remove membership
+            for appliance in group_appliances.data or []:
+                # Create a copy for the leaving user (personal appliance)
+                # Original stays in the group unchanged
+                insert_data = {
+                    "user_id": user_id,
+                    "shared_appliance_id": appliance["shared_appliance_id"],
+                    "name": appliance["name"],
+                    "group_id": None,  # Personal appliance
+                }
+                if appliance.get("image_url"):
+                    insert_data["image_url"] = appliance["image_url"]
+
+                try:
+                    result = (
+                        client.table("user_appliances").insert(insert_data).execute()
+                    )
+                    if result.data:
+                        new_appliance_id = result.data[0]["id"]
+
+                        # Copy maintenance schedules
+                        schedules = (
+                            client.table("maintenance_schedules")
+                            .select("*")
+                            .eq("user_appliance_id", appliance["id"])
+                            .execute()
+                        )
+
+                        for schedule in schedules.data or []:
+                            schedule_copy = {
+                                "user_appliance_id": new_appliance_id,
+                                "shared_item_id": schedule.get("shared_item_id"),
+                                "interval_type": schedule.get("interval_type"),
+                                "interval_value": schedule.get("interval_value"),
+                                "next_due_at": schedule.get("next_due_at"),
+                                "last_done_at": schedule.get("last_done_at"),
+                            }
+                            new_schedule_result = (
+                                client.table("maintenance_schedules")
+                                .insert(schedule_copy)
+                                .execute()
+                            )
+
+                            # Copy maintenance logs for this schedule
+                            if new_schedule_result.data:
+                                new_schedule_id = new_schedule_result.data[0]["id"]
+                                logs = (
+                                    client.table("maintenance_logs")
+                                    .select("*")
+                                    .eq("schedule_id", schedule["id"])
+                                    .execute()
+                                )
+                                for log in logs.data or []:
+                                    log_copy = {
+                                        "schedule_id": new_schedule_id,
+                                        "done_at": log.get("done_at"),
+                                        "done_by_user_id": log.get("done_by_user_id"),
+                                        "notes": log.get("notes"),
+                                    }
+                                    client.table("maintenance_logs").insert(
+                                        log_copy
+                                    ).execute()
+
+                        copied_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to copy appliance {appliance['id']}: {e}")
+                    continue
+
+            logger.info(
+                f"User {user_id} leaving group {group_id}: "
+                f"copied {copied_count} appliances to personal ownership"
+            )
+
+        # Remove membership (user loses access to group appliances)
         client.table("group_members").delete().eq("group_id", group_id).eq(
             "user_id", user_id
         ).execute()
 
-        return {"success": True, "transferred_count": transferred_count}
+        result = {"success": True}
+        if take_appliances:
+            result["copied_count"] = copied_count
+
+        return result
 
     except Exception as e:
         logger.error(f"Error leaving group: {e}")

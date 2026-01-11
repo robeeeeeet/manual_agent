@@ -308,6 +308,40 @@ async def regenerate_invite_code(
 
 
 # ============================================================================
+# Verify Invite Code
+# ============================================================================
+
+
+@router.get(
+    "/verify-invite/{invite_code}",
+    responses={
+        200: {"description": "Invite code is valid"},
+        404: {"model": ErrorResponse},
+    },
+    summary="Verify invite code",
+    description="Check if an invite code is valid and return group info.",
+)
+async def verify_invite_code(invite_code: str):
+    """Verify an invite code and return group info."""
+    result = await group_service.get_group_by_invite_code(invite_code)
+
+    if "error" in result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "Invalid invite code",
+                "code": "INVALID_INVITE_CODE",
+                "details": "この招待コードは無効です。コードを確認してください。",
+            },
+        )
+
+    return {
+        "valid": True,
+        "group": result["group"],
+    }
+
+
+# ============================================================================
 # Join/Leave Group
 # ============================================================================
 
@@ -321,7 +355,7 @@ async def regenerate_invite_code(
         500: {"model": ErrorResponse},
     },
     summary="Join a group",
-    description="Join a group using an invite code.",
+    description="Join a group using an invite code. Personal appliances are automatically migrated to group.",
 )
 async def join_group(
     body: JoinGroupRequest,
@@ -330,21 +364,39 @@ async def join_group(
     """Join a group using invite code."""
     user_id = _get_user_id_from_header(x_user_id)
 
-    result = await group_service.join_group(str(user_id), body.invite_code)
+    result = await group_service.join_group(
+        str(user_id),
+        body.invite_code,
+        migrate_personal_appliances=body.migrate_personal_appliances,
+    )
 
     if "error" in result:
         error_msg = result["error"]
         if "invalid" in error_msg.lower():
             return {"success": False, "group": None, "message": "Invalid invite code"}
-        if "already" in error_msg.lower():
+        if "already a member of this group" in error_msg.lower():
             return {
                 "success": False,
                 "group": None,
                 "message": "You are already a member of this group",
             }
+        if "already a member of another group" in error_msg.lower():
+            return {
+                "success": False,
+                "group": None,
+                "message": "You are already a member of another group. Leave it first.",
+            }
         return {"success": False, "group": None, "message": error_msg}
 
-    return {"success": True, "group": result["group"], "message": None}
+    # Add migration info to response message
+    message = None
+    if result.get("has_personal_appliances"):
+        migrated = result.get("migrated_count", 0)
+        merged = result.get("merged_count", 0)
+        if migrated or merged:
+            message = f"グループに参加しました。{migrated}件の家電を移行し、{merged}件を統合しました。"
+
+    return {"success": True, "group": result["group"], "message": message}
 
 
 @router.post(
@@ -357,16 +409,25 @@ async def join_group(
         500: {"model": ErrorResponse},
     },
     summary="Leave a group",
-    description="Leave a group. The owner cannot leave; they must delete the group instead.",
+    description="Leave a group. Optionally copy group appliances to personal ownership. The owner cannot leave; they must delete the group instead.",
 )
 async def leave_group(
     group_id: UUID,
+    take_appliances: bool = False,
     x_user_id: Annotated[str | None, Header()] = None,
 ):
-    """Leave a group."""
+    """Leave a group.
+
+    Args:
+        group_id: UUID of the group to leave
+        take_appliances: If True, copy group appliances to personal ownership before leaving
+        x_user_id: User's UUID from header
+    """
     user_id = _get_user_id_from_header(x_user_id)
 
-    result = await group_service.leave_group(str(user_id), str(group_id))
+    result = await group_service.leave_group(
+        str(user_id), str(group_id), take_appliances=take_appliances
+    )
 
     if "error" in result:
         error_msg = result["error"]

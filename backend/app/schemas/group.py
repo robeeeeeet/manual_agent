@@ -79,6 +79,10 @@ class JoinGroupRequest(BaseModel):
         max_length=8,
         description="Invite code",
     )
+    migrate_personal_appliances: bool = Field(
+        default=True,
+        description="If True, migrate personal appliances to group on join",
+    )
 
 
 class JoinGroupResponse(BaseModel):
