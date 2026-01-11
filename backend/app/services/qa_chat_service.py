@@ -275,6 +275,8 @@ async def answer_question_stream(
     manufacturer: str,
     model_number: str,
     pdf_bytes: bytes | None = None,
+    history_context: str = "",
+    session_id: str | None = None,
 ) -> AsyncGenerator[QAStreamEvent, None]:
     """
     Answer question with streaming progress updates.
@@ -286,10 +288,18 @@ async def answer_question_stream(
         manufacturer: Manufacturer name
         model_number: Model number
         pdf_bytes: PDF file bytes (optional)
+        history_context: Formatted chat history context (optional)
+        session_id: Session ID for continuity (optional)
 
     Yields:
         QAStreamEvent for each step and final answer
     """
+    # Build full question with history context if provided
+    if history_context:
+        full_question = f"{history_context}\n\n【現在の質問】\n{question}\n\n【指示】\n会話の文脈を考慮して回答してください。「それ」「これ」などの指示語は、会話履歴から何を指しているか推測してください。"
+    else:
+        full_question = question
+
     # Step 1: Search in QA markdown
     yield QAStreamEvent(
         event="step_start",
@@ -299,7 +309,7 @@ async def answer_question_stream(
 
     qa_content = await get_qa_markdown(manufacturer, model_number)
     if qa_content:
-        result = await search_qa_markdown(qa_content, question)
+        result = await search_qa_markdown(qa_content, full_question)
         if result:
             logger.info(f"Answer found in QA for {manufacturer} {model_number}")
             yield QAStreamEvent(
@@ -313,6 +323,7 @@ async def answer_question_stream(
                 source="qa",
                 reference=result.get("reference"),
                 added_to_qa=False,
+                session_id=session_id,
             )
             return
 
@@ -333,7 +344,7 @@ async def answer_question_stream(
         text_cache = await get_or_create_text_cache(
             manufacturer, model_number, pdf_bytes
         )
-        result = await ask_text_cache(text_cache, question)
+        result = await ask_text_cache(text_cache, full_question)
 
         if result:
             logger.info(f"Answer found in text cache for {manufacturer} {model_number}")
@@ -363,6 +374,7 @@ async def answer_question_stream(
                 source="text_cache",
                 reference=result.get("reference"),
                 added_to_qa=added,
+                session_id=session_id,
             )
             return
 
@@ -380,7 +392,7 @@ async def answer_question_stream(
             step_name=STEP_DEFINITIONS[3],
         )
 
-        result = await ask_pdf_directly(pdf_bytes, question)
+        result = await ask_pdf_directly(pdf_bytes, full_question)
         logger.info(f"Answer generated from PDF for {manufacturer} {model_number}")
 
         # Append new QA to markdown
@@ -405,6 +417,7 @@ async def answer_question_stream(
             source="pdf",
             reference=result.get("reference"),
             added_to_qa=added,
+            session_id=session_id,
         )
         return
 
@@ -415,4 +428,5 @@ async def answer_question_stream(
         source="none",
         reference=None,
         added_to_qa=False,
+        session_id=session_id,
     )

@@ -17,6 +17,9 @@ from app.schemas.qa import (
     QAGenerateRequest,
     QAGenerateResponse,
     QAGetResponse,
+    QAResetSessionResponse,
+    QASessionDetail,
+    QASessionListResponse,
 )
 from app.schemas.qa_abuse import InvalidQuestionError, QABlockedError
 from app.services.pdf_storage import MANUALS_BUCKET
@@ -34,6 +37,15 @@ from app.services.qa_service import (
     get_qa_markdown,
     parse_qa_metadata,
     save_qa_markdown,
+)
+from app.services.qa_session_service import (
+    add_message,
+    create_new_session,
+    format_history_for_prompt,
+    get_or_create_active_session,
+    get_session_detail,
+    get_sessions_for_appliance,
+    reset_active_session,
 )
 from app.services.supabase_client import get_supabase_client
 
@@ -358,7 +370,23 @@ async def ask_question_stream(
             content=error_response.model_dump(mode="json"),
         )
 
-    # 4. Get PDF bytes if available
+    # 4. Session handling - Get or create session before PDF retrieval
+    if request.session_id:
+        session = await get_session_detail(request.session_id, user_id_str)
+        if not session:
+            session = await get_or_create_active_session(
+                user_id_str, shared_appliance_id
+            )
+    else:
+        session = await get_or_create_active_session(user_id_str, shared_appliance_id)
+
+    # Format conversation history for prompt
+    history_context = format_history_for_prompt(session.messages)
+
+    # Add user's question to session
+    await add_message(session.id, "user", request.question)
+
+    # 5. Get PDF bytes if available
     pdf_bytes = None
     if appliance.get("stored_pdf_path"):
         try:
@@ -366,16 +394,26 @@ async def ask_question_stream(
         except Exception as e:
             logger.warning(f"Failed to get PDF: {e}")
 
-    # 5. Generate streaming response
+    # 6. Generate streaming response
     async def generate():
         """Generate SSE events."""
+        final_answer = None
+        final_source = None
+        final_reference = None
         try:
             async for event in answer_question_stream(
                 request.question,
                 appliance["maker"],
                 appliance["model_number"],
                 pdf_bytes,
+                history_context=history_context,
+                session_id=session.id,
             ):
+                # Capture final answer and metadata for session storage
+                if event.event == "answer" and event.answer:
+                    final_answer = event.answer
+                    final_source = event.source
+                    final_reference = event.reference
                 yield f"data: {event.model_dump_json()}\n\n"
         except Exception as e:
             logger.error(f"Error in ask-stream: {e}")
@@ -383,6 +421,16 @@ async def ask_question_stream(
 
             error_event = QAStreamEvent(event="error", error=str(e))
             yield f"data: {error_event.model_dump_json()}\n\n"
+        finally:
+            # Add assistant's response to session with metadata
+            if final_answer:
+                await add_message(
+                    session.id,
+                    "assistant",
+                    final_answer,
+                    source=final_source,
+                    reference=final_reference,
+                )
 
     return StreamingResponse(
         generate(),
@@ -522,4 +570,103 @@ async def batch_generate_qa(request: QABatchGenerateRequest):
         success=success,
         failed=failed,
         errors=errors[:10],  # Return only first 10 errors
+    )
+
+
+@router.get("/{shared_appliance_id}/sessions")
+async def get_sessions(
+    shared_appliance_id: str,
+    x_user_id: Annotated[str | None, Header()] = None,
+) -> QASessionListResponse:
+    """
+    Get QA session list for a shared appliance.
+
+    Args:
+        shared_appliance_id: Shared appliance ID
+        x_user_id: User ID from header (required)
+
+    Returns:
+        List of sessions
+
+    Raises:
+        401: If user is not authenticated
+    """
+    user_id = _get_user_id_from_header(x_user_id)
+    sessions = await get_sessions_for_appliance(str(user_id), shared_appliance_id)
+    return QASessionListResponse(sessions=sessions)
+
+
+@router.get("/sessions/{session_id}")
+async def get_session(
+    session_id: str,
+    x_user_id: Annotated[str | None, Header()] = None,
+) -> QASessionDetail:
+    """
+    Get QA session details with messages.
+
+    Args:
+        session_id: Session ID
+        x_user_id: User ID from header (required)
+
+    Returns:
+        Session details with messages
+
+    Raises:
+        401: If user is not authenticated
+        404: If session not found
+    """
+    user_id = _get_user_id_from_header(x_user_id)
+    session = await get_session_detail(session_id, str(user_id))
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+
+@router.post("/{shared_appliance_id}/sessions")
+async def create_session(
+    shared_appliance_id: str,
+    x_user_id: Annotated[str | None, Header()] = None,
+) -> QASessionDetail:
+    """
+    Create a new QA session.
+
+    Args:
+        shared_appliance_id: Shared appliance ID
+        x_user_id: User ID from header (required)
+
+    Returns:
+        New session details
+
+    Raises:
+        401: If user is not authenticated
+    """
+    user_id = _get_user_id_from_header(x_user_id)
+    session = await create_new_session(str(user_id), shared_appliance_id)
+    return session
+
+
+@router.post("/{shared_appliance_id}/reset-session")
+async def reset_session(
+    shared_appliance_id: str,
+    x_user_id: Annotated[str | None, Header()] = None,
+) -> QAResetSessionResponse:
+    """
+    Reset active session and create a new one.
+
+    Args:
+        shared_appliance_id: Shared appliance ID
+        x_user_id: User ID from header (required)
+
+    Returns:
+        Reset response with new session ID
+
+    Raises:
+        401: If user is not authenticated
+    """
+    user_id = _get_user_id_from_header(x_user_id)
+    new_session_id = await reset_active_session(str(user_id), shared_appliance_id)
+    return QAResetSessionResponse(
+        success=True,
+        message="セッションをリセットしました",
+        new_session_id=new_session_id,
     )

@@ -17,6 +17,9 @@ import Modal from '@/components/ui/Modal';
 interface QAChatProps {
   sharedApplianceId: string;
   productName: string;
+  sessionId?: string;
+  initialMessages?: ChatMessage[];
+  onSessionIdChange?: (sessionId: string) => void;
 }
 
 // 相対時間を計算（○時間○分）
@@ -82,7 +85,13 @@ function createErrorMessage(error: QAError): ChatMessage {
   };
 }
 
-export function QAChat({ sharedApplianceId, productName }: QAChatProps) {
+export function QAChat({
+  sharedApplianceId,
+  productName,
+  sessionId,
+  initialMessages,
+  onSessionIdChange,
+}: QAChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -90,19 +99,29 @@ export function QAChat({ sharedApplianceId, productName }: QAChatProps) {
     null
   );
   const [showDeletedModal, setShowDeletedModal] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(sessionId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 初期メッセージ
   useEffect(() => {
-    setMessages([
-      {
-        id: 'initial',
-        type: 'assistant',
-        content: `${productName}についてご質問があればお聞きください。説明書の内容に基づいてお答えします。`,
-        timestamp: new Date(),
-      },
-    ]);
-  }, [productName]);
+    if (initialMessages && initialMessages.length > 0) {
+      setMessages(initialMessages);
+    } else {
+      setMessages([
+        {
+          id: 'initial',
+          type: 'assistant',
+          content: `${productName}についてご質問があればお聞きください。説明書の内容に基づいてお答えします。`,
+          timestamp: new Date(),
+        },
+      ]);
+    }
+  }, [productName, initialMessages]);
+
+  // sessionId propの変更を監視
+  useEffect(() => {
+    setCurrentSessionId(sessionId);
+  }, [sessionId]);
 
   // スクロール
   useEffect(() => {
@@ -129,7 +148,10 @@ export function QAChat({ sharedApplianceId, productName }: QAChatProps) {
       const response = await fetch(`/api/qa/${sharedApplianceId}/ask-stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: userMessage.content }),
+        body: JSON.stringify({
+          question: userMessage.content,
+          session_id: currentSessionId,
+        }),
       });
 
       if (!response.ok) {
@@ -203,6 +225,12 @@ QA機能をご利用いただくには、ログインが必要です。
                     : null
                 );
               } else if (event.event === 'answer') {
+                // セッションIDを更新
+                if (event.session_id && event.session_id !== currentSessionId) {
+                  setCurrentSessionId(event.session_id);
+                  onSessionIdChange?.(event.session_id);
+                }
+
                 const assistantMessage: ChatMessage = {
                   id: (Date.now() + 1).toString(),
                   type: 'assistant',

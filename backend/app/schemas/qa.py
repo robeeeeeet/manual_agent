@@ -1,6 +1,7 @@
 """QA (Question & Answer) schemas for request/response models."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -52,6 +53,7 @@ class QAAskRequest(BaseModel):
     """Request to ask a question."""
 
     question: str
+    session_id: str | None = None  # 指定時はそのセッションで継続
 
 
 class QAAskResponse(BaseModel):
@@ -107,3 +109,54 @@ class QAStreamEvent(BaseModel):
     reference: str | None = None
     added_to_qa: bool = False
     error: str | None = None
+    session_id: str | None = None  # 新規追加
+
+
+class ChatHistoryMessage(BaseModel):
+    """Chat history message."""
+
+    id: str
+    role: Literal["user", "assistant"]
+    content: str
+    source: str | None = None
+    reference: str | None = None
+    created_at: datetime
+
+
+class QASessionSummary(BaseModel):
+    """セッション一覧用のサマリー."""
+
+    id: str
+    shared_appliance_id: str
+    is_active: bool
+    message_count: int
+    summary: str | None  # LLMで要約された会話タイトル
+    first_message: str | None  # 最初のユーザー質問（プレビュー用・フォールバック）
+    created_at: datetime
+    last_activity_at: datetime
+
+
+class QASessionDetail(BaseModel):
+    """セッション詳細（メッセージ含む）."""
+
+    id: str
+    user_id: str
+    shared_appliance_id: str
+    is_active: bool
+    messages: list[ChatHistoryMessage]
+    created_at: datetime
+    last_activity_at: datetime
+
+
+class QASessionListResponse(BaseModel):
+    """QA session list response."""
+
+    sessions: list[QASessionSummary]
+
+
+class QAResetSessionResponse(BaseModel):
+    """QA reset session response."""
+
+    success: bool
+    message: str
+    new_session_id: str | None = None
