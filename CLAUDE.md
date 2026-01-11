@@ -50,6 +50,18 @@ Supabase (PostgreSQL/pgvector/Auth/Storage)
 | デプロイ（バック） | Google Cloud Run |
 | CI/CD | GitHub Actions |
 
+## ⚠️ 重要: Supabase プロジェクトID
+
+**Supabase MCP や直接クエリ時は必ず以下のプロジェクトIDを使用すること:**
+
+```
+nuuukueocvvdoynqkmol
+```
+
+- このIDは `SUPABASE_URL` の `https://{project_id}.supabase.co` から取得
+- **間違ったIDを使用するとデータが見つからない・操作できないエラーが発生する**
+- Supabase MCPツール（`execute_sql`, `list_tables` 等）の `project_id` パラメータに必ず指定
+
 ## ディレクトリ構造
 
 ```
