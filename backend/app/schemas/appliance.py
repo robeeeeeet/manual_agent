@@ -116,6 +116,11 @@ class UserApplianceWithDetails(UserAppliance):
         False, description="Whether this appliance is group-owned"
     )
 
+    # 登録者情報
+    owner_display_name: str | None = Field(
+        None, description="Display name of the user who registered this appliance"
+    )
+
     # 次回メンテナンス情報（最も近い期限）
     next_maintenance: NextMaintenanceInfo | None = Field(
         None, description="Next upcoming maintenance task (if any)"
@@ -589,6 +594,7 @@ class MaintenanceWithAppliance(BaseModel):
     days_until_due: int | None = Field(
         None, description="Days until due (negative if overdue, null for manual)"
     )
+    is_archived: bool = Field(False, description="Whether this schedule is archived")
 
 
 class MaintenanceCounts(BaseModel):

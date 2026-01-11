@@ -129,6 +129,8 @@ export interface UserApplianceWithDetails extends UserAppliance {
   // Group information (Phase 7: Family Sharing)
   group_name: string | null;
   is_group_owned: boolean;
+  // Owner display name
+  owner_display_name: string | null;
   // Next maintenance info (if any)
   next_maintenance: NextMaintenanceInfo | null;
   // Duplicate count (Plan 11: Duplicate Detection)
@@ -198,6 +200,7 @@ export interface MaintenanceSchedule {
   importance: "high" | "medium" | "low";
   created_at: string;
   updated_at: string;
+  is_archived?: boolean;
 }
 
 export interface MaintenanceScheduleInsert {
@@ -260,6 +263,7 @@ export interface MaintenanceWithAppliance {
   category: string;
   status: MaintenanceStatus;
   days_until_due: number | null;
+  is_archived: boolean;
 }
 
 export interface MaintenanceCounts {

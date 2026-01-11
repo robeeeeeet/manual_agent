@@ -339,6 +339,22 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
     # Sort by created_at descending
     all_appliances_data.sort(key=lambda x: x.get("created_at", ""), reverse=True)
 
+    # Batch fetch owner display names to avoid N+1 queries
+    owner_user_ids = list(
+        {row.get("user_id") for row in all_appliances_data if row.get("user_id")}
+    )
+    display_name_map: dict[str, str] = {}
+    if owner_user_ids:
+        users_result = (
+            client.table("users")
+            .select("id, display_name")
+            .in_("id", owner_user_ids)
+            .execute()
+        )
+        display_name_map = {
+            u["id"]: u.get("display_name", "") for u in (users_result.data or [])
+        }
+
     # Batch fetch duplicate counts for each shared_appliance_id
     duplicate_count_map: dict[str, int] = {}
     shared_appliance_ids = list(
@@ -418,6 +434,9 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
             group_names_map.get(row.get("group_id")) if is_group_owned else None
         )
 
+        # Get owner display name from the pre-fetched map
+        owner_display_name = display_name_map.get(row.get("user_id")) or None
+
         # Get next upcoming maintenance from the pre-fetched map
         next_maintenance = None
         maintenance = maintenance_map.get(row["id"])
@@ -454,6 +473,7 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
                 next_maintenance=next_maintenance,
                 group_name=group_name,
                 is_group_owned=is_group_owned,
+                owner_display_name=owner_display_name,
                 duplicate_count=duplicate_count_map.get(row["shared_appliance_id"], 0),
             )
         )
