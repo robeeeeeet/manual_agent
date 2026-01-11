@@ -14,24 +14,24 @@ export default function AppliancesPage() {
   const [hasGroup, setHasGroup] = useState(false);
 
   // Check if user is in a group
-  const checkGroupMembership = async () => {
-    try {
-      const response = await fetch("/api/groups");
-      if (response.ok) {
-        const data = await response.json();
-        // API returns { groups: [...], count: number }
-        const groups = data.groups || data;
-        setHasGroup(Array.isArray(groups) && groups.length > 0);
-      }
-    } catch (err) {
-      console.error("Error checking group membership:", err);
-    }
-  };
-
   useEffect(() => {
-    if (!authLoading && user) {
-      checkGroupMembership();
-    }
+    if (authLoading || !user) return;
+
+    const checkGroupMembership = async () => {
+      try {
+        const response = await fetch("/api/groups");
+        if (response.ok) {
+          const data = await response.json();
+          // API returns { groups: [...], count: number }
+          const groups = data.groups || data;
+          setHasGroup(Array.isArray(groups) && groups.length > 0);
+        }
+      } catch (err) {
+        console.error("Error checking group membership:", err);
+      }
+    };
+
+    checkGroupMembership();
   }, [user, authLoading]);
 
   // Format date for display
