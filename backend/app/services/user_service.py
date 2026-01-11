@@ -17,7 +17,7 @@ async def get_user_profile(user_id: str) -> dict:
 
     Returns:
         dict with:
-        - profile: User profile data (id, email, notify_time, timezone, created_at)
+        - profile: User profile data (id, email, display_name, notify_time, timezone, created_at)
         - error: Error message if any
     """
     client = get_supabase_client()
@@ -27,7 +27,7 @@ async def get_user_profile(user_id: str) -> dict:
     try:
         response = (
             client.table("users")
-            .select("id, email, notify_time, timezone, created_at")
+            .select("id, email, display_name, notify_time, timezone, created_at")
             .eq("id", user_id)
             .single()
             .execute()
@@ -43,17 +43,22 @@ async def get_user_profile(user_id: str) -> dict:
         return {"error": str(e)}
 
 
-async def update_user_settings(user_id: str, notify_time: str) -> dict:
+async def update_user_settings(
+    user_id: str,
+    notify_time: str | None = None,
+    display_name: str | None = None,
+) -> dict:
     """
-    Update user notification settings.
+    Update user settings.
 
     Args:
         user_id: UUID of the user
-        notify_time: Notification time in HH:MM format
+        notify_time: Notification time in HH:MM format (optional)
+        display_name: Display name for the user (optional)
 
     Returns:
         dict with:
-        - settings: Updated settings (notify_time, timezone, updated_at)
+        - settings: Updated settings (display_name, notify_time, timezone, updated_at)
         - error: Error message if any
     """
     client = get_supabase_client()
@@ -61,16 +66,27 @@ async def update_user_settings(user_id: str, notify_time: str) -> dict:
         return {"error": "Database connection not available"}
 
     try:
-        update_data = {
-            "notify_time": notify_time,
+        update_data: dict = {
             "updated_at": datetime.now(UTC).isoformat(),
         }
+
+        if notify_time is not None:
+            update_data["notify_time"] = notify_time
+
+        if display_name is not None:
+            # Validate display_name
+            display_name = display_name.strip()
+            if not display_name:
+                return {"error": "表示名を入力してください"}
+            if len(display_name) > 20:
+                return {"error": "表示名は20文字以内で入力してください"}
+            update_data["display_name"] = display_name
 
         response = (
             client.table("users")
             .update(update_data)
             .eq("id", user_id)
-            .select("notify_time, timezone, updated_at")
+            .select("display_name, notify_time, timezone, updated_at")
             .single()
             .execute()
         )

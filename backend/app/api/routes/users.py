@@ -103,33 +103,38 @@ async def get_me(
         500: {"model": ErrorResponse},
     },
     summary="Update user settings",
-    description="Update user notification settings (notify_time)",
+    description="Update user settings (display_name and/or notify_time)",
 )
 async def update_settings(
     settings: UserSettingsUpdate,
     x_user_id: Annotated[str | None, Header()] = None,
 ):
     """
-    Update user notification settings.
+    Update user settings.
 
     Args:
-        settings: UserSettingsUpdate with notify_time (HH:MM format)
+        settings: UserSettingsUpdate with optional display_name and/or notify_time
 
     Returns:
-        UserSettings: Updated settings with notify_time, timezone, updated_at
+        UserSettings: Updated settings with display_name, notify_time, timezone, updated_at
     """
     user_id = _get_user_id_from_header(x_user_id)
 
-    if not settings.notify_time:
+    # At least one field must be provided
+    if settings.notify_time is None and settings.display_name is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
-                "error": "notify_time is required",
+                "error": "At least one of notify_time or display_name is required",
                 "code": "INVALID_REQUEST",
             },
         )
 
-    result = await update_user_settings(str(user_id), settings.notify_time)
+    result = await update_user_settings(
+        user_id=str(user_id),
+        notify_time=settings.notify_time,
+        display_name=settings.display_name,
+    )
 
     if "error" in result:
         raise HTTPException(

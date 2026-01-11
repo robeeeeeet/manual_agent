@@ -14,6 +14,7 @@ class UserProfile(BaseModel):
 
     id: UUID = Field(..., description="User ID")
     email: str = Field(..., description="Email address")
+    display_name: str = Field(..., description="Display name for the user")
     notify_time: str = Field(..., description="Notification time in HH:MM format")
     timezone: str = Field(..., description="Timezone (e.g., Asia/Tokyo)")
     created_at: datetime = Field(..., description="Account creation timestamp")
@@ -27,6 +28,11 @@ class UserProfile(BaseModel):
 class UserSettingsUpdate(BaseModel):
     """Schema for updating user settings"""
 
+    display_name: str | None = Field(
+        None,
+        description="Display name for the user (max 20 characters)",
+        max_length=20,
+    )
     notify_time: str | None = Field(
         None,
         description="Notification time in HH:MM format",
@@ -37,6 +43,7 @@ class UserSettingsUpdate(BaseModel):
 class UserSettings(BaseModel):
     """Schema for user settings response"""
 
+    display_name: str = Field(..., description="Display name for the user")
     notify_time: str = Field(..., description="Notification time in HH:MM format")
     timezone: str = Field(..., description="Timezone")
     updated_at: datetime = Field(..., description="Last update timestamp")
