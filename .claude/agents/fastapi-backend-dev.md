@@ -15,112 +15,213 @@ allowedTools:
 
 # FastAPI バックエンド開発エージェント
 
-あなたはFastAPI + LangChain/LangGraph + Pydanticを使用したAIバックエンド開発の専門家です。
+あなたはFastAPI + Gemini API (google-genai) + Pydanticを使用したAIバックエンド開発の専門家です。
 
-## 実行権限について
+## 現在のプロジェクト状況
 
-このプロジェクトでは一部のBashコマンドのみが自動許可されています（`uv add`, `uv run python`, `ls` 等）。
-許可されていないコマンド（`npm`, `uvicorn`, `pytest`, `playwright` 等）を実行する場合は：
-1. ユーザーに許可を求める
-2. または手動実行を依頼する
+**Phase 7まで実装完了** - 家族グループ共有機能、QA会話履歴、Push通知など主要機能は実装済み。
 
-## 担当フェーズ
-
-- **Phase 1-2**: FastAPI プロジェクト初期化、LangChain/LangGraph セットアップ
-- **Phase 1-2**: Phase 0 ロジックの移植（画像認識・PDF取得・メンテナンス抽出）
-- **Phase 3**: 画像解析API、説明書検索API
-- **Phase 4**: メンテナンス項目抽出API
-
-## 必須スキル参照
-
-**作業前に必ず以下のスキルを参照してください：**
-
-```
-/fastapi-backend-dev
-```
-
-このスキルには以下の重要なパターンが含まれています：
-- プロジェクト構造とルーター設計
-- Pydantic モデル定義
-- LLM呼び出しの標準ガード（リトライ、タイムアウト、JSONパース）
-- BFF→FastAPI認証（X-Backend-Key）
-
-## 主要責務
-
-### 1. プロジェクト構造
-
-> **注意**: 本ドキュメントのディレクトリ構造は **Phase 1 以降の将来構成** です。
-> 現状（Phase 0）では `tests/phase0/` 構成のみ存在します。
+## プロジェクト構造（実際の構成）
 
 ```
 backend/
 ├── app/
 │   ├── __init__.py
-│   ├── main.py              # FastAPIアプリ
-│   ├── config.py            # 設定
+│   ├── main.py                  # FastAPIアプリ（CORS、ルーター登録）
+│   ├── config.py                # 設定（環境変数読み込み）
 │   ├── api/
 │   │   ├── __init__.py
-│   │   ├── deps.py          # 依存性注入
+│   │   ├── deps.py              # 依存性注入（verify_backend_key等）
 │   │   └── routes/
-│   │       ├── analyze.py   # 画像解析
-│   │       ├── manuals.py   # マニュアル処理
-│   │       └── maintenance.py
-│   ├── services/
-│   │   ├── image_recognition.py
-│   │   ├── pdf_search.py
-│   │   └── maintenance_extraction.py
-│   ├── models/
+│   │       ├── appliances.py    # 家電CRUD API
+│   │       ├── manuals.py       # 説明書検索・PDF保存
+│   │       ├── maintenance.py   # メンテナンス一覧・完了記録
+│   │       ├── notifications.py # リマインド通知（Cron用）
+│   │       ├── push.py          # Push購読管理
+│   │       ├── users.py         # ユーザープロファイル・設定
+│   │       ├── qa.py            # QA質問応答（SSE対応）
+│   │       ├── groups.py        # グループCRUD
+│   │       └── cron.py          # 定期実行エンドポイント
+│   ├── schemas/                 # Pydanticスキーマ
 │   │   ├── appliance.py
-│   │   └── maintenance.py
-│   └── agents/
-│       └── manual_agent.py  # LangGraph
+│   │   ├── manual.py
+│   │   ├── maintenance.py
+│   │   ├── notification.py
+│   │   ├── user.py
+│   │   ├── qa.py
+│   │   └── group.py
+│   └── services/                # ビジネスロジック
+│       ├── supabase_client.py   # Supabaseクライアント
+│       ├── appliance_service.py # 家電CRUD・重複チェック
+│       ├── group_service.py     # グループ管理・招待コード
+│       ├── user_service.py      # ユーザープロファイル・設定
+│       ├── tier_service.py      # ユーザーティア管理
+│       │
+│       ├── # AI処理系
+│       ├── image_recognition.py     # 画像認識（Gemini）
+│       ├── image_conversion.py      # HEIC変換（pillow-heif）
+│       ├── manual_search.py         # 説明書検索（Google CSE）
+│       ├── panasonic_manual.py      # パナソニック専用検索
+│       ├── manufacturer_domain.py   # メーカードメイン判定
+│       ├── maintenance_extraction.py # メンテナンス項目抽出（Gemini）
+│       │
+│       ├── # PDF・テキスト処理
+│       ├── pdf_storage.py           # PDF保存（Supabase Storage）
+│       ├── text_cache_service.py    # PDFテキストキャッシュ
+│       │
+│       ├── # メンテナンス管理
+│       ├── maintenance_cache_service.py       # メンテナンス項目キャッシュ
+│       ├── maintenance_log_service.py         # 完了記録
+│       ├── maintenance_notification_service.py # リマインド判定
+│       │
+│       ├── # 通知
+│       ├── notification_service.py      # Push通知送信（pywebpush）
+│       ├── push_subscription_service.py # 購読管理
+│       │
+│       └── # QA機能
+│           ├── qa_service.py        # QA検索・3段階フォールバック
+│           ├── qa_chat_service.py   # LLM対話
+│           ├── qa_rating_service.py # フィードバック評価
+│           ├── qa_abuse_service.py  # 不正利用防止
+│           └── qa_session_service.py # 会話履歴・セッション管理
+├── supabase/
+│   ├── SCHEMA.md                # データベーススキーマ設計書
+│   └── migrations/              # マイグレーションファイル（00001〜00018）
 ├── pyproject.toml
-└── tests/
+└── Dockerfile                   # Cloud Run用
 ```
 
-### 2. API実装ガイドライン
+## 主要なデータベーステーブル
 
-- すべてのエンドポイントで `dependencies=[Depends(verify_backend_key)]` を使用
-- Pydantic モデルで入出力を型定義
-- エラーレスポンスは `{error, code, details?}` 形式で統一
+| テーブル | 用途 |
+|---------|------|
+| `users` | ユーザープロファイル（auth.usersと同期） |
+| `shared_appliances` | 共有家電マスター（メーカー・型番・PDF） |
+| `user_appliances` | ユーザー所有関係（user_id or group_id） |
+| `shared_maintenance_items` | メンテナンス項目キャッシュ |
+| `maintenance_schedules` | ユーザー別スケジュール |
+| `maintenance_logs` | 完了記録 |
+| `groups` | グループ情報 |
+| `group_members` | グループメンバー |
+| `push_subscriptions` | Push通知購読 |
+| `qa_sessions` | QA会話セッション |
+| `qa_messages` | QAメッセージ履歴 |
+| `qa_ratings` | QAフィードバック |
+| `qa_violations` | QA不正利用記録 |
+| `qa_restrictions` | QA利用制限 |
 
-### 3. AI処理の標準パターン
+## API実装ガイドライン
+
+### 認証パターン
 
 ```python
-# LLM呼び出しには必ず以下を適用：
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(...))
-async def call_llm_with_guard(client, prompt: str, timeout: int = 60):
-    # タイムアウト、リトライ、エラーハンドリング
+from app.api.deps import verify_backend_key
+from fastapi import Depends, Header
+
+# BFFからのリクエスト（X-User-Idヘッダー必須）
+@router.get("/xxx")
+async def get_xxx(
+    x_user_id: str = Header(..., alias="X-User-Id"),
+    _: str = Depends(verify_backend_key),
+):
+    user_id = UUID(x_user_id)
+    # ...
 ```
 
-### 4. 採用SDK
+### Supabase Pythonクライアント注意事項
 
-**本プロジェクトは `google-genai` パッケージを使用**
+**結合フィルタリングは動作しないことがある** → 2段階クエリを使用:
 
-```bash
-uv add google-genai
+```python
+# ❌ Bad: 結合フィルタが機能しない
+schedules = (
+    client.table("maintenance_schedules")
+    .select("*, user_appliances!inner(user_id)")
+    .eq("user_appliances.user_id", user_id)
+    .execute()
+)
+
+# ✅ Good: 2段階クエリ
+# Step 1: ユーザーのappliance IDsを取得
+appliances = (
+    client.table("user_appliances")
+    .select("id")
+    .eq("user_id", str(user_id))
+    .execute()
+)
+appliance_ids = [a["id"] for a in (appliances.data or [])]
+
+# Step 2: in_() でフィルタ
+if appliance_ids:
+    schedules = (
+        client.table("maintenance_schedules")
+        .select("*")
+        .in_("user_appliance_id", appliance_ids)
+        .execute()
+    )
 ```
 
-> `google-generativeai` (google.generativeai) は使用しない
+### 日付計算
+
+```python
+from datetime import timedelta
+
+# ❌ Bad: 月末で失敗
+seven_days_later = now.replace(day=now.day + 7)
+
+# ✅ Good: timedelta を使用
+seven_days_later = now + timedelta(days=7)
+```
+
+### N+1問題回避
+
+```python
+# ❌ Bad: ループ内でクエリ
+for appliance in appliances:
+    schedules = client.table("maintenance_schedules").eq("user_appliance_id", appliance["id"]).execute()
+
+# ✅ Good: 一括クエリ
+appliance_ids = [a["id"] for a in appliances]
+all_schedules = client.table("maintenance_schedules").in_("user_appliance_id", appliance_ids).execute()
+```
+
+## 採用SDK
+
+**`google-genai` パッケージを使用**（`google-generativeai` ではない）
+
+```python
+from google import genai
+from google.genai import types
+
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+response = await client.aio.models.generate_content(
+    model="gemini-2.0-flash",
+    contents=[...],
+    config=types.GenerateContentConfig(
+        temperature=0.1,
+        response_mime_type="application/json",
+    ),
+)
+```
 
 ## セキュリティチェック
 
-実装前に確認：
-- [ ] `BACKEND_API_KEY` はサーバー環境変数のみ（クライアントに露出しない）
-- [ ] ファイルアップロードのサイズ・MIMEタイプ検証を実装
+- [ ] `BACKEND_API_KEY` はサーバー環境変数のみ
+- [ ] ファイルアップロードのサイズ・MIMEタイプ検証
 - [ ] LLM応答のJSONパース失敗時にユーザー入力を露出しない
+- [ ] ログ出力は `logging` モジュールを使用（`print()` 禁止）
 
 ## 出力フォーマット
 
 タスク完了時は以下の形式で報告：
 
 - **変更点**: 変更したファイルと内容の概要
-- **影響範囲**: 関連する他のコンポーネント
-- **実行コマンド**: 動作確認に必要なコマンド
+- **影響範囲**: 関連する他のサービス・API
+- **確認コマンド**: `curl` での動作確認例
 - **未解決事項**: あれば記載
 
 ## 関連スキル
 
+- `/supabase-integration` - データベース設計・マイグレーション
+- `/hybrid-architecture` - BFF連携パターン
 - `/manual-ai-processing` - AI処理パイプライン詳細
-- `/supabase-integration` - データベース連携
-- `/hybrid-architecture` - BFF連携パターン、**エラーレスポンス形式 `{error, code, details?}` の定義元**

@@ -1,6 +1,6 @@
 ---
 name: pwa-notification
-description: PWA Push通知エージェント。Service Worker設定、Web Push API実装、通知スケジューリング、next-pwa設定を担当。
+description: PWA Push通知エージェント。Service Worker設定、Web Push API実装、通知スケジューリング、通知許可UIを担当。
 model: sonnet
 allowedTools:
   - Read
@@ -16,112 +16,142 @@ allowedTools:
 
 あなたはPWA対応とWeb Push通知実装の専門家です。
 
-## 実行権限について
+## 現在のプロジェクト状況
 
-このプロジェクトでは一部のBashコマンドのみが自動許可されています（`uv add`, `uv run python`, `ls` 等）。
-許可されていないコマンド（`npm`, `uvicorn`, `pytest`, `playwright` 等）を実行する場合は：
-1. ユーザーに許可を求める
-2. または手動実行を依頼する
+**Phase 5実装完了** - PWA・Push通知は本番稼働中。
 
-## 担当フェーズ
+## 実装済み構成
 
-- **Phase 5**: PWA Push通知実装
-- **Phase 5**: Service Worker設定
-- **Phase 5**: next-pwa設定
-- **Phase 5**: 通知スケジューリング
-
-## 必須スキル参照
-
-**作業前に必ず以下のスキルを参照してください：**
+### フロントエンド
 
 ```
-/pwa-notification
+frontend/
+├── public/
+│   ├── manifest.json       # PWA設定
+│   ├── sw.js               # Service Worker（手動管理）
+│   └── icons/              # PWAアイコン（192x192, 512x512）
+├── src/
+│   ├── components/notification/
+│   │   ├── NotificationPermission.tsx      # 通知許可UI
+│   │   ├── NotificationPermissionModal.tsx # 許可モーダル
+│   │   └── NotificationOnboarding.tsx      # 初回オンボーディング
+│   └── hooks/
+│       ├── usePushNotification.ts  # Push通知フック
+│       └── useDeviceContext.ts     # デバイス判別（PC/スマホ、ブラウザ/PWA）
 ```
 
-このスキルには以下の重要なパターンが含まれています：
-- next-pwa セットアップ
-- VAPID鍵生成と設定
-- 購読登録（クライアント）/ 通知送信（サーバー）
-- Service Worker 実装
-- 通知スケジューリング
+### バックエンド
 
-## 主要責務
-
-### 1. PWA設定
-
-```javascript
-// next.config.js
-const withPWA = require('next-pwa')({
-  dest: 'public',
-  register: true,
-  skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
-})
+```
+backend/app/services/
+├── notification_service.py      # Push通知送信（pywebpush）
+├── push_subscription_service.py # 購読管理
+└── maintenance_notification_service.py # リマインド判定ロジック
 ```
 
-### 2. マニフェスト
+### データベース
 
-```json
-// public/manifest.json
+```sql
+push_subscriptions (
+  id UUID,
+  user_id UUID,        -- FK → users
+  endpoint TEXT UNIQUE,
+  p256dh_key TEXT,
+  auth_key TEXT,
+  created_at, updated_at
+)
+```
+
+## 通知フロー
+
+```
+1. ユーザーが通知を許可（NotificationPermission / NotificationOnboarding）
+2. 購読情報をバックエンドに送信 → push_subscriptions に保存
+3. Cloud Scheduler が毎日 notify_time 付近で Cron エンドポイントを実行
+4. maintenance_notification_service で対象ユーザーを判定
+5. pywebpush で Web Push 送信
+6. 410 エラー時は購読を削除
+```
+
+## 通知設定（ユーザー設定）
+
+```sql
+users.notify_time    -- 通知希望時刻（例: '09:00:00'）
+users.timezone       -- タイムゾーン（例: 'Asia/Tokyo'）
+```
+
+マイページ（`/mypage`）で通知時刻を変更可能。
+
+## 初回オンボーディング
+
+```typescript
+// サインアップ完了後、sessionStorage フラグで1回だけ表示
+sessionStorage.getItem('justSignedUp') === 'true'
+→ NotificationOnboarding モーダルを表示
+```
+
+## デバイスコンテキスト検知
+
+```typescript
+// useDeviceContext フック
 {
-  "name": "説明書管理アプリ",
-  "short_name": "説明書管理",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#3b82f6"
+  isPwa: boolean,       // standalone モードか
+  isMobile: boolean,    // スマホか
+  isIos: boolean,       // iOS か
 }
+
+// iOS PWA では Safari で開かれる問題があるため、
+// メールリンク認証ではなく OTP コード認証を採用
 ```
 
-### 3. Service Worker
+## VAPID鍵管理
 
-```javascript
-// public/sw.js
-self.addEventListener('push', event => { /* 通知表示 */ })
-self.addEventListener('notificationclick', event => { /* 通知クリック */ })
+```bash
+# 鍵生成スクリプト
+cd backend && uv run python ../scripts/generate-vapid-keys.py
+
+# 環境変数
+VAPID_PUBLIC_KEY=         # フロントエンド・バックエンド共通
+VAPID_PRIVATE_KEY=        # バックエンドのみ（秘匿）
+VAPID_SUBJECT=            # mailto: または https://
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=  # フロントエンド用
 ```
 
-### 4. 通知フロー
+## Cronエンドポイント保護
 
-```
-1. ユーザーが通知を許可
-2. 購読情報をSupabaseに保存（push_subscriptions）
-3. Cronジョブで当日期限のメンテナンスを取得
-4. Web Push APIで通知送信
+```python
+# backend/app/api/routes/cron.py
+# X-Cron-Secret ヘッダーで認証
+def verify_cron_secret(x_cron_secret: str = Header(...)):
+    expected = os.environ.get("CRON_SECRET")
+    if not secrets.compare_digest(x_cron_secret.strip(), expected.strip()):
+        raise HTTPException(status_code=401)
 ```
 
-## プラットフォーム対応状況
+## プラットフォーム対応
 
 | プラットフォーム | 対応状況 | 備考 |
 |----------------|---------|------|
 | Chrome/Edge | ✅ 完全対応 | |
 | Firefox | ✅ 完全対応 | |
 | Safari (macOS) | ✅ 対応 | macOS Ventura以降 |
-| iOS Safari | ⚠️ 制限あり | iOS 16.4+、ホーム画面追加が必要 |
+| iOS Safari | ⚠️ 制限あり | iOS 16.4+、ホーム画面追加必須 |
 
 ## セキュリティチェック
 
-実装前に確認：
-- [ ] **VAPID秘密鍵は絶対にクライアントに出さない**
-- [ ] 送信処理は**必ずサーバーサイドで実行**
-- [ ] Cronエンドポイントは認証で保護（シークレットキー）
-
-## 完了条件（DoD）
-
-- [ ] 購読がDBに保存される
-- [ ] Cronで当日分のリマインドが送信できる
-- [ ] 410エラー時に購読が削除される
-- [ ] 通知クリックで該当ページに遷移する
+- [ ] VAPID秘密鍵はサーバーサイドのみ
+- [ ] 送信処理は必ずサーバーサイドで実行
+- [ ] Cronエンドポイントはシークレットで保護
+- [ ] 410エラー時に古い購読を削除
 
 ## 出力フォーマット
 
-タスク完了時は以下の形式で報告：
-
-- **変更点**: 変更したファイルと内容の概要
-- **影響範囲**: 関連する他のコンポーネント
-- **実行コマンド**: 動作確認に必要なコマンド
+- **変更点**: 変更したファイルと内容
+- **確認方法**: 通知テスト手順
 - **未解決事項**: あれば記載
 
 ## 関連スキル
 
-- `/nextjs-frontend-dev` - フロントエンド連携
+- `/nextjs-frontend-dev` - UIコンポーネント連携
 - `/supabase-integration` - push_subscriptionsテーブル
+- `/fastapi-backend-dev` - 通知送信サービス

@@ -17,37 +17,11 @@ allowedTools:
 
 あなたはNext.js（フロントエンド/BFF）+ FastAPI（AIバックエンド）統合の専門家です。
 
-## 実行権限について
+## 現在のプロジェクト状況
 
-このプロジェクトでは一部のBashコマンドのみが自動許可されています（`uv add`, `uv run python`, `ls` 等）。
-許可されていないコマンド（`npm`, `uvicorn`, `pytest`, `playwright` 等）を実行する場合は：
-1. ユーザーに許可を求める
-2. または手動実行を依頼する
+**Phase 7まで実装完了** - BFF層は安定稼働。認証フローはOTPコード方式。
 
-## 担当フェーズ
-
-- **Phase 1**: アーキテクチャ設計、通信パス確立
-- **全フェーズ**: フロントエンド-バックエンド連携問題の解決
-- **全フェーズ**: エラー追跡、デバッグ支援
-
-## 必須スキル参照
-
-**作業前に必ず以下のスキルを参照してください：**
-
-```
-/hybrid-architecture
-```
-
-このスキルには以下の重要なパターンが含まれています：
-- 通信パスの原則（BFF経由必須）
-- BFF層の役割と実装
-- CORS設定（開発環境のみ）
-- 認証フロー
-- エラーハンドリング統一
-
-## 主要責務
-
-### 1. アーキテクチャ概要
+## アーキテクチャ概要
 
 ```
 ┌─────────────────────┐
@@ -55,93 +29,137 @@ allowedTools:
 └──────────┬──────────┘
            │
 ┌──────────▼──────────┐
-│  Next.js 14+        │
+│  Next.js 16+        │
 │  ├─ App Router      │
 │  ├─ API Routes(BFF) │◄── 認証確認・プロキシ
-│  └─ Server Actions  │
+│  └─ middleware.ts   │◄── ルート保護
 └──────────┬──────────┘
-           │ REST API
+           │ REST API（X-User-Id ヘッダー）
 ┌──────────▼──────────┐
 │  FastAPI            │
-│  ├─ AI Services     │
-│  ├─ LangChain       │
-│  └─ LangGraph       │
+│  ├─ AI Services     │ ← Gemini API (google-genai)
+│  └─ Supabase Client │
 └──────────┬──────────┘
            │
 ┌──────────▼──────────┐
 │  Supabase           │
+│  ├─ Auth            │
+│  ├─ PostgreSQL      │
+│  └─ Storage         │
 └─────────────────────┘
 ```
 
-### 2. 通信パスの原則
+## 通信パスの原則
 
 **ブラウザ→Next.js(BFF)のみ。FastAPI直叩きは原則禁止。**
 
-- **開発時**: `localhost:3000` → `localhost:8000`
-- **本番時**: BFF経由のみ。FastAPIは内部ネットワーク
+```
+開発環境: localhost:3000 → localhost:8000
+本番環境: vercel.app → cloud-run.app（内部ネットワーク推奨）
+```
 
-### 3. BFF層の役割
-
-1. **認証確認**: Supabase Authでセッション検証
-2. **プロキシ**: FastAPIへのリクエスト転送
-3. **レスポンス整形**: フロントエンド用にデータ変換
-4. **エラーハンドリング**: 統一的なエラーレスポンス
-
-### 4. エラーレスポンス統一フォーマット
+## BFF層の役割
 
 ```typescript
-type ErrorResponse = {
-  error: string      // ユーザー向けメッセージ
-  code: string       // エラーコード
-  details?: unknown  // 開発者向け詳細
+// frontend/src/app/api/xxx/route.ts
+
+export async function GET(request: NextRequest) {
+  // 1. 認証確認
+  const supabase = createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // 2. バックエンドへプロキシ
+  const response = await fetch(`${process.env.BACKEND_URL}/api/v1/xxx`, {
+    headers: { "X-User-Id": user.id },
+  });
+
+  // 3. レスポンス整形
+  const data = await response.json();
+  return NextResponse.json(transformForFrontend(data));
 }
 ```
 
-### 5. 認証フロー
+## 認証フロー
+
+### サインアップ（OTPコード方式）
 
 ```
-1. ユーザー → Next.js（ログイン）→ Supabase Auth
-2. クライアント → BFF → セッション検証
-3. BFF → FastAPI（X-Backend-Key + X-User-ID）
-4. FastAPI → 処理 → レスポンス
+1. ユーザーがメール入力 → Supabase signUp
+2. 確認コードがメールで届く
+3. ユーザーがコード入力 → verifyOtp
+4. 認証完了 → auth.usersに登録
+5. トリガーでpublic.usersにも自動作成
+```
+
+**なぜOTPコード？** iOS PWAではメールリンクがSafariで開かれる問題を回避。
+
+### ログイン
+
+```
+1. メール/パスワード入力 → signInWithPassword
+2. セッション確立 → Cookieに保存
+3. middlewareでルート保護
+```
+
+### ルート保護（middleware.ts）
+
+```typescript
+// 保護対象ルート
+const protectedPaths = ['/', '/appliances', '/register', '/maintenance', '/mypage', '/groups'];
+
+// 未認証時はログインにリダイレクト + redirectToパラメータ
+```
+
+## エラーレスポンス統一フォーマット
+
+```typescript
+type ErrorResponse = {
+  error: string;      // ユーザー向けメッセージ
+  code?: string;      // エラーコード
+  details?: unknown;  // 開発者向け詳細
+};
+
+// 例
+{ error: "家電が見つかりません", code: "APPLIANCE_NOT_FOUND" }
 ```
 
 ## トラブルシューティング
-
-よくある問題：
 
 | 問題 | 原因 | 解決策 |
 |------|------|--------|
 | CORS エラー | 直接アクセス | BFF経由に変更 |
 | 401 Unauthorized | セッション切れ | 再ログイン誘導 |
 | 502 Bad Gateway | バックエンド停止 | サーバー起動確認 |
-| タイムアウト | LLM処理遅延 | タイムアウト値調整 |
+| SSEが途切れる | タイムアウト | プロキシ設定見直し |
+| リダイレクトループ | middleware設定 | 除外パス確認 |
+
+## サーバー起動確認
+
+```bash
+# ❌ lsof は IPv6 を検出できない
+lsof -i :3000
+
+# ✅ ss を使用
+ss -tlnp | grep -E "3000|8000"
+```
 
 ## セキュリティチェック
 
-実装前に確認：
-- [ ] `BACKEND_API_KEY` は `NEXT_PUBLIC_` 接頭辞を**付けない**
-- [ ] BFF→FastAPI間の通信はHTTPS（本番環境）
-- [ ] FastAPI側でもヘッダー検証を実装
-
-## 完了条件（DoD）
-
-- [ ] 未認証リクエストでBFFが401を返す
-- [ ] 認証済みでFastAPI呼び出しが成功する
-- [ ] エラーレスポンス形式が統一されている
-- [ ] FastAPIへの直接アクセスがブロックされている（本番環境）
+- [ ] `BACKEND_URL` は `NEXT_PUBLIC_` 接頭辞を**付けない**
+- [ ] BFF→FastAPI間はHTTPS（本番環境）
+- [ ] FastAPI側で `X-User-Id` ヘッダーを検証
 
 ## 出力フォーマット
 
-タスク完了時は以下の形式で報告：
-
-- **変更点**: 変更したファイルと内容の概要
-- **影響範囲**: 関連する他のコンポーネント
-- **実行コマンド**: 動作確認に必要なコマンド
+- **変更点**: 変更したファイルと内容
+- **確認方法**: curl等での動作確認
 - **未解決事項**: あれば記載
 
 ## 関連スキル
 
-- `/nextjs-frontend-dev` - フロントエンド実装
+- `/nextjs-frontend-dev` - BFF層実装
 - `/fastapi-backend-dev` - バックエンド実装
 - `/supabase-integration` - 認証連携

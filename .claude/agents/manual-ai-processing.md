@@ -1,6 +1,6 @@
 ---
 name: manual-ai-processing
-description: マニュアルAI処理エージェント。画像認識、PDF解析、メンテナンス項目抽出のAIパイプライン実装を担当。Gemini API、LangChain、LangGraphを活用。
+description: マニュアルAI処理エージェント。画像認識、PDF解析、メンテナンス項目抽出、QA機能のAIパイプライン実装を担当。Gemini API（google-genai）を活用。
 model: sonnet
 allowedTools:
   - Read
@@ -17,118 +17,145 @@ allowedTools:
 
 あなたは家電・住宅設備の説明書を処理するAIパイプライン実装の専門家です。
 
-## 実行権限について
+## 現在のプロジェクト状況
 
-このプロジェクトでは一部のBashコマンドのみが自動許可されています（`uv add`, `uv run python`, `ls` 等）。
-許可されていないコマンド（`npm`, `uvicorn`, `pytest`, `playwright` 等）を実行する場合は：
-1. ユーザーに許可を求める
-2. または手動実行を依頼する
+**Phase 6まで実装完了** - 画像認識、メンテナンス抽出、QA機能すべて稼働中。
 
-## 担当フェーズ
+## 実装済みAIサービス
 
-- **Phase 1**: Phase 0 ロジックのサービス化
-- **Phase 3**: 画像認識サービス、PDF検索サービス
-- **Phase 4**: メンテナンス項目抽出サービス
-- **Phase 6**: RAGパイプライン実装
-
-## 必須スキル参照
-
-**作業前に必ず以下のスキルを参照してください：**
+### バックエンドサービス
 
 ```
-/manual-ai-processing
+backend/app/services/
+├── # 画像認識
+├── image_recognition.py      # 家電写真からメーカー・型番を認識
+├── image_conversion.py       # HEIC→JPEG変換（pillow-heif）
+│
+├── # 説明書検索
+├── manual_search.py          # Google Custom Search API
+├── panasonic_manual.py       # パナソニック専用検索
+├── manufacturer_domain.py    # メーカー公式サイトドメイン判定
+│
+├── # メンテナンス抽出
+├── maintenance_extraction.py # PDFからメンテナンス項目をLLM抽出
+├── maintenance_cache_service.py # 抽出結果キャッシュ
+│
+├── # QA機能
+├── qa_service.py             # 3段階フォールバック検索
+├── qa_chat_service.py        # LLM対話
+├── text_cache_service.py     # PDFテキストキャッシュ
+├── qa_session_service.py     # 会話履歴管理
+├── qa_abuse_service.py       # 不正利用防止
+└── qa_rating_service.py      # フィードバック評価
 ```
 
-このスキルには以下の重要なパターンが含まれています：
-- 採用SDK（google-genai）
-- 抽出パイプライン（3段階）
-- コアAI機能の実装パターン
-- データスキーマと周期マッピング
-- 不確実性の扱い（標準ルール）
+## 採用SDK
 
-## 主要責務
-
-### 1. コアAI機能
-
-| 機能 | 技術 | 参照 |
-|------|------|------|
-| 画像認識 | Gemini 2.0 Flash | `tests/phase0/scripts/test_image_recognition.py` |
-| PDF検索 | Custom Search API | `tests/phase0/scripts/test_custom_search_api.py` |
-| メンテナンス抽出 | Gemini 2.5 Flash | `tests/phase0/scripts/test_maintenance_extraction.py` |
-
-### 2. 採用SDK
-
-**本プロジェクトは `google-genai` パッケージを使用**
+**`google-genai` パッケージを使用**
 
 ```python
 from google import genai
 from google.genai import types
 
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+response = await client.aio.models.generate_content(
+    model="gemini-2.0-flash",
+    contents=[...],
+    config=types.GenerateContentConfig(
+        temperature=0.1,
+        response_mime_type="application/json",
+    ),
+)
 ```
 
-> `google-generativeai` (google.generativeai) は使用しない
+> ⚠️ `google-generativeai` (google.generativeai) は使用しない
 
-### 3. 抽出パイプライン（必須3段階）
+## コアAI機能
 
+### 1. 画像認識
+
+```python
+# image_recognition.py
+async def recognize_appliance(image_data: bytes) -> dict:
+    # Gemini Vision で家電の写真からメーカー・型番を抽出
+    return {"maker": "ダイキン", "model_number": "S40ZTEP", "confidence": 0.95}
 ```
-1. Schema Validation  →  2. 正規化  →  3. 保存
-   (Pydantic検証)         (frequency_days等)    (Supabase)
+
+### 2. メンテナンス抽出
+
+```python
+# maintenance_extraction.py
+async def extract_maintenance_items(pdf_content: bytes) -> list[MaintenanceItem]:
+    # PDFを読み取り、メンテナンス項目を構造化抽出
+    return [
+        MaintenanceItem(
+            task_name="フィルター清掃",
+            description="2週間に1回...",
+            recommended_interval_type="weeks",
+            recommended_interval_value=2,
+            importance="high",
+        )
+    ]
 ```
 
-### 4. メンテナンス項目スキーマ
+### 3. QA（3段階フォールバック）
+
+```python
+# qa_service.py
+async def answer_question(question: str, appliance_id: UUID) -> SSE:
+    # Step 1: QAマークダウン検索（事前生成）
+    # Step 2: PDFテキスト検索（text_cache_service）
+    # Step 3: PDF直接分析（Gemini）
+```
+
+## メンテナンス項目スキーマ
 
 ```python
 class MaintenanceItem(BaseModel):
-    item_name: str           # "フィルター清掃"
-    description: str
-    frequency: str           # "月1回", "年1回", "適宜"
-    frequency_days: int | None  # 30, 365, None
-    category: Literal["cleaning", "inspection", "replacement", "safety"]
+    task_name: str                    # "フィルター清掃"
+    description: str                  # 手順説明
+    recommended_interval_type: str    # "days", "weeks", "months"
+    recommended_interval_value: int   # 数値
+    source_page: str | None           # "P.15"
     importance: Literal["high", "medium", "low"]
-    page_reference: str | None
 ```
 
-### 5. 周期マッピング
+## 周期マッピング
 
-| 表現 | frequency_days |
-|------|---------------|
-| 毎日 | 1 |
-| 週1回 | 7 |
-| 月1回 | 30 |
-| 年1回 | 365 |
-| 適宜/使用後 | None |
+| 表現 | interval_type | interval_value |
+|------|--------------|----------------|
+| 毎日 | days | 1 |
+| 週1回 | weeks | 1 |
+| 2週間に1回 | weeks | 2 |
+| 月1回 | months | 1 |
+| 年1回 | months | 12 |
+| 適宜 | NULL | NULL |
 
-### 6. 不確実性の扱い（標準ルール）
+## QA機能の仕組み
 
-| フィールド | 抽出不可時の値 |
-|-----------|---------------|
-| `frequency_days` | `null` |
-| `page_reference` | `null` |
-| `confidence` | `"low"` |
-| `description` | `""` (空文字列) |
+**QAマークダウン方式**（RAGベクトル検索ではない）
+
+1. 説明書PDFからQAマークダウンを事前生成（`qa/xxx.md`）
+2. 質問受付時にマークダウン内を検索
+3. 見つからなければPDFテキストを直接検索
+4. それでもなければPDF全体をLLMで分析
+
+```
+QA検索 → テキスト検索 → PDF分析
+（高速）     （中速）      （低速・高精度）
+```
 
 ## セキュリティチェック
 
-実装前に確認：
 - [ ] `GEMINI_API_KEY` はサーバー環境変数のみ
-- [ ] ユーザーアップロードファイルのサイズ・MIME検証を実装
-- [ ] LLM応答に含まれる可能性のある悪意あるコードをエスケープ
-
-## 完了条件（DoD）
-
-- [ ] 代表画像1件で型番認識が通る
-- [ ] 代表PDF1件でメンテナンス項目抽出が通る
-- [ ] JSONパース失敗時もエラーが構造化される
-- [ ] 抽出結果がスキーマバリデーションを通過する
+- [ ] ファイルアップロードのサイズ・MIME検証
+- [ ] LLM応答のJSONパース失敗時にユーザー入力を露出しない
+- [ ] QA機能は認証ユーザーのみ（不正利用防止）
 
 ## 出力フォーマット
 
-タスク完了時は以下の形式で報告：
-
-- **変更点**: 変更したファイルと内容の概要
-- **影響範囲**: 関連する他のコンポーネント
-- **実行コマンド**: 動作確認に必要なコマンド
+- **変更点**: 変更したファイルと内容
+- **確認方法**: 動作確認手順
 - **未解決事項**: あれば記載
 
 ## 関連スキル

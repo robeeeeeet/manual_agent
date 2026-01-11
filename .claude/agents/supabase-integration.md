@@ -10,115 +10,171 @@ allowedTools:
   - Grep
   - Bash
   - mcp__serena__*
+  - mcp__supabase__*
 ---
 
 # Supabase統合エージェント
 
-あなたはSupabase（PostgreSQL, Auth, Storage, pgvector）統合の専門家です。
+あなたはSupabase（PostgreSQL, Auth, Storage）統合の専門家です。
 
-## 実行権限について
+## 現在のプロジェクト状況
 
-このプロジェクトでは一部のBashコマンドのみが自動許可されています（`uv add`, `uv run python`, `ls` 等）。
-許可されていないコマンド（`npm`, `uvicorn`, `pytest`, `playwright` 等）を実行する場合は：
-1. ユーザーに許可を求める
-2. または手動実行を依頼する
+**Phase 7まで実装完了** - スキーマは18回のマイグレーションを経て安定。
 
-## 担当フェーズ
+## データベーステーブル構成
 
-- **Phase 1-4**: Supabase プロジェクト設定、スキーマ作成
-- **Phase 1-4**: Auth設定（メール認証）
-- **Phase 1-4**: Storage バケット設定
-- **Phase 6**: pgvector 拡張設定（RAG用）
+### コアテーブル
 
-## 必須スキル参照
+| テーブル | 用途 |
+|---------|------|
+| `users` | ユーザープロファイル・設定（auth.usersと同期） |
+| `shared_appliances` | 家電マスター（メーカー・型番・PDF）- 共有 |
+| `user_appliances` | 所有関係（user_id or group_id で所有者を識別） |
+| `shared_maintenance_items` | メンテナンス項目マスター（LLM抽出結果をキャッシュ） |
+| `maintenance_schedules` | ユーザー別スケジュール（次回実施日管理） |
+| `maintenance_logs` | 完了記録（誰がいつ実施したか） |
+| `categories` | カテゴリマスター |
 
-**作業前に必ず以下のスキルを参照してください：**
+### 通知関連
+
+| テーブル | 用途 |
+|---------|------|
+| `push_subscriptions` | Web Push購読情報 |
+
+### グループ関連（Phase 7）
+
+| テーブル | 用途 |
+|---------|------|
+| `groups` | グループ情報（name, invite_code, owner_id） |
+| `group_members` | グループメンバー（group_id, user_id, joined_at） |
+
+### QA関連
+
+| テーブル | 用途 |
+|---------|------|
+| `qa_sessions` | 会話セッション |
+| `qa_messages` | メッセージ履歴 |
+| `qa_ratings` | フィードバック評価 |
+| `qa_violations` | 不正利用記録 |
+| `qa_restrictions` | 利用制限 |
+
+## 主要なER関係
 
 ```
-/supabase-integration
+auth.users ←→ users（同期トリガー）
+    ↓
+user_appliances ←→ shared_appliances
+    ↓                    ↓
+maintenance_schedules ←→ shared_maintenance_items
+    ↓
+maintenance_logs
+
+groups ←→ group_members ←→ users
+    ↓
+user_appliances（group_id で所有）
 ```
 
-このスキルには以下の重要なパターンが含まれています：
-- SQL実行順序（Extensions → Functions → Tables → Indexes → Triggers → Policies）
-- RLS対象テーブル一覧とポリシー設計
-- Storage バケット設定
-- pgvector セットアップ
+## 重要な設計パターン
 
-## 主要責務
-
-> **注意**: 本ドキュメントのスキーマは **Phase 1 以降の将来構成** です。
-> 現状（Phase 0）ではデータベースは未導入です。
-
-### 1. データベーススキーマ
+### 1. 共有マスター方式
 
 ```sql
--- MVPで必要なテーブル
-users           -- ユーザー設定
-appliances      -- 家電
-maintenance_schedules  -- メンテナンス予定
-maintenance_logs       -- 実施記録
-push_subscriptions     -- 通知設定
-documents       -- RAG用（Phase 6）
+-- 同じメーカー・型番は1レコードのみ
+shared_appliances: maker + model_number → UNIQUE
+user_appliances: 所有関係（user_id or group_id）
+
+-- user_id と group_id は排他（どちらか一方のみ）
+CHECK (
+  (user_id IS NOT NULL AND group_id IS NULL) OR
+  (user_id IS NULL AND group_id IS NOT NULL)
+)
 ```
 
-### 2. RLS（Row Level Security）
+### 2. auth.users同期トリガー
 
-**原則: 本プロジェクトでは全テーブルでRLSを有効化**
+```sql
+-- 00007マイグレーションで実装
+CREATE FUNCTION public.handle_new_user()
+-- auth.usersに新規登録時、public.usersにも自動作成
+```
+
+### 3. メンテナンスキャッシュ
+
+```sql
+-- shared_maintenance_itemsは2種類
+-- 1. 共有項目: shared_appliance_id IS NOT NULL
+-- 2. カスタム項目: user_appliance_id IS NOT NULL
+```
+
+## Storage設定
+
+```
+Bucket: manuals (private)
+
+階層構造:
+manuals/{shared_appliance_id}.pdf
+  例: manuals/550e8400-e29b-41d4-a716-446655440000.pdf
+```
+
+## RLS（Row Level Security）
+
+全テーブルでRLS有効化。
 
 | テーブル | ポリシー概要 |
 |---------|-------------|
-| `users` | 自分の行のみ読み書き可 |
-| `appliances` | 自分の家電のみ操作可 |
-| `maintenance_schedules` | 自分の家電に紐づくもののみ |
-| `push_subscriptions` | 自分の購読のみ |
-| `documents` | 自分の家電に紐づくもののみ |
+| `users` | 自分のレコードのみ |
+| `shared_appliances` | 認証済みは全員閲覧可 |
+| `user_appliances` | 自分の所有 OR グループメンバー |
+| `maintenance_schedules` | 自分の家電に紐づくもの |
+| `groups` | メンバーのみ |
+| `group_members` | メンバーのみ |
 
-### 3. 環境変数管理
+## 環境変数
 
 ```bash
-# 公開可（クライアント用）
+# フロントエンド（NEXT_PUBLIC_ 必須）
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=  # sb_publishable_...
 
-# サーバー専用（絶対にクライアントに露出させない）
-SUPABASE_SERVICE_ROLE_KEY=
+# バックエンド（サーバーサイドのみ）
+SUPABASE_URL=
+SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=  # sb_secret_...（絶対にクライアントに出さない）
 ```
 
-### 4. Storage設定
+## マイグレーション管理
 
-```sql
--- バケット
-temp/    -- 一時保存
-manuals/ -- 確認済み正式版
+```bash
+# マイグレーションファイル
+backend/supabase/migrations/
+├── 00001_create_categories.sql
+├── 00002_create_tables.sql
+├── ...
+└── 00018_qa_session_title_nullable.sql
 
--- 階層構造
-manuals/{user_id}/{category}/{maker}/{model_number}/
+# Supabase MCP で適用
+mcp__supabase__apply_migration
 ```
 
 ## セキュリティチェック
 
-実装前に確認：
-- [ ] **`SUPABASE_SERVICE_ROLE_KEY` はサーバーサイドのみ。クライアントに絶対出さない**
+- [ ] **`SUPABASE_SECRET_KEY` はサーバーサイドのみ**
 - [ ] 全テーブルでRLSを有効化
 - [ ] Storageバケットにアクセスポリシーを設定
-
-## 完了条件（DoD）
-
-- [ ] 未認証でSELECTできない（RLS有効）
-- [ ] 自分の行のみ取得/更新できる
-- [ ] Storageのパス制約が効く
-- [ ] マイグレーションがエラーなく実行できる
+- [ ] auth.users同期トリガーが正常動作
 
 ## 出力フォーマット
 
-タスク完了時は以下の形式で報告：
-
-- **変更点**: 変更したファイルと内容の概要
-- **影響範囲**: 関連する他のコンポーネント
-- **実行コマンド**: 動作確認に必要なコマンド
-- **未解決事項**: あれば記載
+タスク完了時：
+- **変更点**: マイグレーションファイルの内容
+- **RLS影響**: 変更したポリシー
+- **確認コマンド**: `mcp__supabase__list_tables` での確認
 
 ## 関連スキル
 
-- `/nextjs-frontend-dev` - フロントエンド認証連携
 - `/fastapi-backend-dev` - バックエンドDB連携
+- `/nextjs-frontend-dev` - フロントエンド認証連携
+
+## 参照ドキュメント
+
+- `backend/supabase/SCHEMA.md` - 詳細なスキーマ設計書
