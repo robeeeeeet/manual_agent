@@ -92,9 +92,10 @@ manual_agent/
 
 ## 現在のステータス
 
-**Phase 6: QAマークダウン方式 質問応答機能** 実装済み
+**Phase 7: 家族グループ共有機能** 実装済み
+**追加機能**: QA会話履歴、リッチテキスト対応、パフォーマンス改善、認証フロー改善
 
-### 実装済み機能（Phase 0〜6）
+### 実装済み機能（Phase 0〜7 + 追加機能）
 - 共有マスター方式のデータベース設計（shared_appliances / user_appliances）
 - メンテナンス項目キャッシュシステム（shared_maintenance_items）
 - 家電CRUD API（バックエンド + BFF層）
@@ -109,7 +110,7 @@ manual_agent/
 - 完了記録UI（完了ボタン、メモ入力モーダル）
 - 履歴表示UI（履歴モーダル、日時・メモ表示）
 - 家電一覧の次回メンテナンス表示（バッジ）
-- フロントエンド型定義（src/types/appliance.ts, src/types/qa.ts）
+- フロントエンド型定義（src/types/appliance.ts, src/types/qa.ts, src/types/group.ts）
 - Modalコンポーネント
 - **PWA対応（manifest.json, Service Worker, アイコン）**
 - **Push通知基盤（購読管理、通知送信サービス）**
@@ -130,14 +131,37 @@ manual_agent/
     - 認証必須化（ログインユーザーのみQA機能利用可）
     - ルールベース + LLM ハイブリッド質問検証
     - 違反記録・段階的利用制限（1回目=警告、2回目=1時間、3回目=24時間、4回目以降=7日間）
+  - **QA会話履歴機能（qa_session_service）** ← NEW
+    - セッション管理（作成・取得・再開・リセット）
+    - LLMによるセッションタイトル自動生成
+    - 会話履歴UI（QASessionHistory.tsx）
 - **メンテナンス一覧機能（/maintenance）**
   - メンテナンス一覧ページ（ステータス別タブ、フィルタ機能）
   - 共通コンポーネント（MaintenanceCompleteModal, MaintenanceStatusTabs, MaintenanceFilter, MaintenanceListItem）
   - 家電詳細ページと統一されたUI/UX
   - バックエンドAPI（`GET /api/v1/maintenance`）
+- **家族グループ共有機能（Phase 7）**
+  - グループCRUD（group_service.py）
+  - 招待コード方式（6文字英数字）
+  - 家電共有/解除（トグルスイッチ）
+  - メンバー管理（オーナーによる削除）
+  - グループページ（/groups, /groups/[id]）
+- **リッチテキスト対応** ← NEW
+  - SafeHtmlコンポーネント（DOMPurifyによるサニタイズ）
+  - メンテナンス説明のHTML表示対応
+  - DBスキーマ正規化（00015マイグレーション）
+- **パフォーマンス改善** ← NEW
+  - N+1問題解消（appliance_service, maintenance_notification_service）
+  - SWR導入（useAppliances, useMaintenanceフック）
+  - キャッシュ最適化（dedupingInterval=60秒）
+- **認証フロー改善** ← NEW
+  - パスワードリセット機能（/reset-password）
+  - パスワードリセットメール送信
 
 ### 次のフェーズ
-- Phase 7: 追加機能・改善（検討中）
+- Phase 8: 追加機能・改善（検討中）
+  - LINE 通知対応
+  - 家電以外の商品対応（住宅設備等）
 
 ## 重要な設計判断
 
@@ -146,7 +170,9 @@ manual_agent/
 3. **カテゴリ**: 事前定義リスト + 自由入力の両対応
 4. **認証・DB・ストレージ**: Supabaseで一元管理
 5. **HEIC対応**: サーバーサイド変換（pillow-heif）でiPhone写真に対応
-6. **認証フロー**: @supabase/ssr + ミドルウェアによるルート保護、サインアップ時はOTPコード方式（PWA対応のためメールリンク方式から変更）、確認コード再送機能（Supabaseレート制限対応・日本語カウントダウン表示）、未認証ユーザーは全保護ルート（`/`, `/appliances`, `/register`, `/mypage`, `/maintenance`）からログインページへリダイレクトされ、ログイン後は元のページに戻る（`redirectTo`クエリパラメータ）
+6. **認証フロー**: @supabase/ssr + ミドルウェアによるルート保護、サインアップ時はOTPコード方式（PWA対応のためメールリンク方式から変更）、確認コード再送機能（Supabaseレート制限対応・日本語カウントダウン表示）、未認証ユーザーは全保護ルート（`/`, `/appliances`, `/register`, `/mypage`, `/maintenance`, `/groups`）からログインページへリダイレクトされ、ログイン後は元のページに戻る（`redirectTo`クエリパラメータ）、パスワードリセット機能
 7. **共有マスター方式**: 同一メーカー・型番の家電は`shared_appliances`で共有し、ユーザー所有関係は`user_appliances`で管理
 8. **メンテナンスキャッシュ**: LLM抽出結果を`shared_maintenance_items`にキャッシュし、2人目以降のコスト・時間を削減
 9. **auth.users同期トリガー**: `auth.users`への登録・削除時に`public.users`を自動同期（00007マイグレーション）
+10. **QA会話履歴**: セッション単位で会話を管理し、文脈を保持した質問応答を実現（6時間タイムアウト）
+11. **SWRによるデータフェッチ**: クライアントサイドキャッシュとリバリデーションでUX向上

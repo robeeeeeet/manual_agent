@@ -76,6 +76,7 @@ manual_agent/
 │   │   ├── auth/callback/ # 認証コールバック
 │   │   ├── login/         # ログインページ
 │   │   ├── signup/        # 新規登録ページ
+│   │   ├── reset-password/ # パスワードリセットページ
 │   │   ├── register/      # 家電登録ページ
 │   │   ├── appliances/    # 家電一覧・詳細ページ
 │   │   │   └── [id]/      # 家電詳細ページ（動的ルート）
@@ -89,9 +90,9 @@ manual_agent/
 │   │   ├── layout/        # Header, Footer
 │   │   ├── maintenance/   # メンテナンス関連（MaintenanceCompleteModal, MaintenanceStatusTabs, MaintenanceFilter, MaintenanceListItem）
 │   │   ├── notification/  # 通知コンポーネント（NotificationPermission, NotificationPermissionModal, NotificationOnboarding）
-│   │   ├── qa/            # QA機能（QASection, QAChat, QAChatMessage, QAFeedbackButtons, SearchProgressIndicator）
-│   │   └── ui/            # Button, Card, Modal
-│   ├── src/hooks/         # カスタムフック（usePushNotification, useDeviceContext）
+│   │   ├── qa/            # QA機能（QASection, QAChat, QAChatMessage, QAFeedbackButtons, SearchProgressIndicator, QASessionHistory）
+│   │   └── ui/            # Button, Card, Modal, SafeHtml
+│   ├── src/hooks/         # カスタムフック（usePushNotification, useDeviceContext, useAppliances, useMaintenance）
 │   ├── src/types/         # 型定義（appliance.ts, user.ts, qa.ts, group.ts）
 │   ├── src/contexts/      # React Context（AuthContext）
 │   ├── src/lib/           # ユーティリティ
@@ -122,6 +123,7 @@ manual_agent/
 │   │   │   ├── qa_chat_service.py       # QAチャット（LLM対話）
 │   │   │   ├── qa_rating_service.py     # QAフィードバック評価
 │   │   │   ├── qa_abuse_service.py      # QA不正利用防止（質問検証、違反記録、利用制限）
+│   │   │   ├── qa_session_service.py    # QAセッション管理（会話履歴、タイトル生成）
 │   │   │   ├── text_cache_service.py    # PDFテキストキャッシュ
 │   │   │   └── image_conversion.py      # 画像変換（HEIC等）
 │   │   └── main.py
@@ -298,9 +300,17 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
   - 1ユーザー1グループ制約
   - グループページ（`/groups`、`/groups/[id]`）
   - マイグレーション 00010〜00014
+- ✅ 追加機能（Phase 7以降）
+  - **QA会話履歴機能**: セッション管理（qa_session_service）、LLMタイトル自動生成、QASessionHistory UI、マイグレーション 00016〜00018
+  - **リッチテキスト対応**: SafeHtmlコンポーネント（DOMPurifyサニタイズ）、DBスキーマ正規化（マイグレーション 00015）
+  - **パフォーマンス改善**: N+1問題解消（appliance_service, maintenance_notification_service）、SWR導入（useAppliances, useMaintenance フック）
+  - **認証フロー改善**: パスワードリセット機能（`/reset-password`）、resetPassword/updatePassword メソッド
+  - **UI改善**: トップページコンパクト化、テキスト見切れ対策、家電詳細ページ総合改善
 
 ### 次のフェーズ
 - Phase 8: 追加機能・改善（検討中）
+  - LINE 通知対応
+  - 家電以外の商品対応（住宅設備等）
 
 **本番URL:** https://manual-agent-seven.vercel.app/
 
@@ -329,3 +339,7 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
 18. **デバイスコンテキスト検知**: User-AgentとCSS `display-mode: standalone` でPC/スマホ、ブラウザ/PWAを判別し、適切な案内文言を表示
 19. **家族グループ共有**: 1ユーザー1グループ制約、招待コード方式（6文字英数字）、グループ所有の家電は全メンバーが編集・削除可能、メンテナンス完了は全員に反映
 20. **グループ家電の所有権管理**: `user_appliances` テーブルに `group_id` を追加、個人所有（`user_id` 設定）またはグループ所有（`group_id` 設定）の排他制約
+21. **QA会話履歴**: セッション単位で会話を管理し、文脈を保持した質問応答を実現（6時間タイムアウト、LLMによるタイトル自動生成）
+22. **SWRによるデータフェッチ**: クライアントサイドキャッシュとリバリデーションでUX向上（dedupingInterval=60秒、revalidateOnFocus=false）
+23. **N+1問題の解消**: ループ内クエリを`in_()`による一括クエリに変更し、DB負荷を70〜97%削減
+24. **リッチテキスト表示**: DOMPurifyによるサニタイズ済みHTML表示でセキュアなリッチテキスト対応

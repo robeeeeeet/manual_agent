@@ -72,6 +72,114 @@
 - 通知設定: 個人設定を維持（各メンバーの`notify_time`を尊重）
 - グループ切替え: 既存グループ離脱→共有家電を個人所有に移管→新グループ参加
 
+#### QA会話履歴機能 ✅ 完了
+
+QAチャットで会話の文脈を保持し、「それ」「これ」などの指示語を正しく解釈できるようにする機能。
+
+**データベース**
+- `qa_sessions` テーブル: セッション管理（ユーザー、家電、アクティブ状態、要約タイトル）
+- `qa_session_messages` テーブル: メッセージ履歴（質問/回答、ソース情報、参照メタデータ）
+- マイグレーション 00016〜00018
+
+**バックエンドサービス**
+- `qa_session_service.py`: セッション管理サービス
+  - `create_session()` - 新規セッション作成
+  - `get_session()` / `get_user_sessions()` - セッション取得
+  - `resume_session()` - セッション再開
+  - `reset_session()` - 新規セッションでリセット
+  - `save_message()` / `get_messages()` - メッセージ保存・取得
+  - `generate_session_summary()` - LLMによるタイトル自動生成（Gemini API）
+  - 6時間タイムアウトによる自動非アクティブ化
+
+**バックエンドAPI**
+- `GET /api/v1/qa/{shared_appliance_id}/sessions` - セッション一覧取得
+- `GET /api/v1/qa/sessions/{session_id}` - セッション詳細取得
+- `POST /api/v1/qa/sessions/{session_id}/resume` - セッション再開
+- `POST /api/v1/qa/{shared_appliance_id}/reset-session` - 新規セッション作成
+
+**フロントエンドBFF層**
+- `/api/qa/[sharedApplianceId]/sessions` - セッション一覧
+- `/api/qa/sessions/[sessionId]` - セッション詳細・再開
+- `/api/qa/[sharedApplianceId]/reset-session` - セッションリセット
+
+**フロントエンドUI**
+- `QASessionHistory.tsx` - 会話履歴UI
+  - セッション一覧表示（相対時間・メッセージ数）
+  - LLM要約タイトル表示（2行制限）
+  - セッション切り替え・新規作成
+- `QASection.tsx` / `QAChat.tsx` - セッション管理統合
+
+#### リッチテキスト対応 ✅ 完了
+
+メンテナンス説明文のHTML表示対応とDBスキーマの正規化。
+
+**データベース**
+- `shared_maintenance_items` 中心の正規化構造に変更
+- マイグレーション 00015
+
+**フロントエンドUI**
+- `SafeHtml.tsx` - DOMPurifyによるサニタイズ済みHTML表示コンポーネント
+- メンテナンスカードを縦並びレイアウトに変更（スマホでの視認性向上）
+- メーカー名・型番を表示
+
+**バックエンド**
+- `maintenance_extraction.py` - HTML形式の説明文生成対応
+- `maintenance_log_service.py` - 正規化構造対応
+
+**ユーティリティ**
+- `scripts/migrate_maintenance_description.py` - 既存データのマイグレーションスクリプト
+
+#### パフォーマンス改善 ✅ 完了
+
+N+1問題解消とSWR導入によるデータフェッチ最適化。
+
+**バックエンド**
+- `appliance_service.py`: `get_user_appliances()` のN+1問題解消
+  - ループ内個別クエリ → `in_()` による一括クエリ
+  - 10家電で13クエリ→4クエリに削減（約70%改善）
+- `maintenance_notification_service.py`: 2箇所のN+1問題解消
+  - `_get_users_with_upcoming_maintenance()`: N→1クエリ
+  - `_get_users_for_scheduled_notification()`: 2N→2クエリ（97%改善）
+
+**フロントエンド**
+- SWR v2.3.8 導入
+- カスタムフック作成
+  - `useAppliances.ts` - 家電一覧データフェッチ
+  - `useMaintenance.ts` - メンテナンス一覧データフェッチ
+- 3ページ（トップ、家電一覧、メンテナンス一覧）にSWR適用
+- キャッシュ設定: `revalidateOnFocus=false`, `dedupingInterval=60秒`
+
+#### 認証フロー改善 ✅ 完了
+
+パスワードリセット機能とUI改善。
+
+**フロントエンドUI**
+- `/reset-password` ページ: パスワードリセットフロー
+  - メールアドレス入力 → リセットリンク送信
+  - トークン検証 → 新パスワード設定
+- `AuthForm.tsx`: パスワードリセットリンク追加
+- `FeatureCard.tsx`: トップページの機能説明カードコンポーネント
+
+**AuthContext**
+- `resetPassword()` - パスワードリセットメール送信
+- `updatePassword()` - 新パスワード設定
+
+#### トップページ改善 ✅ 完了
+
+- 機能説明セクションをページ下部に移動してコンパクト化
+- `FeatureCard.tsx` コンポーネントによるカード表示
+
+#### UI改善: テキスト見切れ対策 ✅ 完了
+
+- メンテナンス名の長いテキストが見切れる問題を改善
+- `MaintenanceListItem.tsx` のレイアウト調整
+
+#### 家電詳細ページ総合改善 ✅ 完了
+
+- メンテナンスカードのレイアウト改善
+- 完了ボタンの色統一（期限超過時は赤色）
+- メーカー名・型番の表示追加
+
 #### Phase 6.5: メンテナンス一覧機能 ✅ 完了
 
 **バックエンドAPI**
