@@ -21,7 +21,6 @@ export interface GroupMember {
   id: string;
   user_id: string;
   email: string;
-  role: "owner" | "member";
   joined_at: string;
 }
 

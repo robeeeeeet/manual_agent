@@ -117,12 +117,11 @@ async def create_group(owner_id: str, name: str) -> dict:
 
         group = group_response.data[0]
 
-        # Add owner as a member with 'owner' role
+        # Add owner as a member
         client.table("group_members").insert(
             {
                 "group_id": group["id"],
                 "user_id": owner_id,
-                "role": "owner",
             }
         ).execute()
 
@@ -168,7 +167,7 @@ async def get_group(group_id: str, user_id: str) -> dict:
         # Get members with email from users table
         members_response = (
             client.table("group_members")
-            .select("id, user_id, role, joined_at, users(email)")
+            .select("id, user_id, joined_at, users(email)")
             .eq("group_id", group_id)
             .execute()
         )
@@ -180,7 +179,6 @@ async def get_group(group_id: str, user_id: str) -> dict:
                     "id": m["id"],
                     "user_id": m["user_id"],
                     "email": m["users"]["email"] if m.get("users") else "",
-                    "role": m["role"],
                     "joined_at": m["joined_at"],
                 }
             )
@@ -235,7 +233,7 @@ async def get_user_groups(user_id: str) -> dict:
             # Get members for each group
             members_response = (
                 client.table("group_members")
-                .select("id, user_id, role, joined_at, users(email)")
+                .select("id, user_id, joined_at, users(email)")
                 .eq("group_id", group["id"])
                 .execute()
             )
@@ -247,7 +245,6 @@ async def get_user_groups(user_id: str) -> dict:
                         "id": m["id"],
                         "user_id": m["user_id"],
                         "email": m["users"]["email"] if m.get("users") else "",
-                        "role": m["role"],
                         "joined_at": m["joined_at"],
                     }
                 )
@@ -527,7 +524,6 @@ async def join_group(user_id: str, invite_code: str) -> dict:
             {
                 "group_id": group["id"],
                 "user_id": user_id,
-                "role": "member",
             }
         ).execute()
 
@@ -660,7 +656,7 @@ async def get_group_members(group_id: str, user_id: str) -> dict:
         # Get members with email
         response = (
             client.table("group_members")
-            .select("id, user_id, role, joined_at, users(email)")
+            .select("id, user_id, joined_at, users(email)")
             .eq("group_id", group_id)
             .execute()
         )
@@ -672,7 +668,6 @@ async def get_group_members(group_id: str, user_id: str) -> dict:
                     "id": m["id"],
                     "user_id": m["user_id"],
                     "email": m["users"]["email"] if m.get("users") else "",
-                    "role": m["role"],
                     "joined_at": m["joined_at"],
                 }
             )

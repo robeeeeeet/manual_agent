@@ -378,13 +378,13 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                         )}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {member.role === "owner" ? "オーナー" : "メンバー"}
+                        {member.user_id === group.owner_id ? "オーナー" : "メンバー"}
                       </p>
                     </div>
                   </div>
                   {isOwner &&
                     member.user_id !== user.id &&
-                    member.role !== "owner" && (
+                    member.user_id !== group.owner_id && (
                       <Button
                         variant="outline"
                         size="sm"
