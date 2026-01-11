@@ -199,6 +199,9 @@ export default function HelpPage() {
               <li><strong>検索成功</strong>: PDF が自動ダウンロードされます</li>
               <li><strong>検索失敗</strong>: 「手動でアップロード」ボタンが表示されます</li>
             </ul>
+            <p className="text-sm text-gray-600 mt-2">
+              ※ メンテナンス項目は自動抽出後、必要なものを選択してください
+            </p>
           </div>
         </div>
       ),
