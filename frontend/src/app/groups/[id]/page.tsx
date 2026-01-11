@@ -26,12 +26,14 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showLeaveApplianceModal, setShowLeaveApplianceModal] = useState(false);
   const [showRemoveMemberModal, setShowRemoveMemberModal] = useState(false);
   const [showRegenerateCodeModal, setShowRegenerateCodeModal] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<GroupMember | null>(null);
   const [newName, setNewName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [leaveWithAppliances, setLeaveWithAppliances] = useState<boolean | null>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -179,12 +181,20 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     }
   };
 
+  // Show leave appliance choice modal
+  const handleLeaveClick = () => {
+    setShowLeaveConfirm(false);
+    setShowLeaveApplianceModal(true);
+  };
+
   // Leave group
-  const handleLeaveGroup = async () => {
+  const handleLeaveGroup = async (keepAppliances: boolean) => {
     setSubmitting(true);
     try {
       const response = await fetch(`/api/groups/${id}/leave`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keep_appliances: keepAppliances }),
       });
 
       if (!response.ok) {
@@ -203,6 +213,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     } finally {
       setSubmitting(false);
       setShowLeaveConfirm(false);
+      setShowLeaveApplianceModal(false);
     }
   };
 
@@ -515,7 +526,6 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
             <h2 className="text-xl font-bold mb-4">グループを退出</h2>
             <p className="text-gray-600 mb-4">
               本当にこのグループを退出しますか？
-              グループの家電にはアクセスできなくなります。
             </p>
             <div className="flex justify-end gap-2">
               <Button
@@ -527,10 +537,71 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
               </Button>
               <Button
                 variant="danger"
-                onClick={handleLeaveGroup}
+                onClick={handleLeaveClick}
                 disabled={submitting}
               >
-                {submitting ? "退出中..." : "退出"}
+                次へ
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leave with Appliance Choice Modal */}
+      {showLeaveApplianceModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4 text-amber-600">
+              家電のコピーを作成しますか？
+            </h2>
+            <div className="mb-6 space-y-3">
+              <p className="text-gray-600">
+                グループの家電データは退出後もグループに残ります。
+              </p>
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm font-medium text-blue-800 mb-1">
+                  はい（コピーを作成）
+                </p>
+                <p className="text-xs text-blue-700">
+                  退出前にグループ家電のコピーを自分用に作成します。
+                </p>
+              </div>
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <p className="text-sm font-medium text-gray-800 mb-1">
+                  いいえ（コピーしない）
+                </p>
+                <p className="text-xs text-gray-700">
+                  コピーを作成せずに退出します。家電データへのアクセス権を失います。
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="primary"
+                onClick={() => handleLeaveGroup(true)}
+                disabled={submitting}
+                className="w-full"
+              >
+                {submitting ? "退出中..." : "はい"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleLeaveGroup(false)}
+                disabled={submitting}
+                className="w-full"
+              >
+                {submitting ? "退出中..." : "いいえ"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowLeaveApplianceModal(false);
+                  setShowLeaveConfirm(true);
+                }}
+                disabled={submitting}
+                className="w-full text-gray-600"
+              >
+                キャンセル
               </Button>
             </div>
           </div>

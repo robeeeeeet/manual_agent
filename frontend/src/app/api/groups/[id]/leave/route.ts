@@ -14,7 +14,7 @@ interface RouteParams {
 /**
  * POST /api/groups/[id]/leave - Leave a group
  */
-export async function POST(_request: NextRequest, { params }: RouteParams) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
@@ -38,7 +38,15 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const response = await fetch(`${BACKEND_URL}/api/v1/groups/${id}/leave`, {
+    // Read request body and convert keep_appliances to take_appliances query param
+    const body = await request.json().catch(() => ({}));
+    const takeAppliances = body.keep_appliances === true;
+
+    // Backend expects take_appliances as query parameter, not body
+    const url = new URL(`${BACKEND_URL}/api/v1/groups/${id}/leave`);
+    url.searchParams.set("take_appliances", String(takeAppliances));
+
+    const response = await fetch(url.toString(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

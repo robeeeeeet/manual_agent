@@ -20,6 +20,7 @@ export default function GroupsPage() {
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
+  const [showJoinConfirmModal, setShowJoinConfirmModal] = useState(false);
   const [showSwitchConfirmModal, setShowSwitchConfirmModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -27,6 +28,7 @@ export default function GroupsPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [pendingJoinCode, setPendingJoinCode] = useState("");
+  const [applianceCount, setApplianceCount] = useState<number>(0);
 
   // Check if user is already in a group
   const hasGroup = groups.length > 0;
@@ -60,9 +62,23 @@ export default function GroupsPage() {
     }
   };
 
+  // Fetch appliance count
+  const fetchApplianceCount = async () => {
+    try {
+      const response = await fetch("/api/appliances");
+      if (response.ok) {
+        const data = await response.json();
+        setApplianceCount(data.length || 0);
+      }
+    } catch (err) {
+      console.error("Error fetching appliance count:", err);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchGroups();
+      fetchApplianceCount();
     }
   }, [user]);
 
@@ -98,22 +114,49 @@ export default function GroupsPage() {
     }
   };
 
-  // Join group - check if already in a group first
+  // Join group - verify invite code first, then check if already in a group
   const handleJoinGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCode.trim()) return;
 
-    // Check if already in a group
-    if (groups.length > 0) {
-      // User is already in a group, show confirmation modal
-      setPendingJoinCode(inviteCode.trim().toUpperCase());
-      setShowJoinModal(false);
-      setShowSwitchConfirmModal(true);
-      return;
-    }
+    const code = inviteCode.trim().toUpperCase();
+    setSubmitting(true);
 
-    // No existing group, proceed with join
-    await executeJoinGroup(inviteCode.trim().toUpperCase());
+    try {
+      // First, verify the invite code is valid
+      const verifyResponse = await fetch(
+        `/api/groups/verify-invite/${encodeURIComponent(code)}`
+      );
+
+      if (!verifyResponse.ok) {
+        const errorData = await verifyResponse.json();
+        setErrorMessage(
+          errorData.error || "この招待コードは無効です。コードを確認してください。"
+        );
+        setShowErrorModal(true);
+        setSubmitting(false);
+        return;
+      }
+
+      // Invite code is valid, proceed to confirmation
+      setPendingJoinCode(code);
+      setShowJoinModal(false);
+
+      // Check if already in a group
+      if (groups.length > 0) {
+        // User is already in a group, show switch confirmation modal
+        setShowSwitchConfirmModal(true);
+      } else {
+        // No existing group, show join confirmation modal
+        setShowJoinConfirmModal(true);
+      }
+    } catch (err) {
+      console.error("Error verifying invite code:", err);
+      setErrorMessage("招待コードの確認中にエラーが発生しました");
+      setShowErrorModal(true);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Execute the actual join after confirmation
@@ -139,8 +182,10 @@ export default function GroupsPage() {
       setInviteCode("");
       setPendingJoinCode("");
       setShowJoinModal(false);
+      setShowJoinConfirmModal(false);
       setShowSwitchConfirmModal(false);
       await fetchGroups();
+      await fetchApplianceCount();
     } catch (err) {
       console.error("Error joining group:", err);
       setErrorMessage(
@@ -195,23 +240,7 @@ export default function GroupsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900">グループ管理</h1>
-          {/* Only show buttons when user is NOT in a group */}
-          {!loading && !hasGroup && (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowJoinModal(true)}
-              >
-                招待コードで参加
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => setShowCreateModal(true)}
-              >
-                新規作成
-              </Button>
-            </div>
-          )}
+          {/* 未参加時は中央の空状態UIにボタンを表示するため、ここでは表示しない */}
         </div>
 
         {/* Error message */}
@@ -392,6 +421,55 @@ export default function GroupsPage() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Join Confirmation Modal (for first-time join) */}
+      {showJoinConfirmModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4 text-blue-600">
+              グループに参加しますか？
+            </h2>
+            <div className="mb-6 space-y-3">
+              {applianceCount > 0 && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-medium">あなたの{applianceCount}件の家電がグループと共有されます。</span>
+                  </p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    グループメンバー全員がアクセスできるようになります。
+                  </p>
+                </div>
+              )}
+              <p className="text-gray-600">
+                グループに参加すると、登録済みの家電が自動的にグループメンバーと共有されます。
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowJoinConfirmModal(false);
+                  setPendingJoinCode("");
+                  setInviteCode("");
+                }}
+                disabled={submitting}
+              >
+                キャンセル
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => executeJoinGroup(pendingJoinCode)}
+                disabled={submitting}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {submitting ? "参加中..." : "参加する"}
+              </Button>
+            </div>
           </div>
         </div>
       )}
