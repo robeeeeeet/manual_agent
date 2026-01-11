@@ -331,6 +331,27 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
     # Sort by created_at descending
     all_appliances_data.sort(key=lambda x: x.get("created_at", ""), reverse=True)
 
+    # Batch fetch all maintenance schedules to avoid N+1 queries
+    maintenance_map: dict[str, dict] = {}
+    all_appliance_ids = [row["id"] for row in all_appliances_data]
+    if all_appliance_ids:
+        all_maintenance_result = (
+            client.table("maintenance_schedules")
+            .select(
+                "user_appliance_id, next_due_at, shared_maintenance_items!inner(task_name, importance)"
+            )
+            .in_("user_appliance_id", all_appliance_ids)
+            .not_.is_("next_due_at", "null")
+            .order("next_due_at", desc=False)
+            .execute()
+        )
+        # Build map: appliance_id -> earliest maintenance
+        for m in all_maintenance_result.data or []:
+            appliance_id = m["user_appliance_id"]
+            # First occurrence is the earliest (already sorted by next_due_at ASC)
+            if appliance_id not in maintenance_map:
+                maintenance_map[appliance_id] = m
+
     appliances = []
     for row in all_appliances_data:
         shared = row.get("shared_appliances", {})
@@ -339,22 +360,10 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
             group_names_map.get(row.get("group_id")) if is_group_owned else None
         )
 
-        # Get next upcoming maintenance for this appliance
+        # Get next upcoming maintenance from the pre-fetched map
         next_maintenance = None
-        maintenance_result = (
-            client.table("maintenance_schedules")
-            .select(
-                "next_due_at, shared_maintenance_items!inner(task_name, importance)"
-            )
-            .eq("user_appliance_id", row["id"])
-            .not_.is_("next_due_at", "null")
-            .order("next_due_at", desc=False)
-            .limit(1)
-            .execute()
-        )
-
-        if maintenance_result.data:
-            maintenance = maintenance_result.data[0]
+        maintenance = maintenance_map.get(row["id"])
+        if maintenance:
             item_details = maintenance.get("shared_maintenance_items", {}) or {}
             next_due_at = datetime.fromisoformat(
                 maintenance["next_due_at"].replace("Z", "+00:00")

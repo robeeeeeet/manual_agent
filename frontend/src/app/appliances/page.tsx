@@ -6,40 +6,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import Button from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import ShareToggle from "@/components/appliance/ShareButton";
-import { UserApplianceWithDetails } from "@/types/appliance";
+import { useAppliances } from "@/hooks/useAppliances";
 
 export default function AppliancesPage() {
   const { user, loading: authLoading } = useAuth();
-  const [appliances, setAppliances] = useState<UserApplianceWithDetails[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { appliances, isLoading, error, refetch } = useAppliances();
   const [hasGroup, setHasGroup] = useState(false);
-
-  const fetchAppliances = async () => {
-    if (!user) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch("/api/appliances");
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "家電データの取得に失敗しました");
-      }
-
-      const data = await response.json();
-      setAppliances(data);
-    } catch (err) {
-      console.error("Error fetching appliances:", err);
-      setError(
-        err instanceof Error ? err.message : "家電データの取得に失敗しました"
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // Check if user is in a group
   const checkGroupMembership = async () => {
@@ -58,10 +30,7 @@ export default function AppliancesPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      fetchAppliances();
       checkGroupMembership();
-    } else if (!authLoading && !user) {
-      setIsLoading(false);
     }
   }, [user, authLoading]);
 
@@ -178,8 +147,8 @@ export default function AppliancesPage() {
         <Card>
           <CardBody>
             <div className="text-center py-8">
-              <p className="text-red-600 mb-4">{error}</p>
-              <Button onClick={fetchAppliances}>再読み込み</Button>
+              <p className="text-red-600 mb-4">{error.message}</p>
+              <Button onClick={() => refetch()}>再読み込み</Button>
             </div>
           </CardBody>
         </Card>
@@ -303,7 +272,7 @@ export default function AppliancesPage() {
                           isGroupOwned={appliance.is_group_owned}
                           hasGroup={hasGroup}
                           isOriginalOwner={appliance.user_id === user?.id}
-                          onShareChange={fetchAppliances}
+                          onShareChange={() => refetch()}
                         />
                       </div>
                       {appliance.manual_source_url && (

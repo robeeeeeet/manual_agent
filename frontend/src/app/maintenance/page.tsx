@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -13,10 +13,9 @@ import MaintenanceFilter from "@/components/maintenance/MaintenanceFilter";
 import MaintenanceListItem from "@/components/maintenance/MaintenanceListItem";
 import MaintenanceCompleteModal from "@/components/maintenance/MaintenanceCompleteModal";
 import { SafeHtml } from "@/components/ui/SafeHtml";
+import { useMaintenance } from "@/hooks/useMaintenance";
 import type {
   MaintenanceWithAppliance,
-  MaintenanceCounts,
-  MaintenanceListResponse,
   MaintenanceSchedule,
   MaintenanceLog,
 } from "@/types/appliance";
@@ -41,17 +40,8 @@ const importanceColors: Record<"high" | "medium" | "low", string> = {
 export default function MaintenancePage() {
   const { user, loading: authLoading } = useAuth();
 
-  // Data state
-  const [allItems, setAllItems] = useState<MaintenanceWithAppliance[]>([]);
-  const [counts, setCounts] = useState<MaintenanceCounts>({
-    overdue: 0,
-    upcoming: 0,
-    scheduled: 0,
-    manual: 0,
-    total: 0,
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // SWR hook for data fetching
+  const { items: allItems, counts, isLoading, error, refetch } = useMaintenance();
 
   // Filter state
   const [activeTab, setActiveTab] = useState<TabStatus>("all");
@@ -107,41 +97,6 @@ export default function MaintenancePage() {
     });
   }, [allItems, activeTab, importanceFilter, applianceFilter]);
 
-  // Fetch maintenance data
-  const fetchMaintenance = async () => {
-    if (!user) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch("/api/maintenance");
-      if (!response.ok) {
-        throw new Error("メンテナンスデータの取得に失敗しました");
-      }
-      const data: MaintenanceListResponse = await response.json();
-      setAllItems(data.items);
-      setCounts(data.counts);
-    } catch (err) {
-      console.error("Error fetching maintenance:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "メンテナンスデータの取得に失敗しました"
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!authLoading && user) {
-      fetchMaintenance();
-    } else if (!authLoading && !user) {
-      setIsLoading(false);
-    }
-  }, [user, authLoading]);
-
   // Handle item click for detail modal
   const openDetailModal = (item: MaintenanceWithAppliance) => {
     setSelectedItem(item);
@@ -157,7 +112,7 @@ export default function MaintenancePage() {
   const handleCompleteSuccess = () => {
     setShowCompleteModal(false);
     setSelectedItem(null);
-    fetchMaintenance();
+    refetch();
   };
 
   // Fetch history
@@ -178,9 +133,7 @@ export default function MaintenancePage() {
       setShowHistoryModal(true);
     } catch (err) {
       console.error("Fetch history error:", err);
-      setError(
-        err instanceof Error ? err.message : "履歴の取得に失敗しました"
-      );
+      // Error is handled by logging, no need to set state
     } finally {
       setIsLoadingHistory(false);
     }
@@ -322,9 +275,9 @@ export default function MaintenancePage() {
             <h3 className="font-medium text-gray-900 mb-2">
               エラーが発生しました
             </h3>
-            <p className="text-sm text-gray-500 mb-6">{error}</p>
+            <p className="text-sm text-gray-500 mb-6">{error.message}</p>
             <button
-              onClick={fetchMaintenance}
+              onClick={() => refetch()}
               className="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
               再読み込み

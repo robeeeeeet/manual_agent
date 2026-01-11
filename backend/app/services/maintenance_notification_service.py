@@ -122,17 +122,26 @@ async def _get_users_with_upcoming_maintenance(days_ahead: int) -> list[str]:
                 user_ids.add(user_appliance["user_id"])
 
         # Filter to users with active push subscriptions
-        users_with_subscriptions = []
-        for uid in user_ids:
-            sub_response = (
+        if user_ids:
+            # 一括で購読情報を取得
+            subscriptions_result = (
                 client.table("push_subscriptions")
-                .select("id")
-                .eq("user_id", uid)
-                .limit(1)
+                .select("user_id")
+                .in_("user_id", list(user_ids))
                 .execute()
             )
-            if sub_response.data:
-                users_with_subscriptions.append(uid)
+
+            # 購読があるユーザーIDのセットを構築
+            subscribed_user_ids = {
+                sub["user_id"] for sub in (subscriptions_result.data or [])
+            }
+
+            # フィルタリング
+            users_with_subscriptions = [
+                uid for uid in user_ids if uid in subscribed_user_ids
+            ]
+        else:
+            users_with_subscriptions = []
 
         return users_with_subscriptions
 
@@ -454,59 +463,64 @@ async def _get_users_for_scheduled_notification() -> list[str]:
         if not user_ids:
             return []
 
-        # 各ユーザーの通知設定を取得してフィルタリング
+        user_ids_list = list(user_ids)
+
+        # 一括で購読情報を取得
+        subscriptions_result = (
+            client.table("push_subscriptions")
+            .select("user_id")
+            .in_("user_id", user_ids_list)
+            .execute()
+        )
+        subscribed_user_ids = {
+            sub["user_id"] for sub in (subscriptions_result.data or [])
+        }
+
+        # 購読があるユーザーのみ通知設定を一括取得
         users_to_notify = []
-        for uid in user_ids:
-            # Push購読があるか確認
-            sub_response = (
-                client.table("push_subscriptions")
-                .select("id")
-                .eq("user_id", uid)
-                .limit(1)
-                .execute()
-            )
-            if not sub_response.data:
-                continue
-
-            # ユーザーの通知設定を取得
-            user_response = (
+        if subscribed_user_ids:
+            users_result = (
                 client.table("users")
-                .select("notify_time, timezone")
-                .eq("id", uid)
-                .single()
+                .select("id, notify_time, timezone")
+                .in_("id", list(subscribed_user_ids))
                 .execute()
             )
 
-            if not user_response.data:
-                continue
+            # ユーザー設定のマップを構築
+            user_settings_map = {u["id"]: u for u in (users_result.data or [])}
 
-            user_data = user_response.data
-            notify_time_str = user_data.get("notify_time", "09:00:00")
-            timezone_str = user_data.get("timezone", "Asia/Tokyo")
+            # 現在時刻に通知すべきユーザーをフィルタリング
+            for uid in subscribed_user_ids:
+                user_data = user_settings_map.get(uid)
+                if not user_data:
+                    continue
 
-            # ユーザーのタイムゾーンで現在の時刻を取得
-            try:
-                user_tz = ZoneInfo(timezone_str)
-            except Exception:
-                user_tz = ZoneInfo("Asia/Tokyo")
+                notify_time_str = user_data.get("notify_time", "09:00:00")
+                timezone_str = user_data.get("timezone", "Asia/Tokyo")
 
-            user_now = now.astimezone(user_tz)
-            user_current_hour = user_now.hour
+                # ユーザーのタイムゾーンで現在の時刻を取得
+                try:
+                    user_tz = ZoneInfo(timezone_str)
+                except Exception:
+                    user_tz = ZoneInfo("Asia/Tokyo")
 
-            # notify_time から時間を抽出 (HH:MM:SS 形式)
-            try:
-                notify_hour = int(notify_time_str.split(":")[0])
-            except (ValueError, IndexError):
-                notify_hour = 9  # デフォルト
+                user_now = now.astimezone(user_tz)
+                user_current_hour = user_now.hour
 
-            # 現在の時間がユーザーの通知時刻と一致するか確認
-            if user_current_hour == notify_hour:
-                users_to_notify.append(uid)
-                logger.info(
-                    f"User {uid} scheduled for notification "
-                    f"(timezone={timezone_str}, notify_time={notify_time_str}, "
-                    f"current_hour={user_current_hour})"
-                )
+                # notify_time から時間を抽出 (HH:MM:SS 形式)
+                try:
+                    notify_hour = int(notify_time_str.split(":")[0])
+                except (ValueError, IndexError):
+                    notify_hour = 9  # デフォルト
+
+                # 現在の時間がユーザーの通知時刻と一致するか確認
+                if user_current_hour == notify_hour:
+                    users_to_notify.append(uid)
+                    logger.info(
+                        f"User {uid} scheduled for notification "
+                        f"(timezone={timezone_str}, notify_time={notify_time_str}, "
+                        f"current_hour={user_current_hour})"
+                    )
 
         return users_to_notify
 
