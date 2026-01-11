@@ -126,11 +126,6 @@ export function QAChat({
     setCurrentSessionId(sessionId);
   }, [sessionId]);
 
-  // スクロール
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
