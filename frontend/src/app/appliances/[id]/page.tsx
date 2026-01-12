@@ -109,8 +109,9 @@ export default function ApplianceDetailPage({
   const [showArchivedSection, setShowArchivedSection] = useState(false);
   const [isArchiving, setIsArchiving] = useState<string | null>(null);
 
-  // PDF loading state
-  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
+  // PDF signed URL (pre-fetched when appliance loads)
+  const [pdfSignedUrl, setPdfSignedUrl] = useState<string | null>(null);
+  const [pdfSignedUrlWithPage, setPdfSignedUrlWithPage] = useState<string | null>(null);
 
   // Fetch appliance details
   useEffect(() => {
@@ -131,6 +132,21 @@ export default function ApplianceDetailPage({
         }
         const applianceData: UserApplianceWithDetails = await response.json();
         setAppliance(applianceData);
+
+        // Pre-fetch signed URL for PDF if stored_pdf_path exists
+        if (applianceData.stored_pdf_path) {
+          try {
+            const pdfUrlResponse = await fetch(`/api/appliances/${id}/manual-url`);
+            if (pdfUrlResponse.ok) {
+              const pdfData = await pdfUrlResponse.json();
+              if (pdfData.signed_url) {
+                setPdfSignedUrl(pdfData.signed_url);
+              }
+            }
+          } catch (pdfErr) {
+            console.error("Failed to pre-fetch PDF URL:", pdfErr);
+          }
+        }
 
         // Fetch maintenance schedules via BFF API (include archived for separation)
         const maintenanceResponse = await fetch(
@@ -298,6 +314,12 @@ export default function ApplianceDetailPage({
   const openDetailModal = (schedule: MaintenanceSchedule) => {
     setSelectedSchedule(schedule);
     setShowDetailModal(true);
+    // Set page-specific PDF URL if available
+    if (pdfSignedUrl && schedule.pdf_page_number) {
+      setPdfSignedUrlWithPage(`${pdfSignedUrl}#page=${schedule.pdf_page_number}`);
+    } else {
+      setPdfSignedUrlWithPage(null);
+    }
   };
 
   // Transition from detail modal to complete modal
@@ -355,48 +377,6 @@ export default function ApplianceDetailPage({
     }
   };
 
-  // Handle opening PDF with signed URL
-  const handleOpenPdf = async (pageNumber?: number) => {
-    if (!appliance?.stored_pdf_path) {
-      // If no stored PDF, use manual_source_url
-      if (appliance?.manual_source_url) {
-        const url = pageNumber
-          ? `${appliance.manual_source_url}#page=${pageNumber}`
-          : appliance.manual_source_url;
-        window.open(url, "_blank");
-      }
-      return;
-    }
-
-    setIsLoadingPdf(true);
-    try {
-      const response = await fetch(`/api/appliances/${id}/manual-url`);
-      if (!response.ok) {
-        throw new Error("署名付きURLの取得に失敗しました");
-      }
-      const data = await response.json();
-      if (data.signed_url) {
-        // Append #page=N to open at specific page
-        const url = pageNumber
-          ? `${data.signed_url}#page=${pageNumber}`
-          : data.signed_url;
-        window.open(url, "_blank");
-      }
-    } catch (err) {
-      console.error("Failed to get signed URL:", err);
-      // Fallback to manual_source_url if available
-      if (appliance?.manual_source_url) {
-        const url = pageNumber
-          ? `${appliance.manual_source_url}#page=${pageNumber}`
-          : appliance.manual_source_url;
-        window.open(url, "_blank");
-      } else {
-        setError("PDFを開けませんでした");
-      }
-    } finally {
-      setIsLoadingPdf(false);
-    }
-  };
 
   // Open delete schedule modal
   const openDeleteScheduleModal = (schedule: MaintenanceSchedule) => {
@@ -634,25 +614,27 @@ export default function ApplianceDetailPage({
                     </div>
                     <span className="font-medium text-gray-900">説明書PDF</span>
                   </div>
-                  <button
-                    onClick={() => handleOpenPdf()}
-                    disabled={isLoadingPdf}
-                    className="text-[#007AFF] hover:text-[#0066DD] font-medium flex items-center gap-1 disabled:opacity-50"
-                  >
-                    {isLoadingPdf ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
-                        読込中...
-                      </>
-                    ) : (
-                      <>
-                        開く
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </>
-                    )}
-                  </button>
+                  {(pdfSignedUrl || appliance.manual_source_url) ? (
+                    <a
+                      href={(pdfSignedUrl ?? appliance.manual_source_url)!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#007AFF] hover:text-[#0066DD] font-medium flex items-center gap-1"
+                    >
+                      開く
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  ) : (
+                    <span className="text-gray-400 flex items-center gap-1">
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      読込中...
+                    </span>
+                  )}
                 </div>
                 {/* Show original source link if both stored PDF and source URL exist */}
                 {appliance.stored_pdf_path && appliance.manual_source_url && (
@@ -1096,28 +1078,37 @@ export default function ApplianceDetailPage({
                     </h4>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:flex-col sm:items-start sm:gap-1">
                       {selectedSchedule.pdf_page_number && appliance?.stored_pdf_path && (
-                        <button
-                          onClick={() =>
-                            handleOpenPdf(selectedSchedule.pdf_page_number!)
-                          }
-                          disabled={isLoadingPdf}
-                          className="text-sm text-[#007AFF] hover:text-[#0066DD] hover:underline disabled:opacity-50 inline-flex items-center gap-1 whitespace-nowrap"
-                        >
-                          <span>PDF {selectedSchedule.pdf_page_number}ページ</span>
-                          <svg
-                            className="w-3.5 h-3.5 flex-shrink-0"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                        pdfSignedUrlWithPage ? (
+                          <a
+                            href={pdfSignedUrlWithPage}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-[#007AFF] hover:text-[#0066DD] hover:underline inline-flex items-center gap-1 whitespace-nowrap"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                            />
-                          </svg>
-                        </button>
+                            <span>PDF {selectedSchedule.pdf_page_number}ページ</span>
+                            <svg
+                              className="w-3.5 h-3.5 flex-shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                              />
+                            </svg>
+                          </a>
+                        ) : (
+                          <span className="text-sm text-gray-400 inline-flex items-center gap-1 whitespace-nowrap">
+                            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>PDF {selectedSchedule.pdf_page_number}ページ</span>
+                          </span>
+                        )
                       )}
                       {(selectedSchedule.printed_page_number || selectedSchedule.source_page) && (
                         <p className="text-sm text-gray-600 whitespace-nowrap">
