@@ -464,7 +464,7 @@ export function PDFViewer({
 
         <div
           ref={pdfContentRef}
-          className="transition-transform origin-center"
+          className={`transition-transform ${scale > 1.0 ? "origin-top-left" : "origin-center"}`}
           style={{
             transform: isPinching ? `scale(${visualScale})` : "scale(1)",
             transition: isPinching ? "none" : "transform 0.1s ease-out",
@@ -476,7 +476,7 @@ export function PDFViewer({
             onLoadError={onDocumentLoadError}
             loading={null}
             error={null}
-            className="flex justify-center py-4"
+            className={`py-4 ${scale > 1.0 ? "" : "flex justify-center"}`}
           >
             <Page
               pageNumber={pageNumber}
