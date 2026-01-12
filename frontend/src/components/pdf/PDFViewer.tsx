@@ -28,6 +28,12 @@ interface TouchState {
   startTime: number;
   initialPinchDistance: number | null;
   initialScale: number;
+  // ピンチ中心点（コンテンツ座標系）
+  pinchCenterX: number;
+  pinchCenterY: number;
+  // ピンチ開始時のスクロール位置
+  initialScrollLeft: number;
+  initialScrollTop: number;
 }
 
 export function PDFViewer({
@@ -44,6 +50,7 @@ export function PDFViewer({
   const [scale, setScale] = useState(1.0);
   const [visualScale, setVisualScale] = useState(1.0); // CSSトランスフォーム用（ピンチ中のスムーズ表示）
   const [isPinching, setIsPinching] = useState(false);
+  const [transformOrigin, setTransformOrigin] = useState("center center"); // ピンチ中心点
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const pdfAreaRef = useRef<HTMLDivElement>(null);
@@ -54,6 +61,10 @@ export function PDFViewer({
     startTime: 0,
     initialPinchDistance: null,
     initialScale: 1.0,
+    pinchCenterX: 0,
+    pinchCenterY: 0,
+    initialScrollLeft: 0,
+    initialScrollTop: 0,
   });
 
   // コンテナ幅を監視
@@ -159,6 +170,22 @@ export function PDFViewer({
         e.preventDefault();
         state.initialPinchDistance = getDistance(touches);
         state.initialScale = scaleRef.current;
+
+        // ピンチ中心点を計算（画面座標）
+        const centerX = (touches[0].clientX + touches[1].clientX) / 2;
+        const centerY = (touches[0].clientY + touches[1].clientY) / 2;
+
+        // スクロールコンテナの情報を取得
+        const rect = element.getBoundingClientRect();
+
+        // コンテンツ座標系に変換（スクロール位置を考慮）
+        state.pinchCenterX = centerX - rect.left + element.scrollLeft;
+        state.pinchCenterY = centerY - rect.top + element.scrollTop;
+        state.initialScrollLeft = element.scrollLeft;
+        state.initialScrollTop = element.scrollTop;
+
+        // transform-origin を設定
+        setTransformOrigin(`${state.pinchCenterX}px ${state.pinchCenterY}px`);
         setIsPinching(true);
         setVisualScale(1.0); // リセット
       }
@@ -183,11 +210,27 @@ export function PDFViewer({
 
       // ピンチ中だった場合は最終スケールを確定
       if (state.initialPinchDistance !== null) {
-        const finalScale = Math.min(Math.max(state.initialScale * visualScaleRef.current, 0.5), 3.0);
+        const finalVisualScale = visualScaleRef.current;
+        const finalScale = Math.min(Math.max(state.initialScale * finalVisualScale, 0.5), 3.0);
+        const scaleRatio = finalScale / state.initialScale;
+
+        // ピンチ中心点を基準にスクロール位置を調整
+        // 新しいスケールでの中心点位置を計算
+        const newScrollLeft = state.pinchCenterX * scaleRatio - (state.pinchCenterX - state.initialScrollLeft);
+        const newScrollTop = state.pinchCenterY * scaleRatio - (state.pinchCenterY - state.initialScrollTop);
+
         setScale(finalScale);
         setVisualScale(1.0); // リセット
         setIsPinching(false);
         state.initialPinchDistance = null;
+
+        // スクロール位置を調整（次のレンダリング後に適用）
+        requestAnimationFrame(() => {
+          if (pdfAreaRef.current) {
+            pdfAreaRef.current.scrollLeft = Math.max(0, newScrollLeft);
+            pdfAreaRef.current.scrollTop = Math.max(0, newScrollTop);
+          }
+        });
         return;
       }
 
@@ -464,9 +507,10 @@ export function PDFViewer({
 
         <div
           ref={pdfContentRef}
-          className={`transition-transform ${scale > 1.0 ? "origin-top-left" : "origin-center"}`}
+          className="transition-transform"
           style={{
             transform: isPinching ? `scale(${visualScale})` : "scale(1)",
+            transformOrigin: isPinching ? transformOrigin : "top left",
             transition: isPinching ? "none" : "transform 0.1s ease-out",
           }}
         >
