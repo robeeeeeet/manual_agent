@@ -9,6 +9,39 @@
 
 ### Added
 
+#### 購入日・次回予定日管理機能 ✅ 完了
+
+家電の購入日を記録し、メンテナンス予定日を購入日から起算できる機能。また、カレンダーUIで次回予定日を直接編集可能。
+
+**データベース**
+- `user_appliances.purchased_at` カラム追加（DATE型、任意）
+- マイグレーション `20260113000001_add_purchased_at.sql`
+
+**バックエンドサービス**
+- `maintenance_cache_service.py`: 購入日起算のメンテナンス日計算ロジック
+  - `_calculate_next_due_from_purchase()` - 過去の購入日から将来の次回日まで繰り返し計算
+  - `dateutil.relativedelta` による正確な月次計算（月末境界対応）
+- `appliance_service.py`: `purchased_at` の保存・更新対応
+
+**バックエンドAPI**
+- `PATCH /api/v1/maintenance/{schedule_id}/next-due` - 次回予定日の直接更新
+
+**フロントエンドBFF層**
+- `/api/maintenance/[id]/next-due` - 次回予定日更新（PATCH）
+
+**フロントエンドUI**
+- 家電登録ページ（`/register`）: Step 2 に購入日入力フィールド追加
+- 家電詳細ページ（`/appliances/[id]`）:
+  - 購入日表示・編集モーダル
+  - メンテナンス詳細モーダルに「次回予定日を変更」ボタン追加
+- メンテナンス一覧ページ（`/maintenance`）: 同様の次回予定日編集機能
+
+**技術的特徴**
+- ネイティブ `<input type="date">` を使用（追加ライブラリ不要）
+- 購入日未入力時は従来通り登録日から計算（フォールバック）
+- 月次計算で月末日を維持（例: 1/31 → 2/28）
+- 過去の購入日は将来日まで繰り返し計算
+
 #### QA回答セルフチェック機能 ✅ 完了
 
 QA回答の品質を自動検証し、不正確な回答を防止する機能。

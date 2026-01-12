@@ -5,10 +5,54 @@ Provides caching for LLM-extracted maintenance items to avoid repeated API calls
 for the same appliance (same maker + model_number).
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
+
+from dateutil.relativedelta import relativedelta
 
 from app.services.maintenance_extraction import extract_maintenance_items
 from app.services.supabase_client import get_supabase_client
+
+
+def _calculate_next_due_from_purchase(
+    interval_type: str | None,
+    interval_value: int | None,
+    base_date: date,
+) -> datetime | None:
+    """
+    Calculate next_due_at from a base date (purchase or registration date).
+
+    For monthly intervals, uses relativedelta to maintain the same day of month.
+    Finds the first future occurrence after today.
+
+    Args:
+        interval_type: "days", "months", or "manual"
+        interval_value: Number of days/months
+        base_date: Base date for calculation (purchase or registration date)
+
+    Returns:
+        First future datetime when maintenance is due, or None for manual
+    """
+    if not interval_type or interval_type == "manual":
+        return None
+    if not interval_value or interval_value <= 0:
+        return None
+
+    now = datetime.now(UTC)
+    # Convert base_date to datetime at midnight UTC
+    current = datetime.combine(base_date, datetime.min.time(), tzinfo=UTC)
+
+    if interval_type == "days":
+        delta = timedelta(days=interval_value)
+    elif interval_type == "months":
+        delta = relativedelta(months=interval_value)
+    else:
+        return None
+
+    # Find first occurrence after now
+    while current <= now:
+        current = current + delta
+
+    return current
 
 
 async def get_cached_maintenance_items(shared_appliance_id: str) -> list[dict] | None:
@@ -229,6 +273,7 @@ async def get_or_extract_maintenance_items(
 async def register_maintenance_schedules(
     user_appliance_id: str,
     selected_item_ids: list[str],
+    purchased_at: date | None = None,
 ) -> list[dict]:
     """
     Register selected maintenance items as user's schedules.
@@ -236,6 +281,7 @@ async def register_maintenance_schedules(
     Args:
         user_appliance_id: UUID of the user's appliance
         selected_item_ids: List of shared_maintenance_item IDs to register
+        purchased_at: Purchase date for calculating next_due_at (optional)
 
     Returns:
         List of created maintenance schedules
@@ -256,23 +302,20 @@ async def register_maintenance_schedules(
         return []
 
     created_schedules = []
-    now = datetime.now(UTC)
+    # Use purchase date if provided, otherwise use today as base
+    base_date = purchased_at or datetime.now(UTC).date()
 
     for item in response.data:
-        # Calculate next_due_at based on interval
-        next_due_at = None
+        # Calculate next_due_at based on interval and purchase date
         interval_type = item.get("recommended_interval_type")
         interval_value = item.get("recommended_interval_value")
 
-        if interval_type == "days" and interval_value:
-            from datetime import timedelta
-
-            next_due_at = (now + timedelta(days=interval_value)).isoformat()
-        elif interval_type == "months" and interval_value:
-            from datetime import timedelta
-
-            # Approximate months as 30 days
-            next_due_at = (now + timedelta(days=interval_value * 30)).isoformat()
+        next_due_dt = _calculate_next_due_from_purchase(
+            interval_type=interval_type,
+            interval_value=interval_value,
+            base_date=base_date,
+        )
+        next_due_at = next_due_dt.isoformat() if next_due_dt else None
 
         # Note: task_name, description, page info, importance are now stored
         # in shared_maintenance_items and retrieved via JOIN

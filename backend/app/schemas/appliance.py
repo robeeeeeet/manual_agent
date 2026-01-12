@@ -1,6 +1,6 @@
 """Pydantic schemas for appliance-related API operations"""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -74,6 +74,11 @@ class UserApplianceCreate(UserApplianceBase):
         None,
         description="Group ID for group-owned appliance (mutually exclusive with user_id)",
     )
+    # 購入日（Phase 8: Purchase Date）
+    purchased_at: date | None = Field(
+        None,
+        description="Purchase date (for maintenance scheduling from purchase date)",
+    )
 
 
 class UserAppliance(UserApplianceBase):
@@ -87,6 +92,9 @@ class UserAppliance(UserApplianceBase):
         None, description="Group ID (for group ownership, Phase 7)"
     )
     shared_appliance_id: UUID = Field(..., description="Reference to shared appliance")
+    purchased_at: date | None = Field(
+        None, description="Purchase date (for maintenance scheduling)"
+    )
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
@@ -149,6 +157,9 @@ class UserApplianceUpdate(BaseModel):
 
     name: str | None = Field(None, description="New display name", min_length=1)
     image_url: str | None = Field(None, description="New image URL")
+    purchased_at: date | None = Field(
+        None, description="Purchase date (set to empty string to clear)"
+    )
 
 
 # Image Recognition Schemas

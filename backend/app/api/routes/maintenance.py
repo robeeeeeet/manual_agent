@@ -193,3 +193,60 @@ async def unarchive_maintenance(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except MaintenanceAccessDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
+
+
+@router.patch("/{schedule_id}/next-due")
+async def update_maintenance_next_due(
+    schedule_id: str,
+    x_user_id: Annotated[str | None, Header()] = None,
+    next_due_at: str | None = None,
+) -> dict:
+    """
+    Update the next_due_at date for a maintenance schedule.
+
+    Authorization: User must have access to the appliance that the schedule belongs to.
+    This means either:
+    - User is the personal owner of the appliance, OR
+    - User is a member of the group that owns the appliance
+
+    Args:
+        schedule_id: Maintenance schedule UUID
+        x_user_id: User ID from header (required)
+        next_due_at: New next due date in ISO format (YYYY-MM-DD), or null to clear
+
+    Returns:
+        dict with result: {"success": True, "schedule_id": "...", "next_due_at": "..."}
+
+    Raises:
+        400: If date format is invalid
+        404: If schedule not found
+        403: If user doesn't have access
+    """
+    from datetime import UTC, datetime
+
+    from app.services.maintenance_log_service import update_next_due_at
+
+    user_id = _get_user_id_from_header(x_user_id)
+
+    # Parse the date string
+    next_due_datetime = None
+    if next_due_at:
+        try:
+            # Parse as date and convert to datetime at midnight UTC
+            parsed_date = datetime.strptime(next_due_at, "%Y-%m-%d").date()
+            next_due_datetime = datetime.combine(
+                parsed_date, datetime.min.time(), tzinfo=UTC
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid date format. Expected YYYY-MM-DD, got: {next_due_at}",
+            ) from e
+
+    try:
+        result = await update_next_due_at(user_id, schedule_id, next_due_datetime)
+        return result
+    except MaintenanceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except MaintenanceAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e

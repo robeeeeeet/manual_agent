@@ -47,6 +47,11 @@ export default function MaintenancePage() {
   // PDF signed URL (pre-fetched when modal opens)
   const [pdfSignedUrl, setPdfSignedUrl] = useState<string | null>(null);
 
+  // Next due date edit modal state
+  const [showNextDueModal, setShowNextDueModal] = useState(false);
+  const [editingNextDueAt, setEditingNextDueAt] = useState("");
+  const [isSavingNextDue, setIsSavingNextDue] = useState(false);
+
   // Extract unique makers for filter
   const makers = useMemo<string[]>(() => {
     const uniqueMakers = new Set<string>();
@@ -98,6 +103,54 @@ export default function MaintenancePage() {
     setShowCompleteModal(false);
     setSelectedItem(null);
     refetch();
+  };
+
+  // Open next due date modal
+  const openNextDueModal = () => {
+    if (!selectedItem) return;
+    const nextDueDate = selectedItem.next_due_at
+      ? selectedItem.next_due_at.split("T")[0]
+      : "";
+    setEditingNextDueAt(nextDueDate);
+    setShowNextDueModal(true);
+  };
+
+  // Save next due date
+  const handleSaveNextDue = async () => {
+    if (!selectedItem) return;
+
+    setIsSavingNextDue(true);
+    try {
+      const response = await fetch(
+        `/api/maintenance/${selectedItem.id}/next-due`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            next_due_at: editingNextDueAt || null,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("次回予定日の保存に失敗しました");
+      }
+
+      // Refresh data
+      refetch();
+
+      // Update selected item
+      setSelectedItem({
+        ...selectedItem,
+        next_due_at: editingNextDueAt ? `${editingNextDueAt}T00:00:00Z` : null,
+      });
+
+      setShowNextDueModal(false);
+    } catch (err) {
+      console.error("Save next due date error:", err);
+    } finally {
+      setIsSavingNextDue(false);
+    }
   };
 
   const fetchHistory = async (scheduleId: string) => {
@@ -437,7 +490,18 @@ export default function MaintenancePage() {
 
                 <div className="space-y-3 mb-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">次回予定日</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-500">次回予定日</span>
+                      <button
+                        onClick={openNextDueModal}
+                        className="p-1 text-[#007AFF] hover:bg-[#007AFF]/10 rounded transition-colors"
+                        aria-label="次回予定日を編集"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                    </div>
                     <div className="text-right">
                       <span className="text-sm font-medium text-gray-900">{formatDate(selectedItem.next_due_at)}</span>
                       <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded-full ${getStatusStyle(selectedItem.days_until_due, selectedItem.status).bg} ${getStatusStyle(selectedItem.days_until_due, selectedItem.status).text}`}>
@@ -548,6 +612,75 @@ export default function MaintenancePage() {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Next Due Date Edit Modal */}
+      <Modal
+        isOpen={showNextDueModal}
+        onClose={() => setShowNextDueModal(false)}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-gray-900 mb-4">
+            次回予定日を編集
+          </h3>
+          <div className="mb-6">
+            <label
+              htmlFor="next-due-at-maintenance"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              次回予定日
+              <span className="text-xs text-gray-400 ml-2 font-normal">
+                例: 2025-06-15
+              </span>
+            </label>
+            <input
+              type="date"
+              id="next-due-at-maintenance"
+              value={editingNextDueAt}
+              onChange={(e) => setEditingNextDueAt(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#007AFF]/50 focus:border-[#007AFF] transition-colors"
+            />
+            {editingNextDueAt && (
+              <p className="text-sm text-gray-700 mt-2">
+                選択中:{" "}
+                {new Date(editingNextDueAt).toLocaleDateString("ja-JP", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+            )}
+            <p className="text-xs text-gray-500 mt-2">
+              メンテナンスの次回予定日を直接指定できます
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowNextDueModal(false)}
+              disabled={isSavingNextDue}
+              className="flex-1 py-2.5 text-[#007AFF] font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleSaveNextDue}
+              disabled={isSavingNextDue}
+              className="flex-1 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors disabled:opacity-50"
+            >
+              {isSavingNextDue ? "保存中..." : "保存"}
+            </button>
+          </div>
+          {editingNextDueAt && (
+            <button
+              onClick={() => setEditingNextDueAt("")}
+              disabled={isSavingNextDue}
+              className="w-full mt-3 py-2 text-[#FF3B30] text-sm font-medium hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
+            >
+              予定日をクリア
+            </button>
           )}
         </div>
       </Modal>

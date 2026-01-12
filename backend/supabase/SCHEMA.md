@@ -187,6 +187,7 @@
 | `shared_appliance_id` | UUID | NOT NULL | - | 家電マスターID（FK → shared_appliances） |
 | `name` | TEXT | NOT NULL | - | ユーザー固有の表示名（例: リビングのエアコン） |
 | `image_url` | TEXT | NULL | - | ユーザーがアップロードした画像URL |
+| `purchased_at` | DATE | NULL | - | 購入日（任意、メンテナンス予定日計算に使用） |
 | `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
 | `updated_at` | TIMESTAMPTZ | NOT NULL | NOW() | 更新日時 |
 

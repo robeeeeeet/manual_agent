@@ -109,6 +109,7 @@ export interface UserAppliance {
   shared_appliance_id: string;
   name: string;
   image_url: string | null;
+  purchased_at: string | null; // YYYY-MM-DD format (Phase 8: Purchase Date)
   created_at: string;
   updated_at: string;
 }
@@ -148,11 +149,13 @@ export interface UserApplianceCreate {
   stored_pdf_path?: string;
   image_url?: string;
   group_id?: string; // For group-owned appliances (Phase 7)
+  purchased_at?: string; // YYYY-MM-DD format (Phase 8: Purchase Date)
 }
 
 export interface UserApplianceUpdate {
   name?: string;
   image_url?: string;
+  purchased_at?: string | null; // YYYY-MM-DD format, null to clear (Phase 8: Purchase Date)
 }
 
 // ============================================================================

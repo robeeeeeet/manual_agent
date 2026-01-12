@@ -112,6 +112,16 @@ export default function ApplianceDetailPage({
   // PDF signed URL (pre-fetched when appliance loads)
   const [pdfSignedUrl, setPdfSignedUrl] = useState<string | null>(null);
 
+  // Purchase date edit modal state
+  const [showPurchaseDateModal, setShowPurchaseDateModal] = useState(false);
+  const [editingPurchasedAt, setEditingPurchasedAt] = useState("");
+  const [isSavingPurchaseDate, setIsSavingPurchaseDate] = useState(false);
+
+  // Next due date edit modal state
+  const [showNextDueModal, setShowNextDueModal] = useState(false);
+  const [editingNextDueAt, setEditingNextDueAt] = useState("");
+  const [isSavingNextDue, setIsSavingNextDue] = useState(false);
+
   // Fetch appliance details
   useEffect(() => {
     const fetchData = async () => {
@@ -219,6 +229,102 @@ export default function ApplianceDetailPage({
       setError(err instanceof Error ? err.message : "削除に失敗しました");
       setIsDeleting(false);
       setShowDeleteModal(false);
+    }
+  };
+
+  // Open purchase date modal
+  const openPurchaseDateModal = () => {
+    setEditingPurchasedAt(appliance?.purchased_at || "");
+    setShowPurchaseDateModal(true);
+  };
+
+  // Save purchase date
+  const handleSavePurchaseDate = async () => {
+    if (!appliance) return;
+
+    setIsSavingPurchaseDate(true);
+    try {
+      const response = await fetch(`/api/appliances/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          purchased_at: editingPurchasedAt || null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("購入日の保存に失敗しました");
+      }
+
+      const updatedAppliance = await response.json();
+      setAppliance({
+        ...appliance,
+        purchased_at: updatedAppliance.purchased_at,
+      });
+
+      // SWRキャッシュを無効化
+      await mutate("/api/appliances");
+
+      setShowPurchaseDateModal(false);
+    } catch (err) {
+      console.error("Save purchase date error:", err);
+      setError(err instanceof Error ? err.message : "購入日の保存に失敗しました");
+    } finally {
+      setIsSavingPurchaseDate(false);
+    }
+  };
+
+  // Open next due date modal
+  const openNextDueModal = () => {
+    if (!selectedSchedule) return;
+    // Convert ISO datetime to YYYY-MM-DD format
+    const nextDueDate = selectedSchedule.next_due_at
+      ? selectedSchedule.next_due_at.split("T")[0]
+      : "";
+    setEditingNextDueAt(nextDueDate);
+    setShowNextDueModal(true);
+  };
+
+  // Save next due date
+  const handleSaveNextDue = async () => {
+    if (!selectedSchedule) return;
+
+    setIsSavingNextDue(true);
+    try {
+      const response = await fetch(
+        `/api/maintenance/${selectedSchedule.id}/next-due`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            next_due_at: editingNextDueAt || null,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("次回予定日の保存に失敗しました");
+      }
+
+      // Refresh schedules
+      await fetchSchedules();
+
+      // Update selected schedule
+      setSelectedSchedule({
+        ...selectedSchedule,
+        next_due_at: editingNextDueAt
+          ? `${editingNextDueAt}T00:00:00Z`
+          : null,
+      });
+
+      setShowNextDueModal(false);
+    } catch (err) {
+      console.error("Save next due date error:", err);
+      setError(
+        err instanceof Error ? err.message : "次回予定日の保存に失敗しました"
+      );
+    } finally {
+      setIsSavingNextDue(false);
     }
   };
 
@@ -662,6 +768,20 @@ export default function ApplianceDetailPage({
             <div className="flex items-center justify-between py-3 border-t border-gray-100">
               <span className="text-gray-500 text-sm">登録日</span>
               <span className="text-gray-900 text-sm">{formatDate(appliance.created_at)}</span>
+            </div>
+
+            {/* Purchase Date */}
+            <div className="flex items-center justify-between py-3 border-t border-gray-100">
+              <span className="text-gray-500 text-sm">購入日</span>
+              <button
+                onClick={openPurchaseDateModal}
+                className="flex items-center gap-1.5 text-[#007AFF] text-sm font-medium hover:underline"
+              >
+                {appliance.purchased_at ? formatDate(appliance.purchased_at) : "未設定"}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
             </div>
 
             {/* Delete Button */}
@@ -1119,7 +1239,18 @@ export default function ApplianceDetailPage({
               {/* Date info */}
               <div className="space-y-3 mb-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">次回予定日</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500">次回予定日</span>
+                    <button
+                      onClick={openNextDueModal}
+                      className="p-1 text-[#007AFF] hover:bg-[#007AFF]/10 rounded transition-colors"
+                      aria-label="次回予定日を編集"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                  </div>
                   <div className="text-right">
                     <span className="text-sm font-medium text-gray-900">
                       {formatDate(selectedSchedule.next_due_at)}
@@ -1208,6 +1339,145 @@ export default function ApplianceDetailPage({
               {isDeletingSchedule ? "削除中..." : "削除"}
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Purchase Date Edit Modal */}
+      <Modal
+        isOpen={showPurchaseDateModal}
+        onClose={() => setShowPurchaseDateModal(false)}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-gray-900 mb-4">
+            購入日を編集
+          </h3>
+          <div className="mb-6">
+            <label
+              htmlFor="purchased-at"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              購入日
+              <span className="text-xs text-gray-400 ml-2 font-normal">
+                例: 2025-06-15
+              </span>
+            </label>
+            <input
+              type="date"
+              id="purchased-at"
+              value={editingPurchasedAt}
+              onChange={(e) => setEditingPurchasedAt(e.target.value)}
+              max={new Date().toISOString().split("T")[0]}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#007AFF]/50 focus:border-[#007AFF] transition-colors"
+            />
+            {editingPurchasedAt && (
+              <p className="text-sm text-gray-700 mt-2">
+                選択中:{" "}
+                {new Date(editingPurchasedAt).toLocaleDateString("ja-JP", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+            )}
+            <p className="text-xs text-gray-500 mt-2">
+              メンテナンス予定日の計算に使用します
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowPurchaseDateModal(false)}
+              disabled={isSavingPurchaseDate}
+              className="flex-1 py-2.5 text-[#007AFF] font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleSavePurchaseDate}
+              disabled={isSavingPurchaseDate}
+              className="flex-1 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors disabled:opacity-50"
+            >
+              {isSavingPurchaseDate ? "保存中..." : "保存"}
+            </button>
+          </div>
+          {editingPurchasedAt && (
+            <button
+              onClick={() => setEditingPurchasedAt("")}
+              disabled={isSavingPurchaseDate}
+              className="w-full mt-3 py-2 text-[#FF3B30] text-sm font-medium hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
+            >
+              購入日をクリア
+            </button>
+          )}
+        </div>
+      </Modal>
+
+      {/* Next Due Date Edit Modal */}
+      <Modal
+        isOpen={showNextDueModal}
+        onClose={() => setShowNextDueModal(false)}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-gray-900 mb-4">
+            次回予定日を編集
+          </h3>
+          <div className="mb-6">
+            <label
+              htmlFor="next-due-at"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              次回予定日
+              <span className="text-xs text-gray-400 ml-2 font-normal">
+                例: 2025-06-15
+              </span>
+            </label>
+            <input
+              type="date"
+              id="next-due-at"
+              value={editingNextDueAt}
+              onChange={(e) => setEditingNextDueAt(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#007AFF]/50 focus:border-[#007AFF] transition-colors"
+            />
+            {editingNextDueAt && (
+              <p className="text-sm text-gray-700 mt-2">
+                選択中:{" "}
+                {new Date(editingNextDueAt).toLocaleDateString("ja-JP", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+            )}
+            <p className="text-xs text-gray-500 mt-2">
+              メンテナンスの次回予定日を直接指定できます
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowNextDueModal(false)}
+              disabled={isSavingNextDue}
+              className="flex-1 py-2.5 text-[#007AFF] font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleSaveNextDue}
+              disabled={isSavingNextDue}
+              className="flex-1 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors disabled:opacity-50"
+            >
+              {isSavingNextDue ? "保存中..." : "保存"}
+            </button>
+          </div>
+          {editingNextDueAt && (
+            <button
+              onClick={() => setEditingNextDueAt("")}
+              disabled={isSavingNextDue}
+              className="w-full mt-3 py-2 text-[#FF3B30] text-sm font-medium hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
+            >
+              予定日をクリア
+            </button>
+          )}
         </div>
       </Modal>
     </div>

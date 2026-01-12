@@ -53,6 +53,7 @@ export default function RegisterPage() {
     modelNumber: "",
     category: "",
     name: "",
+    purchasedAt: "", // YYYY-MM-DD format (Phase 8: Purchase Date)
   });
 
   // Step 3: Manual search
@@ -249,6 +250,7 @@ export default function RegisterPage() {
             modelNumber: "", // Not detected
             category: data.category || "",
             name: "",
+            purchasedAt: "",
           });
           // Stay on Step 1 to show label guide and allow retake
         } else {
@@ -259,6 +261,7 @@ export default function RegisterPage() {
             modelNumber: data.model_number || "",
             category: data.category || "",
             name: "",
+            purchasedAt: "",
           });
           setCurrentStep(2);
         }
@@ -777,6 +780,7 @@ export default function RegisterPage() {
           category: formData.category,
           manual_source_url: manualUrl || null,
           stored_pdf_path: storedPdfPath || null,
+          purchased_at: formData.purchasedAt || null,
         }),
       });
 
@@ -1446,6 +1450,37 @@ export default function RegisterPage() {
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   入力しない場合は「メーカー名 型番」で表示されます
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  購入日（任意）
+                  <span className="text-xs text-gray-400 ml-2 font-normal">
+                    例: 2025-06-15
+                  </span>
+                </label>
+                <input
+                  type="date"
+                  value={formData.purchasedAt}
+                  onChange={(e) =>
+                    setFormData({ ...formData, purchasedAt: e.target.value })
+                  }
+                  max={new Date().toISOString().split("T")[0]}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#007AFF]/50 focus:border-blue-500"
+                />
+                {formData.purchasedAt && (
+                  <p className="text-sm text-gray-700 mt-1">
+                    選択中:{" "}
+                    {new Date(formData.purchasedAt).toLocaleDateString("ja-JP", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  メンテナンス予定日の計算に使用します
                 </p>
               </div>
 
@@ -2279,6 +2314,7 @@ export default function RegisterPage() {
                       modelNumber: "",
                       category: "",
                       name: "",
+                      purchasedAt: "",
                     });
                     setManualSearchResult(null);
                     setMaintenanceResult(null);

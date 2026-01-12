@@ -241,6 +241,9 @@ async def register_user_appliance(
     if appliance_data.image_url:
         insert_data["image_url"] = appliance_data.image_url
 
+    if appliance_data.purchased_at:
+        insert_data["purchased_at"] = appliance_data.purchased_at.isoformat()
+
     try:
         result = client.table("user_appliances").insert(insert_data).execute()
     except Exception as e:
@@ -261,6 +264,14 @@ async def register_user_appliance(
     user_appliance = result.data[0]
 
     # Return combined data
+    # Parse purchased_at from user_appliance (may be None)
+    purchased_at_str = user_appliance.get("purchased_at")
+    purchased_at_val = None
+    if purchased_at_str:
+        from datetime import date
+
+        purchased_at_val = date.fromisoformat(purchased_at_str)
+
     return UserApplianceWithDetails(
         id=user_appliance["id"],
         user_id=user_appliance.get("user_id"),
@@ -268,6 +279,7 @@ async def register_user_appliance(
         shared_appliance_id=user_appliance["shared_appliance_id"],
         name=user_appliance["name"],
         image_url=user_appliance.get("image_url"),
+        purchased_at=purchased_at_val,
         created_at=user_appliance["created_at"],
         updated_at=user_appliance["updated_at"],
         maker=shared.maker,
@@ -463,6 +475,14 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
                 days_until_due=days_until_due,
             )
 
+        # Parse purchased_at from row (may be None)
+        purchased_at_str = row.get("purchased_at")
+        purchased_at_val = None
+        if purchased_at_str:
+            from datetime import date
+
+            purchased_at_val = date.fromisoformat(purchased_at_str)
+
         appliances.append(
             UserApplianceWithDetails(
                 id=row["id"],
@@ -471,6 +491,7 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
                 shared_appliance_id=row["shared_appliance_id"],
                 name=row["name"],
                 image_url=row.get("image_url"),
+                purchased_at=purchased_at_val,
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
                 maker=shared.get("maker", ""),
@@ -563,6 +584,14 @@ async def get_user_appliance(
 
     shared = row.get("shared_appliances", {})
 
+    # Parse purchased_at from row (may be None)
+    purchased_at_str = row.get("purchased_at")
+    purchased_at_val = None
+    if purchased_at_str:
+        from datetime import date
+
+        purchased_at_val = date.fromisoformat(purchased_at_str)
+
     return UserApplianceWithDetails(
         id=row["id"],
         user_id=row.get("user_id"),
@@ -570,6 +599,7 @@ async def get_user_appliance(
         shared_appliance_id=row["shared_appliance_id"],
         name=row["name"],
         image_url=row.get("image_url"),
+        purchased_at=purchased_at_val,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         maker=shared.get("maker", ""),
@@ -615,12 +645,18 @@ async def update_user_appliance(
     # Check if appliance exists and belongs to user
     await get_user_appliance(user_id, appliance_id)
 
-    # Prepare update data
+    # Prepare update data (only include explicitly set fields)
+    update_fields = update_data.model_dump(exclude_unset=True)
     data = {}
-    if update_data.name is not None:
+    if "name" in update_fields:
         data["name"] = update_data.name
-    if update_data.image_url is not None:
+    if "image_url" in update_fields:
         data["image_url"] = update_data.image_url
+    if "purchased_at" in update_fields:
+        # Convert date to ISO string, or None to clear
+        data["purchased_at"] = (
+            update_data.purchased_at.isoformat() if update_data.purchased_at else None
+        )
 
     if not data:
         # Nothing to update, just return current data

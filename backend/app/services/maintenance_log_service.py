@@ -841,3 +841,111 @@ async def archive_maintenance_schedule(
     except Exception as e:
         logger.error(f"Error archiving maintenance schedule: {e}")
         raise MaintenanceNotFoundError(f"Failed to archive: {e}") from e
+
+
+async def update_next_due_at(
+    user_id: str,
+    schedule_id: str,
+    next_due_at: datetime | None,
+) -> dict:
+    """
+    Update the next_due_at date for a maintenance schedule.
+
+    Authorization: User must have access to the appliance that the schedule belongs to.
+    This means either:
+    - User is the personal owner of the appliance, OR
+    - User is a member of the group that owns the appliance
+
+    Args:
+        user_id: User's UUID
+        schedule_id: Maintenance schedule UUID
+        next_due_at: New next due date (datetime with timezone)
+
+    Returns:
+        dict with result: {"success": True, "schedule_id": "...", "next_due_at": "..."}
+
+    Raises:
+        MaintenanceNotFoundError: If schedule not found
+        MaintenanceAccessDeniedError: If user doesn't have access
+    """
+    client = get_supabase_client()
+    if not client:
+        raise MaintenanceNotFoundError("Database not available")
+
+    try:
+        # 1. Get the schedule and its associated appliance
+        schedule_result = (
+            client.table("maintenance_schedules")
+            .select("id, user_appliance_id")
+            .eq("id", schedule_id)
+            .execute()
+        )
+
+        if not schedule_result.data:
+            raise MaintenanceNotFoundError(
+                f"Maintenance schedule {schedule_id} not found"
+            )
+
+        schedule = schedule_result.data[0]
+        user_appliance_id = schedule["user_appliance_id"]
+
+        # 2. Get the appliance to check ownership
+        appliance_result = (
+            client.table("user_appliances")
+            .select("id, user_id, group_id")
+            .eq("id", user_appliance_id)
+            .execute()
+        )
+
+        if not appliance_result.data:
+            raise MaintenanceNotFoundError("Associated appliance not found")
+
+        appliance = appliance_result.data[0]
+
+        # 3. Check access
+        has_access = False
+
+        # Check personal ownership
+        if appliance.get("user_id") == user_id:
+            has_access = True
+
+        # Check group membership
+        if not has_access and appliance.get("group_id"):
+            membership_result = (
+                client.table("group_members")
+                .select("id")
+                .eq("group_id", appliance["group_id"])
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if membership_result.data:
+                has_access = True
+
+        if not has_access:
+            raise MaintenanceAccessDeniedError(
+                "You don't have permission to update this maintenance schedule"
+            )
+
+        # 4. Update next_due_at
+        update_data = {"next_due_at": next_due_at.isoformat() if next_due_at else None}
+        client.table("maintenance_schedules").update(update_data).eq(
+            "id", schedule_id
+        ).execute()
+
+        logger.info(
+            f"Updated next_due_at for schedule {schedule_id} to {next_due_at} by user {user_id}"
+        )
+
+        return {
+            "success": True,
+            "schedule_id": schedule_id,
+            "next_due_at": next_due_at.isoformat() if next_due_at else None,
+        }
+
+    except MaintenanceNotFoundError:
+        raise
+    except MaintenanceAccessDeniedError:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating next_due_at: {e}")
+        raise MaintenanceNotFoundError(f"Failed to update next_due_at: {e}") from e

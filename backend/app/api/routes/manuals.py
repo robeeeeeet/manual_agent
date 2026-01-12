@@ -620,9 +620,28 @@ async def register_schedules(request: MaintenanceScheduleBulkCreate):
         )
 
     try:
+        # Get purchased_at from user_appliance for maintenance scheduling
+        from datetime import date
+
+        from app.services.supabase_client import get_supabase_client
+
+        client = get_supabase_client()
+        purchased_at = None
+        if client:
+            result = (
+                client.table("user_appliances")
+                .select("purchased_at")
+                .eq("id", str(request.user_appliance_id))
+                .single()
+                .execute()
+            )
+            if result.data and result.data.get("purchased_at"):
+                purchased_at = date.fromisoformat(result.data["purchased_at"])
+
         created_schedules = await register_maintenance_schedules(
             user_appliance_id=str(request.user_appliance_id),
             selected_item_ids=[str(id) for id in request.selected_item_ids],
+            purchased_at=purchased_at,
         )
 
         return created_schedules
