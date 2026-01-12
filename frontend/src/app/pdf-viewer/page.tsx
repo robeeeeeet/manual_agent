@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
+import Modal from "@/components/ui/Modal";
 
 // PDFViewer は DOM API を使用するため、SSR を無効にして動的インポート
 const PDFViewer = dynamic(
@@ -34,6 +35,9 @@ function PDFViewerContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [applianceName, setApplianceName] = useState<string>("");
+
+  // PDF読み込みエラー時のフォールバックモーダル
+  const [showFallbackModal, setShowFallbackModal] = useState(false);
 
   // Fetch signed URL for the appliance's PDF
   useEffect(() => {
@@ -87,16 +91,34 @@ function PDFViewerContent() {
   }, [authLoading, user, applianceId]);
 
   // Handle close - go back or to appliance detail
-  const handleClose = () => {
-    // Try to go back, or navigate to appliance detail
-    if (window.history.length > 1) {
-      router.back();
-    } else if (applianceId) {
+  const handleClose = useCallback(() => {
+    if (applianceId) {
       router.push(`/appliances/${applianceId}`);
     } else {
       router.push("/appliances");
     }
-  };
+  }, [router, applianceId]);
+
+  // Handle PDF load error - show fallback modal
+  const handlePdfLoadError = useCallback(() => {
+    setShowFallbackModal(true);
+  }, []);
+
+  // Open PDF in external browser
+  const handleOpenInBrowser = useCallback(() => {
+    if (pdfUrl) {
+      window.open(pdfUrl, "_blank", "noopener,noreferrer");
+    }
+    // モーダルを閉じて家電詳細に戻る
+    setShowFallbackModal(false);
+    handleClose();
+  }, [pdfUrl, handleClose]);
+
+  // Cancel - go back to appliance detail
+  const handleCancelFallback = useCallback(() => {
+    setShowFallbackModal(false);
+    handleClose();
+  }, [handleClose]);
 
   // Authentication loading
   if (authLoading) {
@@ -124,7 +146,7 @@ function PDFViewerContent() {
     );
   }
 
-  // Error state
+  // Error state (before PDF viewer loads)
   if (error || !pdfUrl) {
     return (
       <div className="fixed inset-0 z-50 bg-gray-900 flex items-center justify-center">
@@ -147,14 +169,61 @@ function PDFViewerContent() {
     );
   }
 
-  // Show PDF Viewer
+  // Show PDF Viewer with fallback modal
   return (
-    <PDFViewer
-      url={pdfUrl}
-      initialPage={initialPage}
-      fullScreen={true}
-      onClose={handleClose}
-    />
+    <>
+      <PDFViewer
+        url={pdfUrl}
+        initialPage={initialPage}
+        fullScreen={true}
+        onClose={handleClose}
+        onLoadError={handlePdfLoadError}
+      />
+
+      {/* PDF読み込みエラー時のフォールバックモーダル */}
+      <Modal
+        isOpen={showFallbackModal}
+        onClose={handleCancelFallback}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <div className="w-14 h-14 bg-[#FF9500]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-7 h-7 text-[#FF9500]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+
+          <h3 className="text-lg font-bold text-gray-900 text-center mb-3">
+            PDFを表示できません
+          </h3>
+
+          <p className="text-gray-600 text-sm text-center mb-6">
+            このPDFは保護されているため、アプリ内で表示できません。
+            <br />
+            ブラウザで開きますか？
+            <br />
+            <span className="text-gray-400 text-xs">
+              ※ ページ指定での表示はできません
+            </span>
+          </p>
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleCancelFallback}
+              className="flex-1 py-2.5 text-[#007AFF] font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
+            >
+              いいえ
+            </button>
+            <button
+              onClick={handleOpenInBrowser}
+              className="flex-1 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors"
+            >
+              はい
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }
 

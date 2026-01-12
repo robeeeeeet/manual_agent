@@ -17,6 +17,8 @@ interface PDFViewerProps {
   fullScreen?: boolean;
   /** 閉じるボタンのコールバック（フルスクリーン時） */
   onClose?: () => void;
+  /** PDFロードエラー時のコールバック */
+  onLoadError?: (error: Error) => void;
   /** クラス名 */
   className?: string;
 }
@@ -41,6 +43,7 @@ export function PDFViewer({
   initialPage = 1,
   fullScreen = false,
   onClose,
+  onLoadError,
   className = "",
 }: PDFViewerProps) {
   const [numPages, setNumPages] = useState<number | null>(null);
@@ -97,7 +100,9 @@ export function PDFViewer({
   const onDocumentLoadError = useCallback((error: Error) => {
     setError(`PDFの読み込みに失敗しました: ${error.message}`);
     setLoading(false);
-  }, []);
+    // 外部にエラーを通知
+    onLoadError?.(error);
+  }, [onLoadError]);
 
   const goToPrevPage = useCallback(() => {
     setPageNumber((prev) => Math.max(prev - 1, 1));
