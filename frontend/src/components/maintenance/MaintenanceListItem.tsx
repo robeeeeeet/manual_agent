@@ -1,6 +1,5 @@
 "use client";
 
-import Button from "@/components/ui/Button";
 import type { MaintenanceWithAppliance } from "@/types/appliance";
 
 interface MaintenanceListItemProps {
@@ -11,33 +10,44 @@ interface MaintenanceListItemProps {
   compact?: boolean;
 }
 
-const importanceLabels = {
-  high: "高",
-  medium: "中",
-  low: "低",
+const importanceConfig = {
+  high: { label: "高", bg: "bg-[#FF3B30]/10", text: "text-[#FF3B30]" },
+  medium: { label: "中", bg: "bg-[#FF9500]/10", text: "text-[#FF9500]" },
+  low: { label: "低", bg: "bg-[#34C759]/10", text: "text-[#34C759]" },
 };
 
-const importanceColors = {
-  high: "bg-red-100 text-red-700",
-  medium: "bg-yellow-100 text-yellow-700",
-  low: "bg-green-100 text-green-700",
-};
-
-function getStatusText(daysUntilDue: number | null, status: string): string {
-  if (status === "manual") return "手動";
-  if (daysUntilDue === null) return "-";
-  if (daysUntilDue < 0) return `${Math.abs(daysUntilDue)}日超過`;
-  if (daysUntilDue === 0) return "今日";
-  if (daysUntilDue === 1) return "明日";
-  return `${daysUntilDue}日後`;
-}
-
-function getStatusColor(daysUntilDue: number | null, status: string): string {
-  if (status === "manual") return "bg-gray-100 text-gray-600";
-  if (daysUntilDue === null) return "bg-gray-100 text-gray-600";
-  if (daysUntilDue < 0) return "bg-red-100 text-red-700";
-  if (daysUntilDue <= 7) return "bg-amber-100 text-amber-700";
-  return "bg-green-100 text-green-700";
+function getStatusConfig(daysUntilDue: number | null, status: string) {
+  if (status === "manual") {
+    return { label: "手動", bg: "bg-gray-100", text: "text-gray-600" };
+  }
+  if (daysUntilDue === null) {
+    return { label: "-", bg: "bg-gray-100", text: "text-gray-600" };
+  }
+  if (daysUntilDue < 0) {
+    return {
+      label: `${Math.abs(daysUntilDue)}日超過`,
+      bg: "bg-[#FF3B30]/10",
+      text: "text-[#FF3B30]",
+    };
+  }
+  if (daysUntilDue === 0) {
+    return { label: "今日", bg: "bg-[#FF9500]/10", text: "text-[#FF9500]" };
+  }
+  if (daysUntilDue === 1) {
+    return { label: "明日", bg: "bg-[#FF9500]/10", text: "text-[#FF9500]" };
+  }
+  if (daysUntilDue <= 7) {
+    return {
+      label: `${daysUntilDue}日後`,
+      bg: "bg-[#FF9500]/10",
+      text: "text-[#FF9500]",
+    };
+  }
+  return {
+    label: `${daysUntilDue}日後`,
+    bg: "bg-[#34C759]/10",
+    text: "text-[#34C759]",
+  };
 }
 
 export default function MaintenanceListItem({
@@ -47,123 +57,95 @@ export default function MaintenanceListItem({
   showApplianceName = true,
   compact = false,
 }: MaintenanceListItemProps) {
-  const handleClick = () => {
-    if (onItemClick) {
-      onItemClick(item);
-    }
-  };
-
-  // Vertical layout for better mobile display
-  // Structure:
-  // - Top: Task name (full width, wraps if needed)
-  // - Middle: Maker + Model number (if showApplianceName)
-  // - Bottom: Importance badge, Status badge, Complete button (horizontal)
+  const statusConfig = getStatusConfig(item.days_until_due, item.status);
+  const impConfig = importanceConfig[item.importance];
 
   if (compact) {
-    // Compact version for top page
+    // コンパクト版（ホームページ用）- iOS風リストスタイル
     return (
-      <div className="py-3 border-b border-gray-100 last:border-b-0">
-        {/* Task name - full width */}
-        <p
-          className="font-medium text-gray-900 leading-snug mb-1"
-          title={item.task_name}
-        >
-          {item.task_name}
-        </p>
-
-        {/* Maker and model number */}
-        {showApplianceName && (
-          <p className="text-sm text-gray-500 mb-2">
-            {item.maker} {item.model_number}
+      <div className="flex items-center gap-3">
+        {/* 左側：コンテンツ */}
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-gray-900 truncate" title={item.task_name}>
+            {item.task_name}
           </p>
-        )}
-
-        {/* Bottom row: badges and complete button */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
-            <span
-              className={`px-1.5 py-0.5 text-xs font-medium rounded ${importanceColors[item.importance]}`}
-            >
-              {importanceLabels[item.importance]}
+          {showApplianceName && (
+            <p className="text-sm text-gray-500 truncate">
+              {item.appliance_name}
+            </p>
+          )}
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${impConfig.bg} ${impConfig.text}`}>
+              {impConfig.label}
             </span>
-            <span
-              className={`px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap ${getStatusColor(item.days_until_due, item.status)}`}
-            >
-              {getStatusText(item.days_until_due, item.status)}
+            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusConfig.bg} ${statusConfig.text}`}>
+              {statusConfig.label}
             </span>
           </div>
-          <Button
-            size="sm"
-            onClick={() => onComplete(item)}
-            className={`whitespace-nowrap ${
-              item.days_until_due !== null && item.days_until_due < 0
-                ? "bg-red-600 hover:bg-red-700"
-                : ""
-            }`}
-          >
-            完了
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Full version for maintenance list page
-  return (
-    <div
-      onClick={handleClick}
-      className={`p-3 bg-gray-50 rounded-lg border border-gray-100 transition-colors ${
-        onItemClick ? "hover:bg-gray-100 cursor-pointer" : ""
-      }`}
-    >
-      {/* Task name - full width */}
-      <h4
-        className="font-medium text-gray-900 leading-snug mb-1"
-        title={item.task_name}
-      >
-        {item.task_name}
-      </h4>
-
-      {/* Maker and model number */}
-      {showApplianceName && (
-        <p className="text-sm text-gray-500 mb-3">
-          {item.maker} {item.model_number}
-        </p>
-      )}
-
-      {/* Bottom row: badges and complete button */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          {/* Importance badge */}
-          <span
-            className={`px-1.5 py-0.5 text-xs font-medium rounded ${importanceColors[item.importance]}`}
-          >
-            {importanceLabels[item.importance]}
-          </span>
-
-          {/* Due status badge */}
-          <span
-            className={`px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(item.days_until_due, item.status)}`}
-          >
-            {getStatusText(item.days_until_due, item.status)}
-          </span>
         </div>
 
-        {/* Complete button */}
-        <Button
-          size="sm"
+        {/* 右側：完了ボタン */}
+        <button
           onClick={(e) => {
             e.stopPropagation();
             onComplete(item);
           }}
-          className={
+          className={`w-16 py-2 text-sm font-semibold rounded-xl transition-colors ${
             item.days_until_due !== null && item.days_until_due < 0
-              ? "bg-red-600 hover:bg-red-700"
-              : ""
-          }
+              ? "bg-[#FF3B30] text-white hover:bg-[#E5342B]"
+              : "bg-[#007AFF] text-white hover:bg-[#0066DD]"
+          }`}
         >
           完了
-        </Button>
+        </button>
+      </div>
+    );
+  }
+
+  // フルバージョン（メンテナンス一覧ページ用）- iOS風
+  return (
+    <div
+      onClick={() => onItemClick?.(item)}
+      className={`bg-white rounded-xl p-4 shadow-sm transition-colors ${
+        onItemClick ? "hover:bg-gray-50 active:bg-gray-100 cursor-pointer" : ""
+      }`}
+    >
+      {/* タスク名 */}
+      <h4 className="font-semibold text-gray-900 mb-1" title={item.task_name}>
+        {item.task_name}
+      </h4>
+
+      {/* 家電名 */}
+      {showApplianceName && (
+        <p className="text-sm text-gray-500 mb-3">
+          {item.appliance_name} • {item.maker}
+        </p>
+      )}
+
+      {/* バッジと完了ボタン */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${impConfig.bg} ${impConfig.text}`}>
+            {impConfig.label}
+          </span>
+          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusConfig.bg} ${statusConfig.text}`}>
+            {statusConfig.label}
+          </span>
+        </div>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onComplete(item);
+          }}
+          className={`px-4 py-2 text-sm font-semibold rounded-xl transition-colors ${
+            item.days_until_due !== null && item.days_until_due < 0
+              ? "bg-[#FF3B30] text-white hover:bg-[#E5342B]"
+              : "bg-[#007AFF] text-white hover:bg-[#0066DD]"
+          }`}
+        >
+          完了
+        </button>
       </div>
     </div>
   );

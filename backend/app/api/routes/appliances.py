@@ -445,6 +445,90 @@ async def get_appliance(
         ) from e
 
 
+@router.get(
+    "/{appliance_id}/manual-url",
+    responses={
+        200: {"description": "Signed URL for the manual PDF"},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="Get signed URL for manual PDF",
+    description="Get a temporary signed URL to access the manual PDF for an appliance",
+)
+async def get_manual_url(
+    appliance_id: UUID,
+    x_user_id: Annotated[str | None, Header()] = None,
+):
+    """
+    Get a signed URL for the manual PDF.
+
+    Returns a temporary URL (valid for 1 hour) to access the manual PDF.
+    This is required because the manuals bucket is private.
+
+    Args:
+        appliance_id: Appliance's UUID
+        x_user_id: User's UUID from header (set by BFF)
+
+    Returns:
+        JSON with signed_url field
+
+    Raises:
+        HTTPException: If appliance not found or has no manual
+    """
+    from app.services.pdf_storage import get_pdf_signed_url
+
+    user_id = _get_user_id_from_header(x_user_id)
+
+    try:
+        appliance = await get_user_appliance(user_id, appliance_id)
+    except ApplianceNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "Appliance not found",
+                "code": "NOT_FOUND",
+                "details": str(e),
+            },
+        ) from e
+    except ApplianceServiceError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "Failed to get appliance",
+                "code": "FETCH_ERROR",
+                "details": str(e),
+            },
+        ) from e
+
+    if not appliance.stored_pdf_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "No manual PDF available",
+                "code": "NO_MANUAL",
+                "details": "This appliance does not have a stored manual PDF",
+            },
+        )
+
+    signed_url = await get_pdf_signed_url(appliance.stored_pdf_path, expires_in=3600)
+
+    if not signed_url:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "Failed to generate signed URL",
+                "code": "URL_GENERATION_ERROR",
+                "details": "Could not create a signed URL for the manual PDF",
+            },
+        )
+
+    return {
+        "signed_url": signed_url,
+        "expires_in": 3600,
+    }
+
+
 @router.patch(
     "/{appliance_id}",
     response_model=UserApplianceWithDetails,

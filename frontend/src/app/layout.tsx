@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
+import BottomNav from "@/components/layout/BottomNav";
 import { AuthProvider } from "@/contexts/AuthContext";
 import NotificationOnboarding from "@/components/notification/NotificationOnboarding";
 
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "トリセツコンシェルジュ - AIが取説検索・メンテ管理・疑問解決",
   description: "AIが「取説検索」「メンテ管理」「疑問解決」を全自動で。",
   manifest: "/manifest.json",
-  themeColor: "#3b82f6",
+  themeColor: "#007AFF",
   viewport: {
     width: "device-width",
     initialScale: 1,
@@ -44,14 +44,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja" style={{ colorScheme: 'light' }}>
-      <body className={`${notoSansJP.variable} font-sans antialiased bg-gray-50 min-h-screen flex flex-col`}>
+    <html lang="ja" style={{ colorScheme: "light" }}>
+      <body
+        className={`${notoSansJP.variable} font-sans antialiased bg-[#F2F2F7] min-h-screen`}
+      >
         <AuthProvider>
           <Header />
-          <main className="flex-1 container mx-auto px-4 py-6">
-            {children}
-          </main>
-          <Footer />
+          <main className="pb-20">{children}</main>
+          <BottomNav />
           <NotificationOnboarding />
         </AuthProvider>
       </body>

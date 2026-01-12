@@ -53,6 +53,7 @@ class GroupMemberInfo(BaseModel):
     id: UUID = Field(..., description="Membership ID")
     user_id: UUID = Field(..., description="User ID")
     email: str = Field(..., description="User email")
+    display_name: str | None = Field(None, description="User display name")
     joined_at: datetime = Field(..., description="Join timestamp")
 
     model_config = {"from_attributes": True}

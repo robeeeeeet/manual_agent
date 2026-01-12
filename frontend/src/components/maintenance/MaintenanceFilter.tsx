@@ -1,24 +1,19 @@
 "use client";
 
-interface Appliance {
-  id: string;
-  name: string;
-}
-
 interface MaintenanceFilterProps {
   importance: "all" | "high" | "medium" | "low";
-  applianceId: string | null;
-  appliances: Appliance[];
+  maker: string | null;
+  makers: string[];
   onImportanceChange: (value: "all" | "high" | "medium" | "low") => void;
-  onApplianceChange: (applianceId: string | null) => void;
+  onMakerChange: (maker: string | null) => void;
 }
 
 export default function MaintenanceFilter({
   importance,
-  applianceId,
-  appliances,
+  maker,
+  makers,
   onImportanceChange,
-  onApplianceChange,
+  onMakerChange,
 }: MaintenanceFilterProps) {
   return (
     <div className="flex flex-wrap gap-4 items-center">
@@ -47,27 +42,27 @@ export default function MaintenanceFilter({
         </select>
       </div>
 
-      {/* Appliance filter */}
-      {appliances.length > 0 && (
+      {/* Maker filter */}
+      {makers.length > 0 && (
         <div className="flex items-center gap-2">
           <label
-            htmlFor="appliance-filter"
+            htmlFor="maker-filter"
             className="text-sm font-medium text-gray-700"
           >
-            家電:
+            メーカー:
           </label>
           <select
-            id="appliance-filter"
-            value={applianceId || "all"}
+            id="maker-filter"
+            value={maker || "all"}
             onChange={(e) =>
-              onApplianceChange(e.target.value === "all" ? null : e.target.value)
+              onMakerChange(e.target.value === "all" ? null : e.target.value)
             }
             className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white max-w-[200px]"
           >
             <option value="all">すべて</option>
-            {appliances.map((appliance) => (
-              <option key={appliance.id} value={appliance.id}>
-                {appliance.name}
+            {makers.map((makerName) => (
+              <option key={makerName} value={makerName}>
+                {makerName}
               </option>
             ))}
           </select>

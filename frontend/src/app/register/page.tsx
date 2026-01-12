@@ -849,13 +849,13 @@ export default function RegisterPage() {
   const getCategoryBadgeColor = (category: MaintenanceItem["category"]) => {
     switch (category) {
       case "cleaning":
-        return "bg-blue-100 text-blue-700";
+        return "bg-[#007AFF]/10 text-[#0066DD]";
       case "inspection":
-        return "bg-yellow-100 text-yellow-700";
+        return "bg-[#FF9500]/10 text-[#FF9500]";
       case "replacement":
-        return "bg-purple-100 text-purple-700";
+        return "bg-[#AF52DE]/10 text-[#AF52DE]";
       case "safety":
-        return "bg-red-100 text-red-700";
+        return "bg-[#FF3B30]/10 text-[#FF3B30]";
       default:
         return "bg-gray-100 text-gray-700";
     }
@@ -865,11 +865,11 @@ export default function RegisterPage() {
   const getImportanceBadgeColor = (importance: MaintenanceItem["importance"]) => {
     switch (importance) {
       case "high":
-        return "bg-red-100 text-red-700";
+        return "bg-[#FF3B30]/10 text-[#FF3B30]";
       case "medium":
-        return "bg-yellow-100 text-yellow-700";
+        return "bg-[#FF9500]/10 text-[#FF9500]";
       case "low":
-        return "bg-green-100 text-green-700";
+        return "bg-[#34C759]/10 text-[#34C759]";
       default:
         return "bg-gray-100 text-gray-700";
     }
@@ -950,54 +950,38 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <Link
-          href="/"
-          className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1 mb-4"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+    <div className="min-h-screen bg-[#F2F2F7] pb-24">
+      {/* iOS-style Header */}
+      <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+        <div className="flex items-center px-4 py-3">
+          <Link
+            href="/"
+            className="text-[#007AFF] hover:text-[#0066DD] flex items-center gap-1"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          戻る
-        </Link>
-        <h1 className="text-2xl font-bold text-gray-900">家電を登録</h1>
-      </div>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            戻る
+          </Link>
+          <h1 className="flex-1 text-center text-lg font-semibold text-gray-900 mr-12">家電を登録</h1>
+        </div>
+      </header>
 
-      {/* Progress Steps */}
-      <div className="mb-8">
+      {/* Progress Steps - Mobile optimized */}
+      <div className="px-4 pt-4 pb-2">
         <div className="flex items-center justify-between">
           {steps.map((step, index) => (
             <div key={step.number} className="flex items-center">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
                   currentStep >= step.number
-                    ? "bg-blue-600 text-white"
+                    ? "bg-[#007AFF] text-white"
                     : "bg-gray-200 text-gray-500"
                 }`}
               >
                 {currentStep > step.number ? (
-                  <svg
-                    className="w-5 h-5"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 ) : (
                   step.number
@@ -1005,28 +989,37 @@ export default function RegisterPage() {
               </div>
               {index < steps.length - 1 && (
                 <div
-                  className={`w-full h-1 mx-2 ${
-                    currentStep > step.number ? "bg-blue-600" : "bg-gray-200"
+                  className={`h-0.5 mx-1.5 transition-colors ${
+                    currentStep > step.number ? "bg-[#007AFF]" : "bg-gray-200"
                   }`}
-                  style={{ width: "40px" }}
+                  style={{ width: "28px" }}
                 />
               )}
             </div>
           ))}
         </div>
-        <div className="flex justify-between mt-2">
+        {/* Step labels - hidden on very small screens */}
+        <div className="hidden sm:flex justify-between mt-2">
           {steps.map((step) => (
             <span
               key={step.number}
               className={`text-xs ${
-                currentStep >= step.number ? "text-blue-600" : "text-gray-400"
+                currentStep >= step.number ? "text-[#007AFF]" : "text-gray-400"
               }`}
             >
               {step.title}
             </span>
           ))}
         </div>
+        {/* Current step indicator for mobile */}
+        <div className="sm:hidden mt-2 text-center">
+          <span className="text-sm font-medium text-[#007AFF]">
+            {steps[currentStep - 1].title}
+          </span>
+        </div>
       </div>
+
+      <div className="px-4">
 
       {/* Step Content */}
       <Card>
@@ -1046,15 +1039,15 @@ export default function RegisterPage() {
               <button
                 className={`w-full p-4 border-2 rounded-lg text-left transition-colors ${
                   inputMethod === "image"
-                    ? "border-blue-600 bg-blue-50"
+                    ? "border-[#007AFF] bg-[#007AFF]/10"
                     : "border-gray-200 hover:border-gray-300"
                 }`}
                 onClick={() => setInputMethod("image")}
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <div className="w-12 h-12 bg-[#007AFF]/10 rounded-full flex items-center justify-center">
                     <svg
-                      className="w-6 h-6 text-blue-600"
+                      className="w-6 h-6 text-[#007AFF]"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -1087,7 +1080,7 @@ export default function RegisterPage() {
               <button
                 className={`w-full p-4 border-2 rounded-lg text-left transition-colors ${
                   inputMethod === "manual"
-                    ? "border-blue-600 bg-blue-50"
+                    ? "border-[#007AFF] bg-[#007AFF]/10"
                     : "border-gray-200 hover:border-gray-300"
                 }`}
                 onClick={() => setInputMethod("manual")}
@@ -1122,7 +1115,7 @@ export default function RegisterPage() {
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                     {isConverting ? (
                       <div className="py-8">
-                        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                        <div className="w-12 h-12 border-4 border-[#007AFF] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                         <p className="text-gray-600 font-medium">
                           HEIC画像を変換中...
                         </p>
@@ -1134,9 +1127,9 @@ export default function RegisterPage() {
                       <div className="space-y-4">
                         {imagePreview === "heic-placeholder" ? (
                           <div className="py-8">
-                            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <div className="w-16 h-16 bg-[#007AFF]/10 rounded-full flex items-center justify-center mx-auto mb-4">
                               <svg
-                                className="w-8 h-8 text-blue-600"
+                                className="w-8 h-8 text-[#007AFF]"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -1164,7 +1157,7 @@ export default function RegisterPage() {
                           />
                         )}
                         <button
-                          className="text-sm text-blue-600 hover:text-blue-700"
+                          className="text-sm text-[#007AFF] hover:text-[#0066DD]"
                           onClick={() => {
                             setImageFile(null);
                             setImagePreview(null);
@@ -1273,11 +1266,11 @@ export default function RegisterPage() {
                       </div>
 
                       {/* Photo Tips */}
-                      <div className="bg-blue-50 rounded-lg p-3">
+                      <div className="bg-[#007AFF]/10 rounded-lg p-3">
                         <h5 className="font-medium text-blue-900 mb-1 text-sm">
                           📷 撮影のコツ
                         </h5>
-                        <p className="text-sm text-blue-700">
+                        <p className="text-sm text-[#0066DD]">
                           {labelGuide.photo_tips}
                         </p>
                       </div>
@@ -1285,7 +1278,7 @@ export default function RegisterPage() {
                       {/* Manual Input Option */}
                       <div className="mt-4 pt-4 border-t border-amber-200">
                         <button
-                          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                          className="text-sm text-[#007AFF] hover:text-[#0066DD] font-medium"
                           onClick={() => {
                             setInputMethod("manual");
                             setLabelGuide(null);
@@ -1321,9 +1314,9 @@ export default function RegisterPage() {
                   </p>
                   {imagePreview === "heic-placeholder" ? (
                     <div className="flex items-center gap-3 py-2">
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <div className="w-12 h-12 bg-[#007AFF]/10 rounded-lg flex items-center justify-center flex-shrink-0">
                         <svg
-                          className="w-6 h-6 text-blue-600"
+                          className="w-6 h-6 text-[#007AFF]"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -1371,7 +1364,7 @@ export default function RegisterPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, manufacturer: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#007AFF]/50 focus:border-blue-500"
                   placeholder="例: 日立"
                 />
               </div>
@@ -1386,7 +1379,7 @@ export default function RegisterPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, modelNumber: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#007AFF]/50 focus:border-blue-500"
                   placeholder="例: MRO-S7D"
                 />
               </div>
@@ -1400,7 +1393,7 @@ export default function RegisterPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, category: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#007AFF]/50 focus:border-blue-500"
                 >
                   <option value="">選択してください</option>
                   {categories.map((cat) => (
@@ -1421,7 +1414,7 @@ export default function RegisterPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#007AFF]/50 focus:border-blue-500"
                   placeholder="例: リビングのオーブンレンジ"
                 />
                 <p className="text-xs text-gray-500 mt-1">
@@ -1534,7 +1527,7 @@ export default function RegisterPage() {
 
               {isSearchingManual && (
                 <div className="text-center py-8">
-                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <div className="w-12 h-12 border-4 border-[#007AFF] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                   <p className="text-gray-600 font-medium">
                     {searchProgress.main}
                   </p>
@@ -1546,7 +1539,7 @@ export default function RegisterPage() {
                     <div className="mt-4 max-w-xs mx-auto">
                       <div className="bg-gray-200 rounded-full h-2">
                         <div
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          className="bg-[#007AFF] h-2 rounded-full transition-all duration-300"
                           style={{
                             width: `${((searchProgress.current || 0) / searchProgress.total) * 100}%`,
                           }}
@@ -1643,8 +1636,8 @@ export default function RegisterPage() {
               )}
 
               {manualSearchError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-red-700">{manualSearchError}</p>
+                <div className="bg-[#FF3B30]/10 border border-[#FF3B30]/20 rounded-lg p-4">
+                  <p className="text-[#FF3B30]">{manualSearchError}</p>
                   <Button
                     variant="outline"
                     onClick={() => handleSearchManual()}
@@ -1689,7 +1682,7 @@ export default function RegisterPage() {
                               href={manualSearchResult.pdf_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-700 font-medium"
+                              className="inline-flex items-center gap-1.5 text-[#007AFF] hover:text-[#0066DD] font-medium"
                             >
                               <svg
                                 className="w-4 h-4"
@@ -1719,13 +1712,13 @@ export default function RegisterPage() {
                           </p>
                           <div className="space-y-3">
                             <button
-                              className="w-full p-4 border-2 rounded-lg text-left transition-colors border-gray-200 hover:border-blue-400 hover:bg-blue-50"
+                              className="w-full p-4 border-2 rounded-lg text-left transition-colors border-gray-200 hover:border-blue-400 hover:bg-[#007AFF]/10"
                               onClick={handleRetrySearch}
                             >
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                <div className="w-10 h-10 bg-[#007AFF]/10 rounded-full flex items-center justify-center flex-shrink-0">
                                   <svg
-                                    className="w-5 h-5 text-blue-600"
+                                    className="w-5 h-5 text-[#007AFF]"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -1750,7 +1743,7 @@ export default function RegisterPage() {
                             </button>
 
                             <button
-                              className="w-full p-4 border-2 rounded-lg text-left transition-colors border-gray-200 hover:border-blue-400 hover:bg-blue-50"
+                              className="w-full p-4 border-2 rounded-lg text-left transition-colors border-gray-200 hover:border-blue-400 hover:bg-[#007AFF]/10"
                               onClick={handleChooseUpload}
                             >
                               <div className="flex items-center gap-3">
@@ -1813,8 +1806,8 @@ export default function RegisterPage() {
                         </div>
                       ) : (
                         <>
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                            <p className="text-sm text-blue-700">
+                          <div className="bg-[#007AFF]/10 border border-blue-200 rounded-lg p-3">
+                            <p className="text-sm text-[#0066DD]">
                               説明書を確認しました。次のステップでメンテナンス項目を抽出します。
                             </p>
                           </div>
@@ -1837,8 +1830,8 @@ export default function RegisterPage() {
                       )}
 
                       {maintenanceError && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                          <p className="text-red-700">{maintenanceError}</p>
+                        <div className="bg-[#FF3B30]/10 border border-[#FF3B30]/20 rounded-lg p-4">
+                          <p className="text-[#FF3B30]">{maintenanceError}</p>
                         </div>
                       )}
                     </>
@@ -1856,11 +1849,11 @@ export default function RegisterPage() {
                       </div>
 
                       {/* Manual PDF Upload */}
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="bg-[#007AFF]/10 border border-blue-200 rounded-lg p-4">
                         <h4 className="font-medium text-blue-800 mb-2">
                           📄 PDFを手動でアップロード
                         </h4>
-                        <p className="text-sm text-blue-700 mb-4">
+                        <p className="text-sm text-[#0066DD] mb-4">
                           お持ちの説明書PDFをアップロードして、メンテナンス項目を抽出できます。
                         </p>
 
@@ -1869,7 +1862,7 @@ export default function RegisterPage() {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <svg
-                                  className="w-8 h-8 text-red-500"
+                                  className="w-8 h-8 text-[#FF3B30]"
                                   fill="currentColor"
                                   viewBox="0 0 24 24"
                                 >
@@ -1885,7 +1878,7 @@ export default function RegisterPage() {
                                 </div>
                               </div>
                               <button
-                                className="text-sm text-blue-600 hover:text-blue-700"
+                                className="text-sm text-[#007AFF] hover:text-[#0066DD]"
                                 onClick={() => setPdfFile(null)}
                               >
                                 変更
@@ -1912,7 +1905,7 @@ export default function RegisterPage() {
                                   d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                                 />
                               </svg>
-                              <p className="text-sm text-blue-600">
+                              <p className="text-sm text-[#007AFF]">
                                 クリックしてPDFを選択
                               </p>
                             </label>
@@ -1932,8 +1925,8 @@ export default function RegisterPage() {
                         )}
 
                         {maintenanceError && (
-                          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-4">
-                            <p className="text-sm text-red-700">{maintenanceError}</p>
+                          <div className="bg-[#FF3B30]/10 border border-[#FF3B30]/20 rounded-lg p-3 mt-4">
+                            <p className="text-sm text-[#FF3B30]">{maintenanceError}</p>
                           </div>
                         )}
                       </div>
@@ -1971,21 +1964,21 @@ export default function RegisterPage() {
               {/* New cache-based flow with checkboxes */}
               {sharedMaintenanceItems.length > 0 ? (
                 <>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="bg-[#007AFF]/10 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium text-blue-700">
+                        <p className="font-medium text-[#0066DD]">
                           {sharedMaintenanceItems.length}件のメンテナンス項目が見つかりました
                         </p>
                         {isMaintenanceCached && (
-                          <p className="text-sm text-blue-600 mt-1">
+                          <p className="text-sm text-[#007AFF] mt-1">
                             ✨ キャッシュから取得しました（高速）
                           </p>
                         )}
                       </div>
                       <button
                         onClick={toggleSelectAll}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                        className="text-sm text-[#007AFF] hover:text-[#0066DD] font-medium"
                       >
                         {selectedItemIds.size === sharedMaintenanceItems.length
                           ? "すべて解除"
@@ -2004,7 +1997,7 @@ export default function RegisterPage() {
                         key={item.id}
                         className={`bg-white border rounded-lg p-4 shadow-sm transition-colors ${
                           selectedItemIds.has(item.id)
-                            ? "border-blue-500 bg-blue-50"
+                            ? "border-blue-500 bg-[#007AFF]/10"
                             : "border-gray-200"
                         }`}
                       >
@@ -2013,7 +2006,7 @@ export default function RegisterPage() {
                             type="checkbox"
                             checked={selectedItemIds.has(item.id)}
                             onChange={() => toggleItemSelection(item.id)}
-                            className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                            className="mt-1 h-4 w-4 text-[#007AFF] border-gray-300 rounded focus:ring-[#007AFF]/50 cursor-pointer"
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-2">
@@ -2028,7 +2021,7 @@ export default function RegisterPage() {
                                     setSelectedItemForDetail(item);
                                     setShowItemDetailModal(true);
                                   }}
-                                  className="text-xs text-blue-600 hover:text-blue-700 whitespace-nowrap flex items-center gap-1"
+                                  className="text-xs text-[#007AFF] hover:text-[#0066DD] whitespace-nowrap flex items-center gap-1"
                                 >
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -2078,21 +2071,21 @@ export default function RegisterPage() {
                   </Button>
 
                   {saveError && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <p className="text-red-700">{saveError}</p>
+                    <div className="bg-[#FF3B30]/10 border border-[#FF3B30]/20 rounded-lg p-4">
+                      <p className="text-[#FF3B30]">{saveError}</p>
                     </div>
                   )}
                 </>
               ) : maintenanceResult ? (
                 /* Legacy flow (fallback) */
                 <>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="font-medium text-blue-700">
+                  <div className="bg-[#007AFF]/10 border border-blue-200 rounded-lg p-4">
+                    <p className="font-medium text-[#0066DD]">
                       {maintenanceResult.maintenance_items.length}
                       件のメンテナンス項目が抽出されました
                     </p>
                     {maintenanceResult.notes && (
-                      <p className="text-sm text-blue-600 mt-1">
+                      <p className="text-sm text-[#007AFF] mt-1">
                         {maintenanceResult.notes}
                       </p>
                     )}
@@ -2146,8 +2139,8 @@ export default function RegisterPage() {
                   </Button>
 
                   {saveError && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <p className="text-red-700">{saveError}</p>
+                    <div className="bg-[#FF3B30]/10 border border-[#FF3B30]/20 rounded-lg p-4">
+                      <p className="text-[#FF3B30]">{saveError}</p>
                     </div>
                   )}
                 </>
@@ -2356,7 +2349,7 @@ export default function RegisterPage() {
                     type="checkbox"
                     checked={selectedItemIds.has(selectedItemForDetail.id)}
                     onChange={() => toggleItemSelection(selectedItemForDetail.id)}
-                    className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    className="h-5 w-5 text-[#007AFF] border-gray-300 rounded focus:ring-[#007AFF]/50"
                   />
                   <span className="text-sm text-gray-700">
                     {selectedItemIds.has(selectedItemForDetail.id)
@@ -2409,7 +2402,7 @@ export default function RegisterPage() {
                     <p className="text-sm text-gray-700">
                       同じメーカー・型番の家電は既に登録済みです。
                     </p>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="bg-[#007AFF]/10 border border-blue-200 rounded-lg p-3">
                       <p className="font-medium text-blue-900">{ownedBySelf.name}</p>
                     </div>
                     <div className="flex gap-3 pt-2">
@@ -2512,6 +2505,7 @@ export default function RegisterPage() {
           </div>
         </Modal>
       )}
+      </div>
     </div>
   );
 }

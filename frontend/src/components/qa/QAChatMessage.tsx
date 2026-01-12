@@ -15,7 +15,7 @@ export function QAChatMessage({ message, onFeedback }: QAChatMessageProps) {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[80%] rounded-lg px-4 py-2 ${
+        className={`max-w-[90%] sm:max-w-[80%] rounded-lg px-4 py-2 ${
           isUser
             ? 'bg-blue-500 text-white'
             : isError
@@ -27,14 +27,14 @@ export function QAChatMessage({ message, onFeedback }: QAChatMessageProps) {
 
         {/* 参照情報 */}
         {message.reference && (
-          <p className="text-xs mt-2 opacity-70">
+          <p className="text-sm sm:text-xs mt-2 text-gray-600">
             📖 参照: {message.reference}
           </p>
         )}
 
         {/* ソース表示 */}
         {message.source && message.source !== 'none' && (
-          <p className="text-xs mt-1 opacity-70">
+          <p className="text-sm sm:text-xs mt-1 text-gray-600">
             {message.source === 'qa' && '💡 FAQから回答'}
             {message.source === 'text_cache' && '📄 説明書テキストから回答'}
             {message.source === 'pdf' && '📕 説明書PDFから回答'}
