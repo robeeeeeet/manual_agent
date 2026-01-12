@@ -42,9 +42,12 @@ export function PDFViewer({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [scale, setScale] = useState(1.0);
+  const [visualScale, setVisualScale] = useState(1.0); // CSSトランスフォーム用（ピンチ中のスムーズ表示）
+  const [isPinching, setIsPinching] = useState(false);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const pdfAreaRef = useRef<HTMLDivElement>(null);
+  const pdfContentRef = useRef<HTMLDivElement>(null);
   const touchStateRef = useRef<TouchState>({
     startX: 0,
     startY: 0,
@@ -115,12 +118,17 @@ export function PDFViewer({
 
   // タッチジェスチャーの状態を保持するref（useEffect内で最新値を参照するため）
   const scaleRef = useRef(scale);
+  const visualScaleRef = useRef(visualScale);
   const numPagesRef = useRef(numPages);
   const pageNumberRef = useRef(pageNumber);
 
   useEffect(() => {
     scaleRef.current = scale;
   }, [scale]);
+
+  useEffect(() => {
+    visualScaleRef.current = visualScale;
+  }, [visualScale]);
 
   useEffect(() => {
     numPagesRef.current = numPages;
@@ -151,6 +159,8 @@ export function PDFViewer({
         e.preventDefault();
         state.initialPinchDistance = getDistance(touches);
         state.initialScale = scaleRef.current;
+        setIsPinching(true);
+        setVisualScale(1.0); // リセット
       }
     };
 
@@ -163,16 +173,20 @@ export function PDFViewer({
         e.preventDefault();
         const currentDistance = getDistance(touches);
         const scaleChange = currentDistance / state.initialPinchDistance;
-        const newScale = Math.min(Math.max(state.initialScale * scaleChange, 0.5), 3.0);
-        setScale(newScale);
+        // CSSトランスフォームのみ更新（スムーズな表示）
+        setVisualScale(scaleChange);
       }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
       const state = touchStateRef.current;
 
-      // ピンチ中だった場合はリセットして終了
+      // ピンチ中だった場合は最終スケールを確定
       if (state.initialPinchDistance !== null) {
+        const finalScale = Math.min(Math.max(state.initialScale * visualScaleRef.current, 0.5), 3.0);
+        setScale(finalScale);
+        setVisualScale(1.0); // リセット
+        setIsPinching(false);
         state.initialPinchDistance = null;
         return;
       }
@@ -442,22 +456,31 @@ export function PDFViewer({
           </div>
         )}
 
-        <Document
-          file={url}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={onDocumentLoadError}
-          loading={null}
-          error={null}
-          className="flex justify-center py-4"
+        <div
+          ref={pdfContentRef}
+          className="transition-transform origin-center"
+          style={{
+            transform: isPinching ? `scale(${visualScale})` : "scale(1)",
+            transition: isPinching ? "none" : "transform 0.1s ease-out",
+          }}
         >
-          <Page
-            pageNumber={pageNumber}
-            scale={scale}
-            width={containerWidth > 0 ? containerWidth : undefined}
-            renderTextLayer={true}
-            renderAnnotationLayer={true}
-          />
-        </Document>
+          <Document
+            file={url}
+            onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={onDocumentLoadError}
+            loading={null}
+            error={null}
+            className="flex justify-center py-4"
+          >
+            <Page
+              pageNumber={pageNumber}
+              scale={scale}
+              width={containerWidth > 0 ? containerWidth : undefined}
+              renderTextLayer={true}
+              renderAnnotationLayer={true}
+            />
+          </Document>
+        </div>
       </div>
 
       {/* 注釈（非フルスクリーン時のみ） */}
