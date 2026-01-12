@@ -21,6 +21,15 @@ interface PDFViewerProps {
   className?: string;
 }
 
+// タッチジェスチャー用の型定義
+interface TouchState {
+  startX: number;
+  startY: number;
+  startTime: number;
+  initialPinchDistance: number | null;
+  initialScale: number;
+}
+
 export function PDFViewer({
   url,
   initialPage = 1,
@@ -35,6 +44,14 @@ export function PDFViewer({
   const [scale, setScale] = useState(1.0);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const pdfAreaRef = useRef<HTMLDivElement>(null);
+  const touchStateRef = useRef<TouchState>({
+    startX: 0,
+    startY: 0,
+    startTime: 0,
+    initialPinchDistance: null,
+    initialScale: 1.0,
+  });
 
   // コンテナ幅を監視
   useEffect(() => {
@@ -68,13 +85,13 @@ export function PDFViewer({
     setLoading(false);
   }, []);
 
-  const goToPrevPage = () => {
+  const goToPrevPage = useCallback(() => {
     setPageNumber((prev) => Math.max(prev - 1, 1));
-  };
+  }, []);
 
-  const goToNextPage = () => {
+  const goToNextPage = useCallback(() => {
     setPageNumber((prev) => Math.min(prev + 1, numPages || prev));
-  };
+  }, [numPages]);
 
   const zoomIn = () => {
     setScale((prev) => Math.min(prev + 0.25, 3.0));
@@ -87,6 +104,93 @@ export function PDFViewer({
   const resetZoom = () => {
     setScale(1.0);
   };
+
+  // 2点間の距離を計算（ピンチズーム用）
+  const getDistance = (touches: React.TouchList): number => {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // タッチ開始
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touches = e.touches;
+    const state = touchStateRef.current;
+
+    if (touches.length === 1) {
+      // シングルタッチ：スワイプ/タップ用
+      state.startX = touches[0].clientX;
+      state.startY = touches[0].clientY;
+      state.startTime = Date.now();
+      state.initialPinchDistance = null;
+    } else if (touches.length === 2) {
+      // ダブルタッチ：ピンチズーム用
+      state.initialPinchDistance = getDistance(touches);
+      state.initialScale = scale;
+    }
+  }, [scale]);
+
+  // タッチ移動（ピンチズーム処理）
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const touches = e.touches;
+    const state = touchStateRef.current;
+
+    if (touches.length === 2 && state.initialPinchDistance !== null) {
+      // ピンチズーム
+      const currentDistance = getDistance(touches);
+      const scaleChange = currentDistance / state.initialPinchDistance;
+      const newScale = Math.min(Math.max(state.initialScale * scaleChange, 0.5), 3.0);
+      setScale(newScale);
+    }
+  }, []);
+
+  // タッチ終了（スワイプ/タップ判定）
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    const state = touchStateRef.current;
+
+    // ピンチ中だった場合はリセットして終了
+    if (state.initialPinchDistance !== null) {
+      state.initialPinchDistance = null;
+      return;
+    }
+
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - state.startX;
+    const deltaY = touch.clientY - state.startY;
+    const deltaTime = Date.now() - state.startTime;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+
+    // スワイプ判定（水平方向に50px以上、300ms以内、縦より横の移動が大きい）
+    if (absDeltaX > 50 && deltaTime < 300 && absDeltaX > absDeltaY) {
+      if (deltaX > 0) {
+        // 右スワイプ → 前のページ
+        goToPrevPage();
+      } else {
+        // 左スワイプ → 次のページ
+        goToNextPage();
+      }
+      return;
+    }
+
+    // タップ判定（移動距離10px以内、300ms以内）
+    if (absDeltaX < 10 && absDeltaY < 10 && deltaTime < 300) {
+      const rect = pdfAreaRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const tapX = touch.clientX - rect.left;
+      const tapZoneWidth = rect.width / 3;
+
+      // 左1/3タップ → 前のページ、右1/3タップ → 次のページ
+      if (tapX < tapZoneWidth) {
+        goToPrevPage();
+      } else if (tapX > rect.width - tapZoneWidth) {
+        goToNextPage();
+      }
+      // 中央1/3タップは何もしない（将来的にUIトグル等に使用可能）
+    }
+  }, [goToNextPage, goToPrevPage]);
 
   // フルスクリーン時のコンテナスタイル
   const containerClass = fullScreen
@@ -242,9 +346,13 @@ export function PDFViewer({
 
       {/* PDF 表示エリア */}
       <div
+        ref={pdfAreaRef}
         className={`flex-1 overflow-auto ${
           fullScreen ? "bg-gray-800" : "border border-gray-200 rounded-b-lg bg-gray-50"
         }`}
+        onTouchStart={fullScreen ? handleTouchStart : undefined}
+        onTouchMove={fullScreen ? handleTouchMove : undefined}
+        onTouchEnd={fullScreen ? handleTouchEnd : undefined}
       >
         {loading && (
           <div className="flex items-center justify-center h-64">
