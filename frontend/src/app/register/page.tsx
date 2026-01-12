@@ -203,6 +203,7 @@ export default function RegisterPage() {
       const response = await fetch("/api/appliances/recognize", {
         method: "POST",
         body: formDataToSend,
+        cache: "no-store", // Disable caching to prevent stale error responses
       });
 
       if (response.ok) {

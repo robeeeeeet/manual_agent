@@ -6,6 +6,16 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 // Vercel Pro: max 60s, Vercel Hobby: max 10s (this won't help on Hobby)
 export const maxDuration = 60;
 
+// Disable caching for this route
+export const dynamic = "force-dynamic";
+
+// Response headers to prevent caching
+const noCacheHeaders = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -14,7 +24,7 @@ export async function POST(request: NextRequest) {
     if (!image) {
       return NextResponse.json(
         { error: "Image file is required" },
-        { status: 400 }
+        { status: 400, headers: noCacheHeaders }
       );
     }
 
@@ -40,17 +50,17 @@ export async function POST(request: NextRequest) {
       const errorData = await response.json().catch(() => ({}));
       return NextResponse.json(
         { error: "Backend request failed", details: errorData },
-        { status: response.status }
+        { status: response.status, headers: noCacheHeaders }
       );
     }
 
     const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers: noCacheHeaders });
   } catch (error) {
     console.error("Error in recognize API:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500, headers: noCacheHeaders }
     );
   }
 }
