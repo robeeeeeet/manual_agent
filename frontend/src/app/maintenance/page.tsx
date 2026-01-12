@@ -3,9 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Modal from "@/components/ui/Modal";
-import Button from "@/components/ui/Button";
 import MaintenanceStatusTabs, {
   type TabStatus,
 } from "@/components/maintenance/MaintenanceStatusTabs";
@@ -20,39 +18,24 @@ import type {
   MaintenanceLog,
 } from "@/types/appliance";
 
-interface ApplianceOption {
-  id: string;
-  name: string;
-}
 
-const importanceLabels: Record<"high" | "medium" | "low", string> = {
-  high: "高",
-  medium: "中",
-  low: "低",
-};
-
-const importanceColors: Record<"high" | "medium" | "low", string> = {
-  high: "bg-red-100 text-red-700",
-  medium: "bg-yellow-100 text-yellow-700",
-  low: "bg-green-100 text-green-700",
+const importanceConfig = {
+  high: { label: "高", bg: "bg-[#FF3B30]/10", text: "text-[#FF3B30]" },
+  medium: { label: "中", bg: "bg-[#FF9500]/10", text: "text-[#FF9500]" },
+  low: { label: "低", bg: "bg-[#34C759]/10", text: "text-[#34C759]" },
 };
 
 export default function MaintenancePage() {
   const { user, loading: authLoading } = useAuth();
-
-  // SWR hook for data fetching
   const { items: allItems, counts, isLoading, error, refetch } = useMaintenance();
 
   // Filter state
   const [activeTab, setActiveTab] = useState<TabStatus>("all");
-  const [importanceFilter, setImportanceFilter] = useState<
-    "all" | "high" | "medium" | "low"
-  >("all");
-  const [applianceFilter, setApplianceFilter] = useState<string | null>(null);
+  const [importanceFilter, setImportanceFilter] = useState<"all" | "high" | "medium" | "low">("all");
+  const [makerFilter, setMakerFilter] = useState<string | null>(null);
 
   // Modal state
-  const [selectedItem, setSelectedItem] =
-    useState<MaintenanceWithAppliance | null>(null);
+  const [selectedItem, setSelectedItem] = useState<MaintenanceWithAppliance | null>(null);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
@@ -61,49 +44,32 @@ export default function MaintenancePage() {
   const [historyLogs, setHistoryLogs] = useState<MaintenanceLog[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  // Extract unique appliances for filter dropdown
-  const appliances = useMemo<ApplianceOption[]>(() => {
-    const uniqueAppliances = new Map<string, string>();
+  // Extract unique makers for filter
+  const makers = useMemo<string[]>(() => {
+    const uniqueMakers = new Set<string>();
     allItems.forEach((item) => {
-      if (!uniqueAppliances.has(item.appliance_id)) {
-        uniqueAppliances.set(item.appliance_id, item.appliance_name);
+      if (item.maker) {
+        uniqueMakers.add(item.maker);
       }
     });
-    return Array.from(uniqueAppliances.entries()).map(([id, name]) => ({
-      id,
-      name,
-    }));
+    return Array.from(uniqueMakers).sort();
   }, [allItems]);
 
-  // Filter items based on current filters
+  // Filter items
   const filteredItems = useMemo(() => {
     return allItems.filter((item) => {
-      // Tab filter
-      if (activeTab !== "all" && item.status !== activeTab) {
-        return false;
-      }
-
-      // Importance filter
-      if (importanceFilter !== "all" && item.importance !== importanceFilter) {
-        return false;
-      }
-
-      // Appliance filter
-      if (applianceFilter && item.appliance_id !== applianceFilter) {
-        return false;
-      }
-
+      if (activeTab !== "all" && item.status !== activeTab) return false;
+      if (importanceFilter !== "all" && item.importance !== importanceFilter) return false;
+      if (makerFilter && item.maker !== makerFilter) return false;
       return true;
     });
-  }, [allItems, activeTab, importanceFilter, applianceFilter]);
+  }, [allItems, activeTab, importanceFilter, makerFilter]);
 
-  // Handle item click for detail modal
   const openDetailModal = (item: MaintenanceWithAppliance) => {
     setSelectedItem(item);
     setShowDetailModal(true);
   };
 
-  // Handle completion
   const openCompleteModal = (item: MaintenanceWithAppliance) => {
     setSelectedItem(item);
     setShowCompleteModal(true);
@@ -115,42 +81,30 @@ export default function MaintenancePage() {
     refetch();
   };
 
-  // Fetch history
   const fetchHistory = async (scheduleId: string) => {
     setIsLoadingHistory(true);
     try {
-      const response = await fetch(
-        `/api/appliances/maintenance-schedules/${scheduleId}/logs`
-      );
-
-      if (!response.ok) {
-        throw new Error("履歴の取得に失敗しました");
-      }
-
+      const response = await fetch(`/api/appliances/maintenance-schedules/${scheduleId}/logs`);
+      if (!response.ok) throw new Error("履歴の取得に失敗しました");
       const data = await response.json();
-      const logs: MaintenanceLog[] = Array.isArray(data) ? data : data.logs || [];
-      setHistoryLogs(logs);
+      setHistoryLogs(Array.isArray(data) ? data : data.logs || []);
       setShowHistoryModal(true);
     } catch (err) {
       console.error("Fetch history error:", err);
-      // Error is handled by logging, no need to set state
     } finally {
       setIsLoadingHistory(false);
     }
   };
 
-  // Format date for display
   const formatDate = (dateString: string | null): string => {
     if (!dateString) return "未設定";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("ja-JP", {
+    return new Date(dateString).toLocaleDateString("ja-JP", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
   };
 
-  // Get status text
   const getStatusText = (daysUntilDue: number | null, status: string): string => {
     if (status === "manual") return "手動";
     if (daysUntilDue === null) return "未設定";
@@ -160,16 +114,14 @@ export default function MaintenancePage() {
     return `あと${daysUntilDue}日`;
   };
 
-  // Get status color
-  const getStatusColor = (daysUntilDue: number | null, status: string): string => {
-    if (status === "manual") return "bg-gray-100 text-gray-600";
-    if (daysUntilDue === null) return "bg-gray-100 text-gray-600";
-    if (daysUntilDue < 0) return "bg-red-100 text-red-700";
-    if (daysUntilDue <= 7) return "bg-amber-100 text-amber-700";
-    return "bg-green-100 text-green-700";
+  const getStatusStyle = (daysUntilDue: number | null, status: string) => {
+    if (status === "manual") return { bg: "bg-gray-100", text: "text-gray-600" };
+    if (daysUntilDue === null) return { bg: "bg-gray-100", text: "text-gray-600" };
+    if (daysUntilDue < 0) return { bg: "bg-[#FF3B30]/10", text: "text-[#FF3B30]" };
+    if (daysUntilDue <= 7) return { bg: "bg-[#FF9500]/10", text: "text-[#FF9500]" };
+    return { bg: "bg-[#34C759]/10", text: "text-[#34C759]" };
   };
 
-  // Convert MaintenanceWithAppliance to MaintenanceSchedule for modal
   const selectedSchedule: MaintenanceSchedule | null = selectedItem
     ? {
         id: selectedItem.id,
@@ -191,17 +143,15 @@ export default function MaintenancePage() {
   // Loading state
   if (authLoading || isLoading) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">
-          メンテナンス一覧
-        </h1>
-        <Card>
-          <CardBody className="py-12">
-            <div className="flex justify-center">
-              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            </div>
-          </CardBody>
-        </Card>
+      <div className="min-h-screen bg-[#F2F2F7] pb-24">
+        <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+          <div className="px-4 py-3">
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">メンテナンス</h1>
+          </div>
+        </header>
+        <div className="flex justify-center items-center py-20">
+          <div className="w-8 h-8 border-4 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
+        </div>
       </div>
     );
   }
@@ -209,41 +159,28 @@ export default function MaintenancePage() {
   // Not logged in
   if (!user) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">
-          メンテナンス一覧
-        </h1>
-        <Card>
-          <CardBody className="py-12 text-center">
+      <div className="min-h-screen bg-[#F2F2F7] pb-24">
+        <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+          <div className="px-4 py-3">
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">メンテナンス</h1>
+          </div>
+        </header>
+        <div className="px-4 pt-8">
+          <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <h3 className="font-medium text-gray-900 mb-2">
-              ログインしてください
-            </h3>
-            <p className="text-sm text-gray-500 mb-6">
-              メンテナンス一覧を表示するにはログインが必要です
-            </p>
-            <Link
-              href="/login"
-              className="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              ログイン
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">ログインが必要です</h2>
+            <p className="text-gray-500 text-sm mb-6">メンテナンス一覧を表示するにはログインしてください</p>
+            <Link href="/login">
+              <button className="px-6 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors">
+                ログイン
+              </button>
             </Link>
-          </CardBody>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -251,39 +188,29 @@ export default function MaintenancePage() {
   // Error state
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">
-          メンテナンス一覧
-        </h1>
-        <Card>
-          <CardBody className="py-12 text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-red-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
+      <div className="min-h-screen bg-[#F2F2F7] pb-24">
+        <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+          <div className="px-4 py-3">
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">メンテナンス</h1>
+          </div>
+        </header>
+        <div className="px-4 pt-8">
+          <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
+            <div className="w-16 h-16 bg-[#FF3B30]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-[#FF3B30]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <h3 className="font-medium text-gray-900 mb-2">
-              エラーが発生しました
-            </h3>
-            <p className="text-sm text-gray-500 mb-6">{error.message}</p>
+            <p className="text-gray-900 font-medium mb-2">エラーが発生しました</p>
+            <p className="text-gray-500 text-sm mb-4">{error.message}</p>
             <button
               onClick={() => refetch()}
-              className="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-6 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors"
             >
               再読み込み
             </button>
-          </CardBody>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -291,103 +218,83 @@ export default function MaintenancePage() {
   // Empty state
   if (allItems.length === 0) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">
-          メンテナンス一覧
-        </h1>
-        <Card>
-          <CardBody className="py-12 text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-                />
+      <div className="min-h-screen bg-[#F2F2F7] pb-24">
+        <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+          <div className="px-4 py-3">
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">メンテナンス</h1>
+          </div>
+        </header>
+        <div className="px-4 pt-8">
+          <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
+            <div className="w-20 h-20 bg-[#FF9500]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-10 h-10 text-[#FF9500]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
             </div>
-            <h3 className="font-medium text-gray-900 mb-2">
-              メンテナンス項目がありません
-            </h3>
-            <p className="text-sm text-gray-500 mb-6">
-              家電を登録してメンテナンス項目を追加しましょう
-            </p>
-            <Link
-              href="/register"
-              className="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              家電を登録する
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">メンテナンス項目がありません</h2>
+            <p className="text-gray-500 text-sm mb-6">家電を登録してメンテナンス項目を追加しましょう</p>
+            <Link href="/register">
+              <button className="px-6 py-3 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors">
+                家電を登録する
+              </button>
             </Link>
-          </CardBody>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">
-        メンテナンス一覧
-      </h1>
+    <div className="min-h-screen bg-[#F2F2F7] pb-24">
+      {/* iOS-style Header */}
+      <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+        <div className="px-4 py-3">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">メンテナンス</h1>
+        </div>
+        {/* Status Tabs */}
+        <div className="px-4 pb-3">
+          <MaintenanceStatusTabs
+            activeTab={activeTab}
+            counts={counts}
+            onTabChange={setActiveTab}
+          />
+        </div>
+      </header>
 
-      {/* Status Tabs */}
-      <div className="mb-4">
-        <MaintenanceStatusTabs
-          activeTab={activeTab}
-          counts={counts}
-          onTabChange={setActiveTab}
-        />
-      </div>
-
-      {/* Filters */}
-      <div className="mb-6">
+      <div className="px-4 pt-4 space-y-4">
+        {/* Filters */}
         <MaintenanceFilter
           importance={importanceFilter}
-          applianceId={applianceFilter}
-          appliances={appliances}
+          maker={makerFilter}
+          makers={makers}
           onImportanceChange={setImportanceFilter}
-          onApplianceChange={setApplianceFilter}
+          onMakerChange={setMakerFilter}
         />
-      </div>
 
-      {/* Items list */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <h2 className="font-bold text-gray-900">メンテナンス項目</h2>
-            <span className="text-sm text-gray-500">
-              {filteredItems.length}件
-            </span>
+        {/* Results count */}
+        <p className="text-sm text-gray-500 px-1">
+          {filteredItems.length}件のメンテナンス項目
+        </p>
+
+        {/* Items list */}
+        {filteredItems.length === 0 ? (
+          <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
+            <p className="text-gray-500">該当するメンテナンス項目がありません</p>
           </div>
-        </CardHeader>
-        <CardBody>
-          {filteredItems.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500">
-                該当するメンテナンス項目がありません
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {filteredItems.map((item) => (
-                <MaintenanceListItem
-                  key={item.id}
-                  item={item}
-                  onComplete={openCompleteModal}
-                  onItemClick={openDetailModal}
-                  showApplianceName={true}
-                />
-              ))}
-            </div>
-          )}
-        </CardBody>
-      </Card>
+        ) : (
+          <div className="space-y-3">
+            {filteredItems.map((item) => (
+              <MaintenanceListItem
+                key={item.id}
+                item={item}
+                onComplete={openCompleteModal}
+                onItemClick={openDetailModal}
+                showApplianceName={true}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Complete Modal */}
       <MaintenanceCompleteModal
@@ -411,7 +318,6 @@ export default function MaintenancePage() {
         variant="dialog"
       >
         <div className="p-6">
-          {/* Close button */}
           <button
             onClick={() => {
               setShowDetailModal(false);
@@ -427,38 +333,26 @@ export default function MaintenancePage() {
 
           {selectedItem && (
             <>
-              {/* Header */}
               <h3 className="text-lg font-bold text-gray-900 mb-4 pr-8">
                 {selectedItem.task_name}
               </h3>
 
-              {/* Description */}
               {selectedItem.description && (
                 <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">
-                    説明
-                  </h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">説明</h4>
                   <SafeHtml html={selectedItem.description} className="text-gray-700" />
                 </div>
               )}
 
-              {/* Appliance info */}
-              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                <h4 className="text-xs font-medium text-gray-500 mb-1">
-                  家電
-                </h4>
+              <div className="mb-4 p-3 bg-[#F2F2F7] rounded-xl">
+                <h4 className="text-xs font-medium text-gray-500 mb-1">家電</h4>
                 <p className="text-sm text-gray-900">{selectedItem.appliance_name}</p>
-                <p className="text-xs text-gray-500">
-                  {selectedItem.maker} {selectedItem.model_number}
-                </p>
+                <p className="text-xs text-gray-500">{selectedItem.maker} {selectedItem.model_number}</p>
               </div>
 
-              {/* Meta info grid */}
               <div className="grid grid-cols-3 gap-4 mb-4 py-4 border-y border-gray-100">
                 <div>
-                  <h4 className="text-xs font-medium text-gray-500 mb-1">
-                    周期
-                  </h4>
+                  <h4 className="text-xs font-medium text-gray-500 mb-1">周期</h4>
                   <p className="text-sm text-gray-900">
                     {selectedItem.interval_type === "days"
                       ? `${selectedItem.interval_value}日ごと`
@@ -468,38 +362,25 @@ export default function MaintenancePage() {
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-xs font-medium text-gray-500 mb-1">
-                    重要度
-                  </h4>
-                  <span
-                    className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${importanceColors[selectedItem.importance]}`}
-                  >
-                    {importanceLabels[selectedItem.importance]}
+                  <h4 className="text-xs font-medium text-gray-500 mb-1">重要度</h4>
+                  <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${importanceConfig[selectedItem.importance].bg} ${importanceConfig[selectedItem.importance].text}`}>
+                    {importanceConfig[selectedItem.importance].label}
                   </span>
                 </div>
                 {selectedItem.source_page && (
                   <div>
-                    <h4 className="text-xs font-medium text-gray-500 mb-1">
-                      参照ページ
-                    </h4>
-                    <p className="text-sm text-gray-900">
-                      {selectedItem.source_page}
-                    </p>
+                    <h4 className="text-xs font-medium text-gray-500 mb-1">参照ページ</h4>
+                    <p className="text-sm text-gray-900">{selectedItem.source_page}</p>
                   </div>
                 )}
               </div>
 
-              {/* Date info */}
               <div className="space-y-3 mb-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-500">次回予定日</span>
                   <div className="text-right">
-                    <span className="text-sm font-medium text-gray-900">
-                      {formatDate(selectedItem.next_due_at)}
-                    </span>
-                    <span
-                      className={`ml-2 px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(selectedItem.days_until_due, selectedItem.status)}`}
-                    >
+                    <span className="text-sm font-medium text-gray-900">{formatDate(selectedItem.next_due_at)}</span>
+                    <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded-full ${getStatusStyle(selectedItem.days_until_due, selectedItem.status).bg} ${getStatusStyle(selectedItem.days_until_due, selectedItem.status).text}`}>
                       {getStatusText(selectedItem.days_until_due, selectedItem.status)}
                     </span>
                   </div>
@@ -507,39 +388,34 @@ export default function MaintenancePage() {
                 {selectedItem.last_done_at && (
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-500">前回実施日</span>
-                    <span className="text-sm text-gray-900">
-                      {formatDate(selectedItem.last_done_at)}
-                    </span>
+                    <span className="text-sm text-gray-900">{formatDate(selectedItem.last_done_at)}</span>
                   </div>
                 )}
               </div>
 
-              {/* Action buttons */}
               <div className="flex gap-3">
-                <Button
-                  variant="outline"
+                <button
                   onClick={() => fetchHistory(selectedItem.id)}
-                  className="flex-1"
-                  isLoading={isLoadingHistory}
+                  disabled={isLoadingHistory}
+                  className="flex-1 py-3 border border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
-                  履歴を見る
-                </Button>
-                <Button
+                  {isLoadingHistory ? "読込中..." : "履歴を見る"}
+                </button>
+                <button
                   onClick={() => {
                     setShowDetailModal(false);
                     openCompleteModal(selectedItem);
                   }}
-                  className="flex-1"
+                  className="flex-1 py-3 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors"
                 >
                   完了する
-                </Button>
+                </button>
               </div>
 
-              {/* Link to appliance detail */}
               <div className="mt-4 text-center">
                 <Link
                   href={`/appliances/${selectedItem.appliance_id}?from=maintenance`}
-                  className="text-sm text-blue-600 hover:text-blue-700"
+                  className="text-sm text-[#007AFF] hover:underline"
                 >
                   家電詳細ページへ →
                 </Link>
@@ -559,7 +435,6 @@ export default function MaintenancePage() {
         variant="dialog"
       >
         <div className="p-6">
-          {/* Close button */}
           <button
             onClick={() => {
               setShowHistoryModal(false);
@@ -573,30 +448,16 @@ export default function MaintenancePage() {
             </svg>
           </button>
 
-          <h3 className="text-lg font-bold text-gray-900 mb-4 pr-8">
-            メンテナンス履歴
-          </h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-4 pr-8">メンテナンス履歴</h3>
           {selectedItem && (
-            <p className="text-sm text-gray-600 mb-4">
-              {selectedItem.task_name}
-            </p>
+            <p className="text-sm text-gray-600 mb-4">{selectedItem.task_name}</p>
           )}
 
           {historyLogs.length === 0 ? (
             <div className="text-center py-8">
               <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <svg
-                  className="w-6 h-6 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
+                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <p className="text-gray-500">履歴がありません</p>
@@ -604,23 +465,10 @@ export default function MaintenancePage() {
           ) : (
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {historyLogs.map((log) => (
-                <div
-                  key={log.id}
-                  className="p-3 bg-gray-50 rounded-lg border border-gray-100"
-                >
+                <div key={log.id} className="p-3 bg-[#F2F2F7] rounded-xl">
                   <div className="flex items-center gap-2 mb-1">
-                    <svg
-                      className="w-4 h-4 text-green-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
+                    <svg className="w-4 h-4 text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-sm font-medium text-gray-900">
                       {new Date(log.done_at).toLocaleDateString("ja-JP", {
@@ -632,9 +480,7 @@ export default function MaintenancePage() {
                       })}
                     </span>
                   </div>
-                  {log.notes && (
-                    <p className="text-sm text-gray-600 ml-6">{log.notes}</p>
-                  )}
+                  {log.notes && <p className="text-sm text-gray-600 ml-6">{log.notes}</p>}
                 </div>
               ))}
             </div>

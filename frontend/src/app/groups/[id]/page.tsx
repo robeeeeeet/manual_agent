@@ -298,24 +298,24 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
         {/* Group Header */}
         <Card className="mb-6">
           <CardBody>
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-bold text-gray-900">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
                     {group.name}
                   </h1>
                   {isOwner && (
-                    <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
+                    <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full whitespace-nowrap">
                       オーナー
                     </span>
                   )}
                 </div>
-                <p className="text-gray-500 mt-1">
+                <p className="text-gray-500 mt-1 text-sm">
                   {group.member_count}人のメンバー
                 </p>
               </div>
               {isOwner && (
-                <div className="flex gap-2">
+                <div className="flex gap-2 shrink-0">
                   <Button
                     variant="outline"
                     size="sm"
@@ -340,24 +340,36 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
         <Card className="mb-6">
           <CardBody>
             <h2 className="text-lg font-semibold mb-3">招待コード</h2>
-            <div className="flex items-center gap-3">
-              <div className="flex-1 bg-gray-100 px-4 py-3 rounded-lg font-mono text-xl tracking-widest text-center">
-                {group.invite_code}
+            <div className="bg-gray-100 px-4 py-4 rounded-lg font-mono text-2xl tracking-widest text-center mb-3">
+              {group.invite_code}
+            </div>
+            <div className="grid grid-cols-2 gap-2 relative">
+              <div className="relative">
+                <Button variant="outline" onClick={copyInviteCode} className="w-full">
+                  コピー
+                </Button>
+                {/* Copy success popup */}
+                {copiedCode && (
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-gray-800 text-white text-sm rounded-lg shadow-lg whitespace-nowrap z-50 animate-tooltip-fade-in">
+                    コピーしました!
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-800" />
+                  </div>
+                )}
               </div>
-              <Button variant="outline" onClick={copyInviteCode}>
-                {copiedCode ? "コピー完了!" : "コピー"}
-              </Button>
-              {isOwner && (
+              {isOwner ? (
                 <Button
                   variant="outline"
                   onClick={handleRegenerateCodeClick}
                   disabled={submitting}
+                  className="w-full"
                 >
                   再生成
                 </Button>
+              ) : (
+                <div />
               )}
             </div>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-gray-500 mt-3 text-center">
               このコードを家族に共有すると、グループに参加できます
             </p>
           </CardBody>
@@ -371,25 +383,26 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
               {group.members.map((member) => (
                 <div
                   key={member.id}
-                  className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                  className="flex items-center justify-between gap-2 py-2 border-b border-gray-100 last:border-0"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center shrink-0">
                       <span className="text-gray-600 font-medium">
-                        {member.email.charAt(0).toUpperCase()}
+                        {(member.display_name || member.email).charAt(0).toUpperCase()}
                       </span>
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {member.email}
-                        {member.user_id === user.id && (
-                          <span className="ml-2 text-xs text-gray-500">
-                            (あなた)
-                          </span>
-                        )}
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 text-sm sm:text-base truncate">
+                        {member.display_name || member.email}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      {member.display_name && (
+                        <p className="text-xs text-gray-500 truncate">
+                          {member.email}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-400">
                         {member.user_id === group.owner_id ? "オーナー" : "メンバー"}
+                        {member.user_id === user.id && " / あなた"}
                       </p>
                     </div>
                   </div>
@@ -399,6 +412,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="shrink-0"
                         onClick={() => handleRemoveMemberClick(member)}
                         disabled={submitting}
                       >

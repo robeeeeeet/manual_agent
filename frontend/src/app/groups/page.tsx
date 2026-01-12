@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardBody } from "@/components/ui/Card";
-import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { GroupWithMembers, JoinGroupResponse } from "@/types/group";
 
@@ -228,24 +226,25 @@ export default function GroupsPage() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">読み込み中...</div>
+      <div className="min-h-screen bg-[#F2F2F7] flex items-center justify-center">
+        <div className="text-gray-500">読み込み中...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">グループ管理</h1>
-          {/* 未参加時は中央の空状態UIにボタンを表示するため、ここでは表示しない */}
+    <div className="min-h-screen bg-[#F2F2F7] pb-24">
+      {/* iOS-style Header */}
+      <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+        <div className="px-4 py-3">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">グループ</h1>
         </div>
+      </header>
 
+      <div className="px-4 pt-4">
         {/* Error message */}
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          <div className="mb-4 p-4 bg-[#FF3B30]/10 border border-[#FF3B30]/20 rounded-xl text-[#FF3B30]">
             {error}
           </div>
         )}
@@ -254,84 +253,78 @@ export default function GroupsPage() {
         {loading ? (
           <div className="text-center py-12 text-gray-500">読み込み中...</div>
         ) : groups.length === 0 ? (
-          <Card>
-            <CardBody>
-              <div className="text-center py-12">
-                <p className="text-gray-500 mb-4">
-                  まだグループに参加していません
-                </p>
-                <div className="flex justify-center gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowJoinModal(true)}
-                  >
-                    招待コードで参加
-                  </Button>
-                  <Button
-                    variant="primary"
-                    onClick={() => setShowCreateModal(true)}
-                  >
-                    新しいグループを作成
-                  </Button>
-                </div>
+          <div className="bg-white rounded-2xl p-6 shadow-sm">
+            <div className="text-center py-8">
+              <div className="w-16 h-16 mx-auto mb-4 bg-[#007AFF]/10 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-[#007AFF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
               </div>
-            </CardBody>
-          </Card>
+              <p className="text-gray-500 mb-6">
+                まだグループに参加していません
+              </p>
+              <div className="flex flex-col sm:flex-row justify-center gap-3">
+                <button
+                  onClick={() => setShowJoinModal(true)}
+                  className="px-6 py-3 text-[#007AFF] font-semibold border-2 border-[#007AFF] rounded-xl hover:bg-[#007AFF]/5 transition-colors"
+                >
+                  招待コードで参加
+                </button>
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="px-6 py-3 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors"
+                >
+                  新しいグループを作成
+                </button>
+              </div>
+            </div>
+          </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="space-y-3">
             {groups.map((group) => (
               <Link key={group.id} href={`/groups/${group.id}`}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardBody>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-lg font-semibold text-gray-900">
-                          {group.name}
-                        </h2>
-                        <p className="text-sm text-gray-500">
-                          {group.member_count}人のメンバー
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {group.owner_id === user.id && (
-                          <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-                            オーナー
-                          </span>
-                        )}
-                        <svg
-                          className="w-5 h-5 text-gray-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5l7 7-7 7"
-                          />
-                        </svg>
-                      </div>
+                <div className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md active:bg-gray-50 transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-lg font-semibold text-gray-900 truncate">
+                        {group.name}
+                      </h2>
+                      <p className="text-sm text-gray-500">
+                        {group.member_count}人のメンバー
+                      </p>
                     </div>
-                  </CardBody>
-                </Card>
+                    <div className="flex items-center gap-2">
+                      {group.owner_id === user.id && (
+                        <span className="px-2.5 py-1 text-xs font-medium bg-[#007AFF]/10 text-[#007AFF] rounded-full">
+                          オーナー
+                        </span>
+                      )}
+                      <svg
+                        className="w-5 h-5 text-gray-300"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
               </Link>
             ))}
           </div>
         )}
-
-        {/* Back to home */}
-        <div className="mt-8 text-center">
-          <Link href="/" className="text-blue-600 hover:underline">
-            ホームに戻る
-          </Link>
-        </div>
       </div>
 
       {/* Create Group Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
             <h2 className="text-xl font-bold mb-4">新しいグループを作成</h2>
             <form onSubmit={handleCreateGroup}>
               <div className="mb-4">
@@ -346,28 +339,28 @@ export default function GroupsPage() {
                   id="groupName"
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#007AFF]/50"
                   placeholder="例: 山田家"
                   maxLength={50}
                   required
                 />
               </div>
-              <div className="flex justify-end gap-2">
-                <Button
+              <div className="flex justify-end gap-3">
+                <button
                   type="button"
-                  variant="outline"
                   onClick={() => setShowCreateModal(false)}
                   disabled={submitting}
+                  className="px-5 py-2.5 text-gray-600 font-medium rounded-xl hover:bg-gray-100 transition-colors disabled:opacity-50"
                 >
                   キャンセル
-                </Button>
-                <Button
+                </button>
+                <button
                   type="submit"
-                  variant="primary"
                   disabled={submitting || !newGroupName.trim()}
+                  className="px-5 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? "作成中..." : "作成"}
-                </Button>
+                </button>
               </div>
             </form>
           </div>
@@ -377,7 +370,7 @@ export default function GroupsPage() {
       {/* Join Group Modal */}
       {showJoinModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
             <h2 className="text-xl font-bold mb-4">グループに参加</h2>
             <form onSubmit={handleJoinGroup}>
               <div className="mb-4">
@@ -394,31 +387,31 @@ export default function GroupsPage() {
                   onChange={(e) =>
                     setInviteCode(e.target.value.toUpperCase())
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#007AFF]/50 uppercase text-center text-lg font-mono tracking-widest"
                   placeholder="例: ABC123"
                   maxLength={8}
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 mt-2 text-center">
                   グループのオーナーから招待コードを受け取ってください
                 </p>
               </div>
-              <div className="flex justify-end gap-2">
-                <Button
+              <div className="flex justify-end gap-3">
+                <button
                   type="button"
-                  variant="outline"
                   onClick={() => setShowJoinModal(false)}
                   disabled={submitting}
+                  className="px-5 py-2.5 text-gray-600 font-medium rounded-xl hover:bg-gray-100 transition-colors disabled:opacity-50"
                 >
                   キャンセル
-                </Button>
-                <Button
+                </button>
+                <button
                   type="submit"
-                  variant="primary"
                   disabled={submitting || !inviteCode.trim()}
+                  className="px-5 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? "参加中..." : "参加"}
-                </Button>
+                </button>
               </div>
             </form>
           </div>
@@ -428,17 +421,17 @@ export default function GroupsPage() {
       {/* Join Confirmation Modal (for first-time join) */}
       {showJoinConfirmModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold mb-4 text-blue-600">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4 text-[#007AFF]">
               グループに参加しますか？
             </h2>
             <div className="mb-6 space-y-3">
               {applianceCount > 0 && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    <span className="font-medium">あなたの{applianceCount}件の家電がグループと共有されます。</span>
+                <div className="p-4 bg-[#007AFF]/10 border border-[#007AFF]/20 rounded-xl">
+                  <p className="text-sm text-[#007AFF] font-medium">
+                    あなたの{applianceCount}件の家電がグループと共有されます。
                   </p>
-                  <p className="text-xs text-blue-700 mt-1">
+                  <p className="text-xs text-[#007AFF]/80 mt-1">
                     グループメンバー全員がアクセスできるようになります。
                   </p>
                 </div>
@@ -447,28 +440,27 @@ export default function GroupsPage() {
                 グループに参加すると、登録済みの家電が自動的にグループメンバーと共有されます。
               </p>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button
+            <div className="flex justify-end gap-3">
+              <button
                 type="button"
-                variant="outline"
                 onClick={() => {
                   setShowJoinConfirmModal(false);
                   setPendingJoinCode("");
                   setInviteCode("");
                 }}
                 disabled={submitting}
+                className="px-5 py-2.5 text-gray-600 font-medium rounded-xl hover:bg-gray-100 transition-colors disabled:opacity-50"
               >
                 キャンセル
-              </Button>
-              <Button
+              </button>
+              <button
                 type="button"
-                variant="primary"
                 onClick={() => executeJoinGroup(pendingJoinCode)}
                 disabled={submitting}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="px-5 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? "参加中..." : "参加する"}
-              </Button>
+              </button>
             </div>
           </div>
         </div>
@@ -477,49 +469,47 @@ export default function GroupsPage() {
       {/* Group Switch Confirmation Modal */}
       {showSwitchConfirmModal && groups.length > 0 && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold mb-4 text-amber-600">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4 text-[#FF9500]">
               グループを切替えますか？
             </h2>
             <div className="mb-6 space-y-3">
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-sm text-amber-800">
-                  <span className="font-medium">現在のグループ:</span>{" "}
-                  {groups[0].name}
+              <div className="p-4 bg-[#FF9500]/10 border border-[#FF9500]/20 rounded-xl">
+                <p className="text-sm text-[#FF9500] font-medium">
+                  現在のグループ: {groups[0].name}
                 </p>
               </div>
               <p className="text-gray-600">
                 新しいグループに参加すると、現在のグループから自動的に離脱します。
               </p>
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
                 <p className="text-sm text-gray-700">
                   <span className="font-medium">注意:</span>{" "}
                   共有中の家電は個人所有に戻ります。他のメンバーはそれらの家電にアクセスできなくなります。
                 </p>
               </div>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button
+            <div className="flex justify-end gap-3">
+              <button
                 type="button"
-                variant="outline"
                 onClick={() => {
                   setShowSwitchConfirmModal(false);
                   setPendingJoinCode("");
                   setInviteCode("");
                 }}
                 disabled={submitting}
+                className="px-5 py-2.5 text-gray-600 font-medium rounded-xl hover:bg-gray-100 transition-colors disabled:opacity-50"
               >
                 キャンセル
-              </Button>
-              <Button
+              </button>
+              <button
                 type="button"
-                variant="primary"
                 onClick={handleConfirmSwitch}
                 disabled={submitting}
-                className="bg-amber-600 hover:bg-amber-700"
+                className="px-5 py-2.5 bg-[#FF9500] text-white font-semibold rounded-xl hover:bg-[#E68600] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? "切替え中..." : "切替える"}
-              </Button>
+              </button>
             </div>
           </div>
         </div>
@@ -533,9 +523,9 @@ export default function GroupsPage() {
       >
         <div className="p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-[#FF3B30]/10 flex items-center justify-center">
               <svg
-                className="w-5 h-5 text-red-600"
+                className="w-6 h-6 text-[#FF3B30]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -552,12 +542,12 @@ export default function GroupsPage() {
           </div>
           <p className="text-gray-600 mb-6">{errorMessage}</p>
           <div className="flex justify-end">
-            <Button
-              variant="primary"
+            <button
               onClick={() => setShowErrorModal(false)}
+              className="px-6 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors"
             >
               閉じる
-            </Button>
+            </button>
           </div>
         </div>
       </Modal>
