@@ -8,6 +8,15 @@ import "react-pdf/dist/Page/TextLayer.css";
 // PDF.js worker の設定（CDN から読み込み）
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
+// Document options（コンポーネント外で定義して不要な再レンダリングを防止）
+// - cMapUrl/cMapPacked: CJK（日本語等）フォントサポート
+// - wasmUrl: JPEG 2000 (JPX) 画像サポート用のWebAssembly
+const documentOptions = {
+  cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+  cMapPacked: true,
+  wasmUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/wasm/`,
+};
+
 interface PDFViewerProps {
   /** PDF の URL（署名付きURL等） */
   url: string;
@@ -526,6 +535,7 @@ export function PDFViewer({
             loading={null}
             error={null}
             className={`py-4 ${scale > 1.0 ? "" : "flex justify-center"}`}
+            options={documentOptions}
           >
             <Page
               pageNumber={pageNumber}

@@ -275,6 +275,7 @@ async def register_user_appliance(
         category=shared.category,
         manual_source_url=shared.manual_source_url,
         stored_pdf_path=shared.stored_pdf_path,
+        is_pdf_encrypted=shared.is_pdf_encrypted,
         group_name=group_name,
         is_group_owned=effective_group_id is not None,
     )
@@ -477,6 +478,7 @@ async def get_user_appliances(user_id: UUID) -> list[UserApplianceWithDetails]:
                 category=shared.get("category", ""),
                 manual_source_url=shared.get("manual_source_url"),
                 stored_pdf_path=shared.get("stored_pdf_path"),
+                is_pdf_encrypted=shared.get("is_pdf_encrypted", False),
                 next_maintenance=next_maintenance,
                 group_name=group_name,
                 is_group_owned=is_group_owned,
@@ -575,6 +577,7 @@ async def get_user_appliance(
         category=shared.get("category", ""),
         manual_source_url=shared.get("manual_source_url"),
         stored_pdf_path=shared.get("stored_pdf_path"),
+        is_pdf_encrypted=shared.get("is_pdf_encrypted", False),
         group_name=group_name,
         is_group_owned=is_group_owned,
     )
