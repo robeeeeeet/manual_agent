@@ -9,10 +9,29 @@ import NotificationPermission from "@/components/notification/NotificationPermis
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const isLoginPage = pathname === "/login";
+
+  // キャッシュをクリアしてページを更新
+  const handleClearCacheAndRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // Service Workerのキャッシュをクリア
+      if ("caches" in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map((name) => caches.delete(name)));
+      }
+      // ページをハードリロード
+      window.location.reload();
+    } catch (error) {
+      console.error("Cache clear failed:", error);
+      // エラーでも一応リロードする
+      window.location.reload();
+    }
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -212,37 +231,63 @@ export default function Header() {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
-          {!isLoginPage && (
+          {/* Mobile Actions */}
+          <div className="flex items-center gap-1 md:hidden">
+            {/* Cache Clear & Refresh Button (Mobile Only) */}
             <button
-              className="md:hidden p-2 text-gray-600"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              aria-label="メニュー"
+              onClick={handleClearCacheAndRefresh}
+              disabled={isRefreshing}
+              className="p-2 text-gray-500 hover:text-[#007AFF] active:text-[#0066DD] transition-colors disabled:opacity-50"
+              aria-label="キャッシュをクリアして更新"
+              title="キャッシュをクリアして更新"
             >
               <svg
-                className="w-6 h-6"
+                className={`w-5 h-5 ${isRefreshing ? "animate-spin" : ""}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                {isMenuOpen ? (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                ) : (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                )}
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
               </svg>
             </button>
-          )}
+
+            {/* Mobile Menu Button */}
+            {!isLoginPage && (
+              <button
+                className="p-2 text-gray-600"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                aria-label="メニュー"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  {isMenuOpen ? (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  ) : (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
+                  )}
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Mobile Navigation */}
