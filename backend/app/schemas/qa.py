@@ -3,7 +3,25 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class SelfCheckResult(BaseModel):
+    """セルフチェック結果."""
+
+    score: int = Field(..., ge=1, le=5, description="品質スコア (1-5)")
+    is_acceptable: bool = Field(..., description="回答が許容可能か")
+    reason: str = Field(..., description="評価理由")
+    # 拡張フィールド（質問・回答タイプ分析）
+    question_type: str | None = Field(
+        None, description="質問タイプ (方法/頻度/理由/トラブル/仕様/その他)"
+    )
+    answer_type: str | None = Field(
+        None, description="回答タイプ (手順/頻度/理由/解決方法/仕様/その他)"
+    )
+    type_match: bool | None = Field(
+        None, description="質問タイプと回答タイプが適切に対応しているか"
+    )
 
 
 class QAMetadata(BaseModel):
@@ -102,14 +120,19 @@ class QAStreamEvent(BaseModel):
     """SSE event for streaming QA search progress."""
 
     event: str  # "step_start", "step_complete", "answer", "error"
-    step: int | None = None  # 1, 2, or 3
+    step: float | None = None  # 1, 1.5, 2, 2.5, 3, 3.5 (小数点は検証ステップ)
     step_name: str | None = None  # Step description
     answer: str | None = None
     source: str | None = None
     reference: str | None = None
     added_to_qa: bool = False
     error: str | None = None
-    session_id: str | None = None  # 新規追加
+    session_id: str | None = None
+    # セルフチェック関連
+    self_check_score: int | None = None  # 整合性スコア (1-5)
+    needs_verification: bool = False  # 確認が必要なフラグ
+    deleted_invalid_qa: bool = False  # 不整合FAQを削除したか
+    used_general_knowledge: bool = False  # 一般知識で補完したか
 
 
 class ChatHistoryMessage(BaseModel):

@@ -41,6 +41,25 @@ export function QAChatMessage({ message, onFeedback }: QAChatMessageProps) {
           </p>
         )}
 
+        {/* 整合性警告（セルフチェック失敗時） */}
+        {message.needsVerification && (
+          <div className="mt-2 flex items-center gap-1 text-amber-600 text-sm">
+            <span>⚠️</span>
+            <span>この回答は確認が必要かもしれません</span>
+          </div>
+        )}
+
+        {/* 一般知識使用時の注意書き */}
+        {message.usedGeneralKnowledge && (
+          <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+            <span className="mr-1">ℹ️</span>
+            <span>
+              この回答には説明書に記載のない一般的な情報が含まれています。
+              AIの回答は必ずしも正確ではない場合があるため、重要な内容は別途ご確認ください。
+            </span>
+          </div>
+        )}
+
         {/* フィードバックボタン（エラーメッセージには表示しない） */}
         {!isUser &&
           !isError &&

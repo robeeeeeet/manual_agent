@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     max_concurrent_searches: int = 5  # Maximum parallel manual searches
     max_thread_pool_workers: int = 10  # Thread pool size for blocking I/O operations
 
+    # QA Self-Check Settings
+    qa_self_check_enabled: bool = True  # セルフチェック有効/無効
+    qa_self_check_threshold: int = 3  # 許容スコア閾値 (1-5)
+
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).parent.parent.parent / ".env"),
         env_file_encoding="utf-8",
