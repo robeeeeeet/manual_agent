@@ -198,19 +198,23 @@ export function PDFViewer({
       const absDeltaX = Math.abs(deltaX);
       const absDeltaY = Math.abs(deltaY);
 
-      // スワイプ判定（水平方向に50px以上、300ms以内、縦より横の移動が大きい）
-      if (absDeltaX > 50 && deltaTime < 300 && absDeltaX > absDeltaY) {
-        if (deltaX > 0) {
-          // 右スワイプ → 前のページ
-          setPageNumber((prev) => Math.max(prev - 1, 1));
-        } else {
-          // 左スワイプ → 次のページ
-          setPageNumber((prev) => Math.min(prev + 1, numPagesRef.current || prev));
+      // 倍率100%以下の場合のみスワイプでページ送り
+      // 101%以上の場合はスクロール（パン）を優先
+      if (scaleRef.current <= 1.0) {
+        // スワイプ判定（水平方向に50px以上、300ms以内、縦より横の移動が大きい）
+        if (absDeltaX > 50 && deltaTime < 300 && absDeltaX > absDeltaY) {
+          if (deltaX > 0) {
+            // 右スワイプ → 前のページ
+            setPageNumber((prev) => Math.max(prev - 1, 1));
+          } else {
+            // 左スワイプ → 次のページ
+            setPageNumber((prev) => Math.min(prev + 1, numPagesRef.current || prev));
+          }
+          return;
         }
-        return;
       }
 
-      // タップ判定（移動距離10px以内、300ms以内）
+      // タップ判定（移動距離10px以内、300ms以内）- 倍率に関係なく有効
       if (absDeltaX < 10 && absDeltaY < 10 && deltaTime < 300) {
         const rect = pdfAreaRef.current?.getBoundingClientRect();
         if (!rect) return;
@@ -396,7 +400,9 @@ export function PDFViewer({
       <div
         ref={pdfAreaRef}
         className={`flex-1 overflow-auto ${
-          fullScreen ? "bg-gray-800 touch-none" : "border border-gray-200 rounded-b-lg bg-gray-50"
+          fullScreen
+            ? `bg-gray-800 ${scale <= 1.0 ? "touch-none" : "touch-pan-x touch-pan-y"}`
+            : "border border-gray-200 rounded-b-lg bg-gray-50"
         }`}
       >
         {loading && (
