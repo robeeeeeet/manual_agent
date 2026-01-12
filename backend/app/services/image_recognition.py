@@ -1,12 +1,15 @@
 """Image recognition service using Gemini Vision API"""
 
 import json
+import logging
 from pathlib import Path
 
 from google import genai
 from google.genai import types
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def get_mime_type(filename: str) -> str:
@@ -188,6 +191,43 @@ JSON形式のみで回答してください。"""
     try:
         result = json.loads(response_text)
     except json.JSONDecodeError as e:
+        logger.error(
+            f"[IMAGE_RECOGNITION] JSON parse error: {str(e)}, "
+            f"raw_response={response_text[:200]}..."
+        )
         result = {"raw_response": response_text, "error": f"JSON parse error: {str(e)}"}
+
+    # Log the recognition result
+    status = result.get("status", "unknown")
+    manufacturer = result.get("manufacturer", {})
+    manufacturer_ja = (
+        manufacturer.get("ja", "N/A") if isinstance(manufacturer, dict) else "N/A"
+    )
+    model_number = result.get("model_number", "N/A")
+    confidence = result.get("confidence", "N/A")
+    error = result.get("error")
+
+    if error:
+        logger.warning(f"[IMAGE_RECOGNITION FAILED] filename={filename}, error={error}")
+    elif status == "success":
+        logger.info(
+            f"[IMAGE_RECOGNITION SUCCESS] filename={filename}, "
+            f"manufacturer={manufacturer_ja}, model_number={model_number}, "
+            f"confidence={confidence}"
+        )
+    elif status == "need_label_photo":
+        label_guide = result.get("label_guide", {})
+        locations = label_guide.get("locations", [])
+        location_str = ", ".join([loc.get("position", "") for loc in locations[:2]])
+        logger.info(
+            f"[IMAGE_RECOGNITION NEED_LABEL] filename={filename}, "
+            f"manufacturer={manufacturer_ja}, model_number=None, "
+            f"suggested_locations=[{location_str}]"
+        )
+    else:
+        logger.warning(
+            f"[IMAGE_RECOGNITION UNKNOWN] filename={filename}, "
+            f"status={status}, result={str(result)[:200]}..."
+        )
 
     return result

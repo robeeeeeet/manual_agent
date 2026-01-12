@@ -30,6 +30,7 @@ logging.basicConfig(
 )
 # Set our service loggers to INFO level
 logging.getLogger("app.services.manual_search").setLevel(logging.INFO)
+logging.getLogger("app.services.image_recognition").setLevel(logging.INFO)
 
 # Logger for main module
 main_logger = logging.getLogger(__name__)

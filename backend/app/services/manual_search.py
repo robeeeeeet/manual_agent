@@ -711,7 +711,13 @@ async def _search_manual_with_progress_impl(
         ]
         total_pdfs = len(pdf_results)
 
+        logger.info(
+            f"[GOOGLE] Query '{query[:50]}...' returned {len(results)} results, "
+            f"{total_pdfs} PDFs after filtering"
+        )
+
         if total_pdfs == 0:
+            logger.info("[GOOGLE] No PDF results for query, trying next query")
             continue
 
         for result_idx, result in enumerate(pdf_results):
@@ -825,15 +831,12 @@ async def _search_manual_with_progress_impl(
                     update_candidate(pdf_url, True, "not_target")
             # judgment == "no": skip this result (already added to candidates)
 
-    # Step 2: Manual page search
+    # Step 2: Manual page search (no filetype:pdf, no domain filter)
+    # Step 1 failed to find direct PDF, so search broadly for manual pages
     yield SearchProgress("page_search", "公式ページを調査中...", "検索クエリを準備中")
 
-    queries = []
-    if official_domains and not skip_domain_filter:
-        for domain in official_domains:
-            queries.append(f"{manufacturer} {model_number} 取扱説明書 site:{domain}")
-    else:
-        queries.append(f"{manufacturer} {model_number} 取扱説明書")
+    # Search without domain filter to find official manual pages
+    queries = [f"{manufacturer} {model_number} 取扱説明書"]
 
     visited = set()
 
@@ -850,7 +853,12 @@ async def _search_manual_with_progress_impl(
         results = await asyncio.to_thread(custom_search, query, 5)
         total_results = len(results)
 
+        logger.info(
+            f"[PAGE_SEARCH] Query '{query[:50]}...' returned {total_results} results"
+        )
+
         if total_results == 0:
+            logger.info("[PAGE_SEARCH] No results for query, trying next query")
             continue
 
         yield SearchProgress(
@@ -1075,6 +1083,32 @@ async def _search_manual_with_progress_impl(
                                 verified=False,
                                 priority=candidate_priority + 200 + sel_idx,
                             )
+
+    # Log detailed failure summary
+    total_candidates = len(all_candidates)
+    verified_candidates = [c for c in all_candidates if c.get("verified")]
+    failed_reasons = {}
+    for c in verified_candidates:
+        reason = c.get("verification_failed_reason", "unknown")
+        failed_reasons[reason] = failed_reasons.get(reason, 0) + 1
+
+    logger.warning(
+        f"[SEARCH FAILED] {manufacturer} {model_number} - "
+        f"Total candidates: {total_candidates}, "
+        f"Verified: {len(verified_candidates)}, "
+        f"Failed reasons: {failed_reasons}"
+    )
+
+    # Log each candidate for debugging
+    for idx, c in enumerate(all_candidates):
+        logger.info(
+            f"[CANDIDATE {idx + 1}/{total_candidates}] "
+            f"url={c.get('url', 'N/A')[:80]}..., "
+            f"source={c.get('source')}, "
+            f"judgment={c.get('judgment')}, "
+            f"verified={c.get('verified')}, "
+            f"failed_reason={c.get('verification_failed_reason')}"
+        )
 
     yield {
         "type": "result",
