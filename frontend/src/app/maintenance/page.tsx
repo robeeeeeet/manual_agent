@@ -345,7 +345,7 @@ export default function MaintenancePage() {
               )}
 
               <div className="mb-4 p-3 bg-[#F2F2F7] rounded-xl">
-                <h4 className="text-xs font-medium text-gray-500 mb-1">家電</h4>
+                <h4 className="text-xs font-medium text-gray-500 mb-1">{selectedItem.category || "家電"}</h4>
                 <p className="text-sm text-gray-900">{selectedItem.appliance_name}</p>
                 <p className="text-xs text-gray-500">{selectedItem.maker} {selectedItem.model_number}</p>
               </div>
