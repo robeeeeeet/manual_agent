@@ -680,13 +680,8 @@ async def _search_manual_with_progress_impl(
         "google_search", "Googleで説明書を検索中...", "PDF直接リンクを探しています"
     )
 
-    # Build queries - only use domain filter if not skipping
+    # Build queries - domain filter disabled (domains still registered via confirm_manual)
     queries = []
-    if official_domains and not skip_domain_filter:
-        for domain in official_domains:
-            queries.append(
-                f"{manufacturer} {model_number} 取扱説明書 filetype:pdf site:{domain}"
-            )
     queries.append(f"{manufacturer} {model_number} 取扱説明書 filetype:pdf")
 
     candidate_priority = 0  # Priority counter for candidates
