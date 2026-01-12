@@ -184,21 +184,23 @@ async def get_group(group_id: str, user_id: str) -> dict:
 
         group = group_response.data
 
-        # Get members with email from users table
+        # Get members with email and display_name from users table
         members_response = (
             client.table("group_members")
-            .select("id, user_id, joined_at, users(email)")
+            .select("id, user_id, joined_at, users(email, display_name)")
             .eq("group_id", group_id)
             .execute()
         )
 
         members = []
         for m in members_response.data or []:
+            user_data = m.get("users") or {}
             members.append(
                 {
                     "id": m["id"],
                     "user_id": m["user_id"],
-                    "email": m["users"]["email"] if m.get("users") else "",
+                    "email": user_data.get("email", ""),
+                    "display_name": user_data.get("display_name"),
                     "joined_at": m["joined_at"],
                 }
             )
@@ -823,21 +825,23 @@ async def get_group_members(group_id: str, user_id: str) -> dict:
         if not await _is_member(client, group_id, user_id):
             return {"error": "Not a member of this group"}
 
-        # Get members with email
+        # Get members with email and display_name
         response = (
             client.table("group_members")
-            .select("id, user_id, joined_at, users(email)")
+            .select("id, user_id, joined_at, users(email, display_name)")
             .eq("group_id", group_id)
             .execute()
         )
 
         members = []
         for m in response.data or []:
+            user_data = m.get("users") or {}
             members.append(
                 {
                     "id": m["id"],
                     "user_id": m["user_id"],
-                    "email": m["users"]["email"] if m.get("users") else "",
+                    "email": user_data.get("email", ""),
+                    "display_name": user_data.get("display_name"),
                     "joined_at": m["joined_at"],
                 }
             )

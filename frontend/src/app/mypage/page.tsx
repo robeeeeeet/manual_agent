@@ -192,7 +192,7 @@ export default function MyPage() {
   if (authLoading || !user) {
     return (
       <div className="flex justify-center items-center min-h-64">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -204,17 +204,21 @@ export default function MyPage() {
   });
 
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">マイページ</h1>
-        <p className="text-gray-600 mt-1">{user.email}</p>
-      </div>
+    <div className="min-h-screen bg-[#F2F2F7] pb-24">
+      {/* iOS-style Header */}
+      <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+        <div className="px-4 py-3">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">マイページ</h1>
+          <p className="text-sm text-gray-500">{user.email}</p>
+        </div>
+      </header>
+
+      <div className="px-4 pt-4">
 
       {/* Error */}
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-600 text-sm">{error}</p>
+        <div className="mb-6 bg-[#FF3B30]/10 border border-[#FF3B30]/20 rounded-xl p-4">
+          <p className="text-[#FF3B30] text-sm">{error}</p>
         </div>
       )}
 
@@ -226,14 +230,14 @@ export default function MyPage() {
         </h2>
         {usageLoading ? (
           <div className="flex justify-center py-8">
-            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
           </div>
         ) : usageStats ? (
           <Card>
             <CardBody>
               <div className="mb-4">
                 <span className="text-sm text-gray-600">現在のプラン: </span>
-                <span className="font-semibold text-blue-600">
+                <span className="font-semibold text-[#007AFF]">
                   {usageStats.tier.display_name}
                 </span>
               </div>
@@ -272,7 +276,7 @@ export default function MyPage() {
           <CardBody>
             {settingsLoading ? (
               <div className="flex justify-center py-4">
-                <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <div className="w-6 h-6 border-3 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
               </div>
             ) : settings ? (
               <div className="space-y-4">
@@ -287,14 +291,14 @@ export default function MyPage() {
                         value={displayNameInput}
                         onChange={(e) => setDisplayNameInput(e.target.value)}
                         maxLength={20}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#007AFF]/50"
                         placeholder="表示名を入力"
                         disabled={saving}
                       />
                       <button
                         onClick={updateDisplayName}
                         disabled={saving}
-                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-2 bg-[#007AFF] text-white rounded-lg hover:bg-[#0066DD] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {saving ? "保存中..." : "保存"}
                       </button>
@@ -311,7 +315,7 @@ export default function MyPage() {
                       <span className="text-gray-900">{settings.display_name}</span>
                       <button
                         onClick={startEditingDisplayName}
-                        className="text-sm text-blue-600 hover:text-blue-700"
+                        className="text-sm text-[#007AFF] hover:text-[#0066DD]"
                       >
                         編集
                       </button>
@@ -339,14 +343,14 @@ export default function MyPage() {
         </h2>
         {statsLoading ? (
           <div className="flex justify-center py-8">
-            <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-3 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
           </div>
         ) : stats ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {/* This Week */}
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100">
+            <Card className="bg-gradient-to-br from-[#007AFF]/5 to-[#007AFF]/10">
               <CardBody className="text-center">
-                <div className="text-3xl font-bold text-blue-600 mb-1">
+                <div className="text-3xl font-bold text-[#007AFF] mb-1">
                   {stats.upcoming_count}
                 </div>
                 <div className="text-sm text-gray-600">今週</div>
@@ -354,9 +358,9 @@ export default function MyPage() {
             </Card>
 
             {/* Overdue */}
-            <Card className="bg-gradient-to-br from-red-50 to-red-100">
+            <Card className="bg-gradient-to-br from-[#FF3B30]/5 to-[#FF3B30]/10">
               <CardBody className="text-center">
-                <div className="text-3xl font-bold text-red-600 mb-1">
+                <div className="text-3xl font-bold text-[#FF3B30] mb-1">
                   {stats.overdue_count}
                 </div>
                 <div className="text-sm text-gray-600">超過</div>
@@ -364,9 +368,9 @@ export default function MyPage() {
             </Card>
 
             {/* This Month */}
-            <Card className="bg-gradient-to-br from-green-50 to-green-100">
+            <Card className="bg-gradient-to-br from-[#34C759]/5 to-[#34C759]/10">
               <CardBody className="text-center">
-                <div className="text-3xl font-bold text-green-600 mb-1">
+                <div className="text-3xl font-bold text-[#34C759] mb-1">
                   {stats.completed_this_month}
                 </div>
                 <div className="text-sm text-gray-600">今月</div>
@@ -374,9 +378,9 @@ export default function MyPage() {
             </Card>
 
             {/* Total */}
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100">
+            <Card className="bg-gradient-to-br from-[#AF52DE]/5 to-[#AF52DE]/10">
               <CardBody className="text-center">
-                <div className="text-3xl font-bold text-purple-600 mb-1">
+                <div className="text-3xl font-bold text-[#AF52DE] mb-1">
                   {stats.completed_total}
                 </div>
                 <div className="text-sm text-gray-600">累計</div>
@@ -413,7 +417,7 @@ export default function MyPage() {
           <CardBody>
             {settingsLoading ? (
               <div className="flex justify-center py-4">
-                <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <div className="w-6 h-6 border-3 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
               </div>
             ) : settings ? (
               <div>
@@ -422,7 +426,7 @@ export default function MyPage() {
                     value={settings.notify_time}
                     onChange={(e) => updateNotifyTime(e.target.value)}
                     disabled={saving}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#007AFF]/50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {timeOptions.map((time) => (
                       <option key={time} value={time}>
@@ -431,7 +435,7 @@ export default function MyPage() {
                     ))}
                   </select>
                   {saving && (
-                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-5 h-5 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
                   )}
                 </div>
                 <p className="text-sm text-gray-500 mt-3">
@@ -457,10 +461,10 @@ export default function MyPage() {
           <CardBody>
             <a
               href="/help"
-              className="flex items-center gap-3 text-gray-700 hover:text-blue-600 transition-colors"
+              className="flex items-center gap-3 text-gray-700 hover:text-[#007AFF] transition-colors"
             >
               <svg
-                className="w-6 h-6 text-blue-600"
+                className="w-6 h-6 text-[#007AFF]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -527,6 +531,7 @@ export default function MyPage() {
           </CardBody>
         </Card>
       </section>
+      </div>
     </div>
   );
 }

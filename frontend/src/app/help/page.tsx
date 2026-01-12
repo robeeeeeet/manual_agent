@@ -48,8 +48,8 @@ export default function HelpPage() {
           <p className="text-gray-700">
             <strong>トリセツコンシェルジュ</strong>は、家電や住宅設備の取扱説明書を管理し、メンテナンス作業を忘れないようにサポートするWebアプリです。
           </p>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-semibold text-blue-900 mb-2">このアプリでできること</h4>
+          <div className="bg-[#007AFF]/10 border border-[#007AFF]/20 rounded-xl p-4">
+            <h4 className="font-semibold text-[#007AFF] mb-2">このアプリでできること</h4>
             <ul className="space-y-2 text-sm text-gray-700">
               <li className="flex gap-2">
                 <span>📸</span>
@@ -101,8 +101,8 @@ export default function HelpPage() {
             <p className="text-sm text-gray-700 mb-2">
               初回サインアップ後、通知許可の確認画面が表示されます。
             </p>
-            <div className="bg-green-50 border border-green-200 rounded p-3 text-sm">
-              <p className="font-semibold text-green-900">通知を有効にすると:</p>
+            <div className="bg-[#34C759]/10 border border-[#34C759]/20 rounded p-3 text-sm">
+              <p className="font-semibold text-[#34C759]">通知を有効にすると:</p>
               <ul className="list-disc list-inside ml-2 text-gray-700">
                 <li>メンテナンス期限のリマインドが届く</li>
                 <li>期限超過の場合も毎日通知</li>
@@ -118,8 +118,8 @@ export default function HelpPage() {
             <p className="text-sm text-gray-700 mb-2">
               スマホで頻繁に使う場合は、ホーム画面に追加すると便利です。
             </p>
-            <div className="bg-green-50 border border-green-200 rounded p-3 mb-3 text-sm">
-              <p className="font-semibold text-green-900 mb-1">📱 ホームに追加すると:</p>
+            <div className="bg-[#34C759]/10 border border-[#34C759]/20 rounded p-3 mb-3 text-sm">
+              <p className="font-semibold text-[#34C759] mb-1">📱 ホームに追加すると:</p>
               <ul className="list-disc list-inside ml-2 text-gray-700">
                 <li>アプリのようにホーム画面から起動できます</li>
                 <li><strong>プッシュ通知が届くようになります</strong>（メンテナンスリマインド）</li>
@@ -162,16 +162,16 @@ export default function HelpPage() {
               <li>カテゴリ・設置場所を入力</li>
               <li>「次へ」をクリック</li>
             </ol>
-            <div className="bg-blue-50 border border-blue-200 rounded p-3 mt-2 text-sm">
-              <p className="font-semibold text-blue-900 mb-1">撮影のコツ:</p>
+            <div className="bg-[#007AFF]/10 border border-[#007AFF]/20 rounded p-3 mt-2 text-sm">
+              <p className="font-semibold text-[#007AFF] mb-1">撮影のコツ:</p>
               <ul className="list-disc list-inside ml-2 text-gray-700">
                 <li>型番シールが明確に写るようにする</li>
                 <li>明るい場所で撮影する</li>
                 <li>ピントを合わせる</li>
               </ul>
             </div>
-            <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mt-2 text-sm">
-              <p className="font-semibold text-yellow-900 mb-1">💡 型番ラベルが見つからないとき:</p>
+            <div className="bg-[#FF9500]/10 border border-[#FF9500]/20 rounded p-3 mt-2 text-sm">
+              <p className="font-semibold text-[#FF9500] mb-1">💡 型番ラベルが見つからないとき:</p>
               <p className="text-gray-700">
                 家電の全体像を撮影してください。AIが製品の特徴から型番ラベルの位置を推測し、どこを撮影すればよいかアドバイスしてくれます。
               </p>
@@ -219,15 +219,15 @@ export default function HelpPage() {
             </p>
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2">
-                <span className="inline-block w-3 h-3 rounded-full bg-green-500"></span>
+                <span className="inline-block w-3 h-3 rounded-full bg-[#34C759]/100"></span>
                 <span className="text-gray-700"><strong>予定通り</strong>: 1週間以上先</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="inline-block w-3 h-3 rounded-full bg-yellow-500"></span>
+                <span className="inline-block w-3 h-3 rounded-full bg-[#FF9500]/100"></span>
                 <span className="text-gray-700"><strong>今週</strong>: 7日以内</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="inline-block w-3 h-3 rounded-full bg-red-500"></span>
+                <span className="inline-block w-3 h-3 rounded-full bg-[#FF3B30]/100"></span>
                 <span className="text-gray-700"><strong>超過</strong>: 期限を過ぎている</span>
               </div>
             </div>
@@ -285,16 +285,16 @@ export default function HelpPage() {
                 <span className="font-semibold">すべて</span>
                 <span className="text-gray-600 ml-2">すべてのメンテナンス項目を表示</span>
               </div>
-              <div className="border border-red-200 rounded p-2 bg-red-50">
-                <span className="font-semibold text-red-700">期限超過 🔴</span>
+              <div className="border border-[#FF3B30]/20 rounded p-2 bg-[#FF3B30]/10">
+                <span className="font-semibold text-[#FF3B30]">期限超過 🔴</span>
                 <span className="text-gray-600 ml-2">期限を過ぎた項目のみ表示（優先対応）</span>
               </div>
-              <div className="border border-yellow-200 rounded p-2 bg-yellow-50">
-                <span className="font-semibold text-yellow-700">今週 🟡</span>
+              <div className="border border-[#FF9500]/20 rounded p-2 bg-[#FF9500]/10">
+                <span className="font-semibold text-[#FF9500]">今週 🟡</span>
                 <span className="text-gray-600 ml-2">7日以内に期限が来る項目を表示</span>
               </div>
-              <div className="border border-green-200 rounded p-2 bg-green-50">
-                <span className="font-semibold text-green-700">予定通り 🟢</span>
+              <div className="border border-[#34C759]/20 rounded p-2 bg-[#34C759]/10">
+                <span className="font-semibold text-[#34C759]">予定通り 🟢</span>
                 <span className="text-gray-600 ml-2">1週間以上先の項目を表示</span>
               </div>
               <div className="border border-gray-200 rounded p-2">
@@ -309,8 +309,8 @@ export default function HelpPage() {
             <p className="text-sm text-gray-700 mb-2">
               各項目の「完了」ボタンをクリックして記録すると、次回実施日が自動計算されます。
             </p>
-            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
-              <p className="font-semibold text-blue-900 mb-1">次回日の仕組み:</p>
+            <div className="bg-[#007AFF]/10 border border-[#007AFF]/20 rounded p-3 text-sm">
+              <p className="font-semibold text-[#007AFF] mb-1">次回日の仕組み:</p>
               <ul className="list-disc list-inside ml-2 text-gray-700 space-y-1">
                 <li><strong>定期項目（3ヶ月ごと、年1回など）</strong>: 完了日から周期を加算</li>
                 <li><strong>手動項目</strong>: 次回日は「未設定」のまま</li>
@@ -331,8 +331,8 @@ export default function HelpPage() {
             <p className="text-sm text-gray-700 mb-2">
               家電詳細ページの「AI に質問」セクションで質問できます。
             </p>
-            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
-              <p className="font-semibold text-blue-900 mb-1">質問例:</p>
+            <div className="bg-[#007AFF]/10 border border-[#007AFF]/20 rounded p-3 text-sm">
+              <p className="font-semibold text-[#007AFF] mb-1">質問例:</p>
               <ul className="list-disc list-inside ml-2 text-gray-700 space-y-1">
                 <li>「エラーコード E01 の原因は何ですか？」</li>
                 <li>「フィルターの掃除方法を教えてください」</li>
@@ -358,8 +358,8 @@ export default function HelpPage() {
             <p className="text-sm text-gray-700 mb-2">
               回答の下に「解決しましたか？」と表示されます。「はい ✓」または「いいえ ✗」で評価してください。
             </p>
-            <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-3 text-sm">
-              <p className="font-semibold text-blue-900 mb-1">🙏 ご協力のお願い</p>
+            <div className="bg-[#007AFF]/10 border border-[#007AFF]/20 rounded p-3 mb-3 text-sm">
+              <p className="font-semibold text-[#007AFF] mb-1">🙏 ご協力のお願い</p>
               <p className="text-gray-700">
                 フィードバックは回答の精度向上に活用されます。ぜひ評価にご協力ください！
               </p>
@@ -374,8 +374,8 @@ export default function HelpPage() {
             <p className="text-sm text-gray-700 mb-2">
               以下のような質問は不正利用とみなされ、段階的に制限されます:
             </p>
-            <div className="bg-red-50 border border-red-200 rounded p-3 mb-3 text-sm">
-              <p className="font-semibold text-red-900 mb-1">⚠️ 不正利用の例:</p>
+            <div className="bg-[#FF3B30]/10 border border-[#FF3B30]/20 rounded p-3 mb-3 text-sm">
+              <p className="font-semibold text-[#FF3B30] mb-1">⚠️ 不正利用の例:</p>
               <ul className="list-disc list-inside ml-2 text-gray-700">
                 <li>家電の使い方に関係ない質問（雑談、一般知識など）</li>
                 <li>攻撃的・不適切な内容を含む質問</li>
@@ -422,7 +422,7 @@ export default function HelpPage() {
               <li>招待コードを入力</li>
               <li>「参加」をクリック</li>
             </ol>
-            <p className="text-sm text-red-600 mt-2">
+            <p className="text-sm text-[#FF3B30] mt-2">
               ⚠️ 1ユーザーは1つのグループにのみ参加できます。
             </p>
           </div>
@@ -432,8 +432,8 @@ export default function HelpPage() {
             <p className="text-sm text-gray-700 mb-2">
               家電詳細ページの「共有する」トグルスイッチをONにすると、即座にグループメンバー全員が閲覧・編集可能になります。
             </p>
-            <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm">
-              <p className="font-semibold text-yellow-900 mb-1">注意:</p>
+            <div className="bg-[#FF9500]/10 border border-[#FF9500]/20 rounded p-3 text-sm">
+              <p className="font-semibold text-[#FF9500] mb-1">注意:</p>
               <ul className="list-disc list-inside ml-2 text-gray-700">
                 <li>すべてのメンバーが閲覧・編集・削除可能</li>
                 <li>メンテナンス完了は全員に反映</li>
@@ -465,20 +465,20 @@ export default function HelpPage() {
           <div>
             <h4 className="font-semibold text-gray-900 mb-2">メンテナンス統計</h4>
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="border border-blue-200 rounded p-2 bg-blue-50">
-                <span className="font-semibold text-blue-700">今週</span>
+              <div className="border border-[#007AFF]/20 rounded p-2 bg-[#007AFF]/10">
+                <span className="font-semibold text-[#007AFF]">今週</span>
                 <span className="text-gray-600 ml-2">7日以内の項目数</span>
               </div>
-              <div className="border border-red-200 rounded p-2 bg-red-50">
-                <span className="font-semibold text-red-700">超過</span>
+              <div className="border border-[#FF3B30]/20 rounded p-2 bg-[#FF3B30]/10">
+                <span className="font-semibold text-[#FF3B30]">超過</span>
                 <span className="text-gray-600 ml-2">期限を過ぎた項目数</span>
               </div>
-              <div className="border border-green-200 rounded p-2 bg-green-50">
-                <span className="font-semibold text-green-700">今月</span>
+              <div className="border border-[#34C759]/20 rounded p-2 bg-[#34C759]/10">
+                <span className="font-semibold text-[#34C759]">今月</span>
                 <span className="text-gray-600 ml-2">今月完了した項目数</span>
               </div>
-              <div className="border border-purple-200 rounded p-2 bg-purple-50">
-                <span className="font-semibold text-purple-700">累計</span>
+              <div className="border border-[#AF52DE]/20 rounded p-2 bg-[#AF52DE]/10">
+                <span className="font-semibold text-[#AF52DE]">累計</span>
                 <span className="text-gray-600 ml-2">総完了数</span>
               </div>
             </div>
@@ -639,7 +639,7 @@ export default function HelpPage() {
               <li>Safari や Chrome でサイト（manual-agent-seven.vercel.app）を直接開いて試す</li>
             </ol>
             <p className="text-sm text-gray-600 mt-2">
-              上記を試しても開けない場合は、該当の家電名をお伝えの上 <a href="https://forms.gle/ffkRYfvQVJkLG1xWA" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700">お問い合わせフォーム</a> からご連絡ください。
+              上記を試しても開けない場合は、該当の家電名をお伝えの上 <a href="https://forms.gle/ffkRYfvQVJkLG1xWA" target="_blank" rel="noopener noreferrer" className="text-[#007AFF] hover:text-[#0066DD]">お問い合わせフォーム</a> からご連絡ください。
             </p>
           </div>
         </div>
@@ -648,21 +648,23 @@ export default function HelpPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">使い方ガイド</h1>
-          <p className="text-gray-600">トリセツコンシェルジュの使い方を分かりやすく解説します。</p>
+    <div className="min-h-screen bg-[#F2F2F7] pb-24">
+      {/* iOS-style Header */}
+      <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+        <div className="px-4 py-3">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">使い方ガイド</h1>
+          <p className="text-sm text-gray-500">トリセツコンシェルジュの使い方を解説</p>
         </div>
+      </header>
 
+      <div className="px-4 pt-4">
         {/* Quick Links */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+        <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">クイックリンク</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <Link
               href="/appliances"
-              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+              className="flex items-center gap-2 text-sm text-[#007AFF] hover:text-[#0066DD] transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -671,7 +673,7 @@ export default function HelpPage() {
             </Link>
             <Link
               href="/register"
-              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+              className="flex items-center gap-2 text-sm text-[#007AFF] hover:text-[#0066DD] transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -680,7 +682,7 @@ export default function HelpPage() {
             </Link>
             <Link
               href="/maintenance"
-              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+              className="flex items-center gap-2 text-sm text-[#007AFF] hover:text-[#0066DD] transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -689,7 +691,7 @@ export default function HelpPage() {
             </Link>
             <Link
               href="/groups"
-              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+              className="flex items-center gap-2 text-sm text-[#007AFF] hover:text-[#0066DD] transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -698,7 +700,7 @@ export default function HelpPage() {
             </Link>
             <Link
               href="/mypage"
-              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+              className="flex items-center gap-2 text-sm text-[#007AFF] hover:text-[#0066DD] transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -709,7 +711,7 @@ export default function HelpPage() {
               href="https://forms.gle/ffkRYfvQVJkLG1xWA"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+              className="flex items-center gap-2 text-sm text-[#007AFF] hover:text-[#0066DD] transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -720,12 +722,12 @@ export default function HelpPage() {
         </div>
 
         {/* Accordion Sections */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {sections.map((section) => (
             <div
               key={section.id}
               id={`section-${section.id}`}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden scroll-mt-20"
+              className="bg-white rounded-2xl shadow-sm overflow-hidden scroll-mt-20"
             >
               <button
                 onClick={() => toggleSection(section.id)}
@@ -761,8 +763,13 @@ export default function HelpPage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-8 text-center text-sm text-gray-500 space-y-2">
-          <p>ご不明な点やご要望がございましたら、<a href="https://forms.gle/ffkRYfvQVJkLG1xWA" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700">お問い合わせフォーム</a> からお気軽にご連絡ください。</p>
+        <div className="mt-6 p-4 bg-white rounded-2xl shadow-sm text-center">
+          <p className="text-sm text-gray-500">
+            ご不明な点やご要望がございましたら、
+            <a href="https://forms.gle/ffkRYfvQVJkLG1xWA" target="_blank" rel="noopener noreferrer" className="text-[#007AFF] hover:text-[#0066DD] font-medium">
+              お問い合わせフォーム
+            </a> からお気軽にご連絡ください。
+          </p>
         </div>
       </div>
     </div>

@@ -4,8 +4,6 @@ import { useEffect, useState, use, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import Button from "@/components/ui/Button";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Modal from "@/components/ui/Modal";
 import { QASection } from "@/components/qa/QASection";
 import { SafeHtml } from "@/components/ui/SafeHtml";
@@ -21,6 +19,41 @@ interface ApplianceDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
+// iOS System Colors
+const importanceConfig = {
+  high: { label: "高", bg: "bg-[#FF3B30]/10", text: "text-[#FF3B30]" },
+  medium: { label: "中", bg: "bg-[#FF9500]/10", text: "text-[#FF9500]" },
+  low: { label: "低", bg: "bg-[#34C759]/10", text: "text-[#34C759]" },
+};
+
+function getDueStatusConfig(daysUntil: number | null) {
+  if (daysUntil === null) {
+    return { label: "-", bg: "bg-gray-100", text: "text-gray-600" };
+  }
+  if (daysUntil < 0) {
+    return {
+      label: `${Math.abs(daysUntil)}日超過`,
+      bg: "bg-[#FF3B30]/10",
+      text: "text-[#FF3B30]",
+    };
+  }
+  if (daysUntil === 0) {
+    return { label: "今日", bg: "bg-[#FF9500]/10", text: "text-[#FF9500]" };
+  }
+  if (daysUntil <= 7) {
+    return {
+      label: `あと${daysUntil}日`,
+      bg: "bg-[#FF9500]/10",
+      text: "text-[#FF9500]",
+    };
+  }
+  return {
+    label: `あと${daysUntil}日`,
+    bg: "bg-[#34C759]/10",
+    text: "text-[#34C759]",
+  };
+}
+
 export default function ApplianceDetailPage({
   params,
 }: ApplianceDetailPageProps) {
@@ -33,9 +66,9 @@ export default function ApplianceDetailPage({
   const backLink = useMemo(() => {
     const from = searchParams.get("from");
     if (from === "maintenance") {
-      return { href: "/maintenance", label: "メンテナンス一覧に戻る" };
+      return { href: "/maintenance", label: "メンテナンス" };
     }
-    return { href: "/appliances", label: "家電一覧に戻る" };
+    return { href: "/appliances", label: "家電" };
   }, [searchParams]);
 
   const [appliance, setAppliance] = useState<UserApplianceWithDetails | null>(
@@ -74,6 +107,9 @@ export default function ApplianceDetailPage({
   >([]);
   const [showArchivedSection, setShowArchivedSection] = useState(false);
   const [isArchiving, setIsArchiving] = useState<string | null>(null);
+
+  // PDF loading state
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
 
   // Fetch appliance details
   useEffect(() => {
@@ -312,6 +348,39 @@ export default function ApplianceDetailPage({
     }
   };
 
+  // Handle opening PDF with signed URL
+  const handleOpenPdf = async () => {
+    if (!appliance?.stored_pdf_path) {
+      // If no stored PDF, use manual_source_url
+      if (appliance?.manual_source_url) {
+        window.open(appliance.manual_source_url, "_blank");
+      }
+      return;
+    }
+
+    setIsLoadingPdf(true);
+    try {
+      const response = await fetch(`/api/appliances/${id}/manual-url`);
+      if (!response.ok) {
+        throw new Error("署名付きURLの取得に失敗しました");
+      }
+      const data = await response.json();
+      if (data.signed_url) {
+        window.open(data.signed_url, "_blank");
+      }
+    } catch (err) {
+      console.error("Failed to get signed URL:", err);
+      // Fallback to manual_source_url if available
+      if (appliance?.manual_source_url) {
+        window.open(appliance.manual_source_url, "_blank");
+      } else {
+        setError("PDFを開けませんでした");
+      }
+    } finally {
+      setIsLoadingPdf(false);
+    }
+  };
+
   // Open delete schedule modal
   const openDeleteScheduleModal = (schedule: MaintenanceSchedule) => {
     setScheduleToDelete(schedule);
@@ -411,197 +480,166 @@ export default function ApplianceDetailPage({
     return diffDays;
   };
 
-  // Get status color based on days until due
-  const getDueStatusColor = (daysUntil: number | null): string => {
-    if (daysUntil === null) return "bg-gray-100 text-gray-600";
-    if (daysUntil < 0) return "bg-red-100 text-red-700";
-    if (daysUntil <= 7) return "bg-amber-100 text-amber-700";
-    return "bg-green-100 text-green-700";
-  };
-
-  // Get importance badge color
-  const getImportanceBadgeColor = (
-    importance: "high" | "medium" | "low"
-  ): string => {
-    switch (importance) {
-      case "high":
-        return "bg-red-100 text-red-700";
-      case "medium":
-        return "bg-yellow-100 text-yellow-700";
-      case "low":
-        return "bg-green-100 text-green-700";
-      default:
-        return "bg-gray-100 text-gray-700";
-    }
-  };
-
-  const importanceLabels: Record<"high" | "medium" | "low", string> = {
-    high: "高",
-    medium: "中",
-    low: "低",
-  };
-
-  if (authLoading) {
+  // Loading state
+  if (authLoading || isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-64">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#F2F2F7] pb-24">
+        <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+          <div className="px-4 py-3">
+            <div className="h-6 w-24 bg-gray-200 rounded animate-pulse" />
+          </div>
+        </header>
+        <div className="flex justify-center items-center py-20">
+          <div className="w-8 h-8 border-4 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
+        </div>
       </div>
     );
   }
 
+  // Not logged in
   if (!user) {
     return (
-      <div className="max-w-2xl mx-auto text-center py-12">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">
-          ログインが必要です
-        </h1>
-        <p className="text-gray-600 mb-6">
-          家電の詳細を表示するにはログインしてください。
-        </p>
-        <Link href="/login">
-          <Button>ログイン</Button>
-        </Link>
+      <div className="min-h-screen bg-[#F2F2F7] pb-24">
+        <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+          <div className="px-4 py-3">
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">家電詳細</h1>
+          </div>
+        </header>
+        <div className="px-4 pt-8">
+          <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">ログインが必要です</h2>
+            <p className="text-gray-500 text-sm mb-6">
+              家電の詳細を表示するにはログインしてください
+            </p>
+            <Link href="/login">
+              <button className="px-6 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors">
+                ログイン
+              </button>
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-64">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
+  // Error or not found
   if (error || !appliance) {
     return (
-      <div className="max-w-2xl mx-auto">
-        <Link
-          href={backLink.href}
-          className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1 mb-4"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          {backLink.label}
-        </Link>
-        <Card>
-          <CardBody>
-            <div className="text-center py-8">
-              <p className="text-red-600 mb-4">
-                {error || "家電が見つかりませんでした"}
-              </p>
-              <Link href={backLink.href}>
-                <Button>{backLink.label}</Button>
-              </Link>
+      <div className="min-h-screen bg-[#F2F2F7] pb-24">
+        <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+          <div className="flex items-center px-4 py-3">
+            <Link
+              href={backLink.href}
+              className="text-[#007AFF] hover:text-[#0066DD] flex items-center gap-1 mr-4"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              {backLink.label}
+            </Link>
+          </div>
+        </header>
+        <div className="px-4 pt-8">
+          <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
+            <div className="w-16 h-16 bg-[#FF3B30]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-[#FF3B30]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
             </div>
-          </CardBody>
-        </Card>
+            <p className="text-gray-900 font-medium mb-2">エラーが発生しました</p>
+            <p className="text-gray-500 text-sm mb-4">{error || "家電が見つかりませんでした"}</p>
+            <Link href={backLink.href}>
+              <button className="px-6 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors">
+                {backLink.label}に戻る
+              </button>
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <Link
-          href={backLink.href}
-          className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1 mb-4"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+    <div className="min-h-screen bg-[#F2F2F7] pb-24">
+      {/* iOS-style Header */}
+      <header className="sticky top-0 z-10 bg-[#F2F2F7]/80 backdrop-blur-xl border-b border-gray-200/50">
+        <div className="flex items-center px-4 py-3">
+          <Link
+            href={backLink.href}
+            className="text-[#007AFF] hover:text-[#0066DD] flex items-center gap-1"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          {backLink.label}
-        </Link>
-      </div>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            {backLink.label}
+          </Link>
+        </div>
+      </header>
 
-      {/* Appliance Info Card */}
-      <Card className="mb-6">
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">
-                {appliance.name}
-              </h1>
-              <p className="text-gray-600 mt-1">
-                {appliance.maker} {appliance.model_number}
-              </p>
+      <div className="px-4 pt-4 space-y-4">
+        {/* Appliance Info Card */}
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="p-4">
+            {/* Header with icon */}
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-14 h-14 bg-[#007AFF]/10 rounded-2xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-7 h-7 text-[#007AFF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl font-bold text-gray-900 mb-1">
+                  {appliance.name}
+                </h1>
+                <p className="text-gray-500 text-sm">
+                  {appliance.maker} {appliance.model_number}
+                </p>
+                <span className="inline-block mt-2 px-2.5 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
+                  {appliance.category}
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <span className="px-3 py-1 text-sm font-medium rounded-full bg-gray-100 text-gray-700">
-                {appliance.category}
-              </span>
-            </div>
-          </div>
-        </CardHeader>
-        <CardBody>
-          <div className="space-y-4">
+
             {/* Manual Link */}
             {(appliance.stored_pdf_path || appliance.manual_source_url) && (
-              <div className="p-3 bg-blue-50 rounded-lg">
+              <div className="bg-[#007AFF]/5 rounded-xl p-3 mb-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <svg
-                        className="w-5 h-5 text-blue-600"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                      >
+                    <div className="w-10 h-10 bg-[#007AFF]/10 rounded-xl flex items-center justify-center">
+                      <svg className="w-5 h-5 text-[#007AFF]" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.92,12.31 10.92,12.31Z" />
                       </svg>
                     </div>
                     <span className="font-medium text-gray-900">説明書PDF</span>
                   </div>
-                  <a
-                    href={
-                      appliance.stored_pdf_path
-                        ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/manuals/${appliance.stored_pdf_path}`
-                        : appliance.manual_source_url || "#"
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                  <button
+                    onClick={handleOpenPdf}
+                    disabled={isLoadingPdf}
+                    className="text-[#007AFF] hover:text-[#0066DD] font-medium flex items-center gap-1 disabled:opacity-50"
                   >
-                    開く
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                      />
-                    </svg>
-                  </a>
+                    {isLoadingPdf ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
+                        読込中...
+                      </>
+                    ) : (
+                      <>
+                        開く
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
                 </div>
                 {/* Show original source link if both stored PDF and source URL exist */}
                 {appliance.stored_pdf_path && appliance.manual_source_url && (
-                  <div className="mt-2 pl-13 ml-13">
+                  <div className="mt-2 pl-13">
                     <a
                       href={appliance.manual_source_url}
                       target="_blank"
@@ -609,18 +647,8 @@ export default function ApplianceDetailPage({
                       className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
                     >
                       元のサイトで見る
-                      <svg
-                        className="w-3 h-3"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                        />
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
                     </a>
                   </div>
@@ -629,102 +657,65 @@ export default function ApplianceDetailPage({
             )}
 
             {/* Registered Date */}
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">登録日</span>
-              <span className="text-gray-900">
-                {formatDate(appliance.created_at)}
-              </span>
+            <div className="flex items-center justify-between py-3 border-t border-gray-100">
+              <span className="text-gray-500 text-sm">登録日</span>
+              <span className="text-gray-900 text-sm">{formatDate(appliance.created_at)}</span>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-4 border-t items-center">
-              <Button
-                variant="outline"
-                onClick={() => setShowDeleteModal(true)}
-                className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
-              >
-                削除
-              </Button>
+            {/* Delete Button */}
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="w-full mt-2 py-2.5 text-[#FF3B30] font-medium rounded-xl border border-[#FF3B30]/20 hover:bg-[#FF3B30]/5 transition-colors"
+            >
+              この家電を削除
+            </button>
+          </div>
+        </div>
+
+        {/* Maintenance Schedules Card */}
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-gray-900">メンテナンス項目</h2>
+              <span className="text-sm text-gray-500">{schedules.length}件</span>
             </div>
           </div>
-        </CardBody>
-      </Card>
 
-      {/* Maintenance Schedules Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <h2 className="font-bold text-gray-900">メンテナンス項目</h2>
-            <span className="text-sm text-gray-500">
-              {schedules.length}件
-            </span>
-          </div>
-        </CardHeader>
-        <CardBody>
           {schedules.length === 0 ? (
-            <div className="text-center py-8">
+            <div className="p-8 text-center">
               <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <svg
-                  className="w-6 h-6 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                  />
+                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
               </div>
-              <p className="text-gray-500">
-                メンテナンス項目は登録されていません
-              </p>
+              <p className="text-gray-500 text-sm">メンテナンス項目は登録されていません</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="divide-y divide-gray-100">
               {schedules.map((schedule) => {
                 const daysUntil = getDaysUntilDue(schedule.next_due_at);
-                const statusColor = getDueStatusColor(daysUntil);
+                const statusConfig = getDueStatusConfig(daysUntil);
+                const impConfig = importanceConfig[schedule.importance];
 
                 return (
                   <div
                     key={schedule.id}
                     onClick={() => openDetailModal(schedule)}
-                    className="p-3 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 cursor-pointer transition-colors"
+                    className="p-4 hover:bg-gray-50 active:bg-gray-100 cursor-pointer transition-colors"
                   >
-                    {/* Task name - full width */}
-                    <h4
-                      className="font-medium text-gray-900 leading-snug mb-2"
-                      title={schedule.task_name}
-                    >
+                    {/* Task name */}
+                    <h4 className="font-medium text-gray-900 mb-2" title={schedule.task_name}>
                       {schedule.task_name}
                     </h4>
 
-                    {/* Bottom row: badges and complete button */}
+                    {/* Badges and actions */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
-                        {/* Importance badge */}
-                        <span
-                          className={`px-1.5 py-0.5 text-xs font-medium rounded ${getImportanceBadgeColor(
-                            schedule.importance
-                          )}`}
-                        >
-                          {importanceLabels[schedule.importance]}
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${impConfig.bg} ${impConfig.text}`}>
+                          {impConfig.label}
                         </span>
-
-                        {/* Due status badge */}
-                        <span
-                          className={`px-2 py-0.5 text-xs font-medium rounded ${statusColor}`}
-                        >
-                          {daysUntil === null
-                            ? "未設定"
-                            : daysUntil < 0
-                              ? `${Math.abs(daysUntil)}日超過`
-                              : daysUntil === 0
-                                ? "今日"
-                                : `あと${daysUntil}日`}
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusConfig.bg} ${statusConfig.text}`}>
+                          {statusConfig.label}
                         </span>
                       </div>
 
@@ -738,21 +729,11 @@ export default function ApplianceDetailPage({
                             handleArchive(schedule.id);
                           }}
                           disabled={isArchiving === schedule.id}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+                          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
                           title="アーカイブ"
                         >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
-                            />
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                           </svg>
                         </button>
 
@@ -763,39 +744,28 @@ export default function ApplianceDetailPage({
                             e.stopPropagation();
                             openDeleteScheduleModal(schedule);
                           }}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                          className="p-2 text-gray-400 hover:text-[#FF3B30] hover:bg-[#FF3B30]/10 rounded-full transition-colors"
                           title="削除"
                         >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         </button>
 
                         {/* Complete button */}
-                        <Button
-                          size="sm"
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
                             openCompleteModal(schedule);
                           }}
-                          className={
+                          className={`px-4 py-2 text-sm font-semibold rounded-xl transition-colors ${
                             daysUntil !== null && daysUntil < 0
-                              ? "bg-red-600 hover:bg-red-700"
-                              : ""
-                          }
+                              ? "bg-[#FF3B30] text-white hover:bg-[#E5342B]"
+                              : "bg-[#007AFF] text-white hover:bg-[#0066DD]"
+                          }`}
                         >
                           完了
-                        </Button>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -806,7 +776,7 @@ export default function ApplianceDetailPage({
 
           {/* Archived Section */}
           {archivedSchedules.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
               <button
                 type="button"
                 onClick={() => setShowArchivedSection(!showArchivedSection)}
@@ -818,12 +788,7 @@ export default function ApplianceDetailPage({
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
                 アーカイブ済み ({archivedSchedules.length}件)
               </button>
@@ -833,17 +798,17 @@ export default function ApplianceDetailPage({
                   {archivedSchedules.map((schedule) => (
                     <div
                       key={schedule.id}
-                      className="p-3 bg-gray-100 rounded-lg opacity-70"
+                      className="p-3 bg-white rounded-xl opacity-70"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-600 line-through">
+                        <span className="text-gray-600 line-through text-sm">
                           {schedule.task_name}
                         </span>
                         <button
                           type="button"
                           onClick={() => handleUnarchive(schedule.id)}
                           disabled={isArchiving === schedule.id}
-                          className="text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                          className="text-sm text-[#007AFF] hover:text-[#0066DD] disabled:opacity-50"
                         >
                           {isArchiving === schedule.id ? "復元中..." : "復元"}
                         </button>
@@ -854,20 +819,18 @@ export default function ApplianceDetailPage({
               )}
             </div>
           )}
-        </CardBody>
-      </Card>
+        </div>
 
-      {/* Q&A Section */}
-      {appliance.shared_appliance_id && (
-        <div className="mt-6">
+        {/* Q&A Section */}
+        {appliance.shared_appliance_id && (
           <QASection
             sharedApplianceId={appliance.shared_appliance_id}
             manufacturer={appliance.maker}
             modelNumber={appliance.model_number}
             hasPdf={!!appliance.stored_pdf_path}
           />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Delete Confirmation Modal */}
       <Modal
@@ -876,29 +839,28 @@ export default function ApplianceDetailPage({
         variant="dialog"
       >
         <div className="p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">
+          <h3 className="text-lg font-bold text-gray-900 mb-2">
             家電を削除しますか？
           </h3>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 text-sm mb-6">
             「{appliance.name}」を削除すると、関連するメンテナンス記録もすべて削除されます。
             この操作は取り消せません。
           </p>
           <div className="flex gap-3">
-            <Button
-              variant="outline"
+            <button
               onClick={() => setShowDeleteModal(false)}
-              className="flex-1"
               disabled={isDeleting}
+              className="flex-1 py-2.5 text-[#007AFF] font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               キャンセル
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={handleDelete}
-              isLoading={isDeleting}
-              className="flex-1 bg-red-600 hover:bg-red-700"
+              disabled={isDeleting}
+              className="flex-1 py-2.5 bg-[#FF3B30] text-white font-semibold rounded-xl hover:bg-[#E5342B] transition-colors disabled:opacity-50"
             >
-              削除する
-            </Button>
+              {isDeleting ? "削除中..." : "削除する"}
+            </button>
           </div>
         </div>
       </Modal>
@@ -940,7 +902,7 @@ export default function ApplianceDetailPage({
                 <textarea
                   id="completion-notes"
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#007AFF]/50 focus:border-[#007AFF] resize-none transition-colors"
                   placeholder="作業の内容や気づいた点などを記録できます"
                   value={completionNotes}
                   onChange={(e) => setCompletionNotes(e.target.value)}
@@ -951,25 +913,24 @@ export default function ApplianceDetailPage({
           )}
 
           <div className="flex gap-3">
-            <Button
-              variant="outline"
+            <button
               onClick={() => {
                 setShowCompleteModal(false);
                 setSelectedSchedule(null);
                 setCompletionNotes("");
               }}
-              className="flex-1"
               disabled={isCompleting}
+              className="flex-1 py-2.5 text-[#007AFF] font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               キャンセル
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={handleComplete}
-              isLoading={isCompleting}
-              className="flex-1"
+              disabled={isCompleting}
+              className="flex-1 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors disabled:opacity-50"
             >
-              完了する
-            </Button>
+              {isCompleting ? "記録中..." : "完了する"}
+            </button>
           </div>
         </div>
       </Modal>
@@ -1002,7 +963,7 @@ export default function ApplianceDetailPage({
 
           {isLoadingHistory ? (
             <div className="flex justify-center py-8">
-              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <div className="w-8 h-8 border-4 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : historyLogs.length === 0 ? (
             <div className="text-center py-8">
@@ -1013,7 +974,7 @@ export default function ApplianceDetailPage({
               {historyLogs.map((log) => (
                 <div
                   key={log.id}
-                  className="p-3 bg-gray-50 rounded-lg border border-gray-100"
+                  className="p-3 bg-gray-50 rounded-xl"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -1077,7 +1038,7 @@ export default function ApplianceDetailPage({
                   <h4 className="text-sm font-medium text-gray-500 mb-1">
                     説明
                   </h4>
-                  <SafeHtml html={selectedSchedule.description} className="text-gray-700" />
+                  <SafeHtml html={selectedSchedule.description} className="text-gray-700 text-sm" />
                 </div>
               )}
 
@@ -1100,11 +1061,11 @@ export default function ApplianceDetailPage({
                     重要度
                   </h4>
                   <span
-                    className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${getImportanceBadgeColor(
-                      selectedSchedule.importance
-                    )}`}
+                    className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${
+                      importanceConfig[selectedSchedule.importance].bg
+                    } ${importanceConfig[selectedSchedule.importance].text}`}
                   >
-                    {importanceLabels[selectedSchedule.importance]}
+                    {importanceConfig[selectedSchedule.importance].label}
                   </span>
                 </div>
                 {selectedSchedule.source_page && (
@@ -1128,21 +1089,13 @@ export default function ApplianceDetailPage({
                       {formatDate(selectedSchedule.next_due_at)}
                     </span>
                     {(() => {
-                      const daysUntil = getDaysUntilDue(
-                        selectedSchedule.next_due_at
-                      );
-                      const statusColor = getDueStatusColor(daysUntil);
+                      const daysUntil = getDaysUntilDue(selectedSchedule.next_due_at);
+                      const statusConfig = getDueStatusConfig(daysUntil);
                       return (
                         <span
-                          className={`ml-2 px-2 py-0.5 text-xs font-medium rounded ${statusColor}`}
+                          className={`ml-2 px-2 py-0.5 text-xs font-medium rounded-full ${statusConfig.bg} ${statusConfig.text}`}
                         >
-                          {daysUntil === null
-                            ? "未設定"
-                            : daysUntil < 0
-                              ? `${Math.abs(daysUntil)}日超過`
-                              : daysUntil === 0
-                                ? "今日"
-                                : `あと${daysUntil}日`}
+                          {statusConfig.label}
                         </span>
                       );
                     })()}
@@ -1162,16 +1115,19 @@ export default function ApplianceDetailPage({
               <button
                 onClick={handleDetailToHistory}
                 disabled={isLoadingHistory}
-                className="text-sm text-blue-600 hover:text-blue-700 mb-6 disabled:opacity-50"
+                className="text-sm text-[#007AFF] hover:text-[#0066DD] mb-6 disabled:opacity-50"
               >
                 完了履歴を表示
               </button>
 
               {/* Action button */}
               <div className="pt-4 border-t">
-                <Button onClick={handleDetailToComplete} className="w-full">
+                <button
+                  onClick={handleDetailToComplete}
+                  className="w-full py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors"
+                >
                   完了する
-                </Button>
+                </button>
               </div>
             </>
           )}
@@ -1188,35 +1144,32 @@ export default function ApplianceDetailPage({
         variant="dialog"
       >
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <h3 className="text-lg font-bold text-gray-900 mb-2">
             メンテナンス項目を削除
           </h3>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 text-sm mb-6">
             「{scheduleToDelete?.task_name}」を削除しますか？
             この操作は取り消せません。
           </p>
 
-          <div className="flex gap-3 justify-end">
-            <Button
-              variant="secondary"
-              size="sm"
+          <div className="flex gap-3">
+            <button
               onClick={() => {
                 setShowDeleteScheduleModal(false);
                 setScheduleToDelete(null);
               }}
               disabled={isDeletingSchedule}
+              className="flex-1 py-2.5 text-[#007AFF] font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               キャンセル
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
+            </button>
+            <button
               onClick={handleDeleteSchedule}
-              isLoading={isDeletingSchedule}
-              className="bg-red-600 hover:bg-red-700"
+              disabled={isDeletingSchedule}
+              className="flex-1 py-2.5 bg-[#FF3B30] text-white font-semibold rounded-xl hover:bg-[#E5342B] transition-colors disabled:opacity-50"
             >
-              削除
-            </Button>
+              {isDeletingSchedule ? "削除中..." : "削除"}
+            </button>
           </div>
         </div>
       </Modal>
