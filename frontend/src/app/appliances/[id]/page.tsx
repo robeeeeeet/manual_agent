@@ -108,6 +108,9 @@ export default function ApplianceDetailPage({
   >([]);
   const [showArchivedSection, setShowArchivedSection] = useState(false);
   const [isArchiving, setIsArchiving] = useState<string | null>(null);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [scheduleToArchive, setScheduleToArchive] =
+    useState<MaintenanceSchedule | null>(null);
 
   // PDF signed URL (pre-fetched when appliance loads)
   const [pdfSignedUrl, setPdfSignedUrl] = useState<string | null>(null);
@@ -368,15 +371,25 @@ export default function ApplianceDetailPage({
     }
   };
 
+  // Open archive modal
+  const openArchiveModal = (schedule: MaintenanceSchedule) => {
+    setScheduleToArchive(schedule);
+    setShowArchiveModal(true);
+  };
+
   // Archive a maintenance schedule
-  const handleArchive = async (scheduleId: string) => {
-    setIsArchiving(scheduleId);
+  const handleArchive = async () => {
+    if (!scheduleToArchive) return;
+
+    setIsArchiving(scheduleToArchive.id);
     try {
-      const response = await fetch(`/api/maintenance/${scheduleId}/archive`, {
+      const response = await fetch(`/api/maintenance/${scheduleToArchive.id}/archive`, {
         method: "PATCH",
       });
       if (response.ok) {
         await fetchSchedules();
+        setShowArchiveModal(false);
+        setScheduleToArchive(null);
       } else {
         const data = await response.json();
         console.error("Archive error:", data.error);
@@ -848,10 +861,9 @@ export default function ApplianceDetailPage({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleArchive(schedule.id);
+                            openArchiveModal(schedule);
                           }}
-                          disabled={isArchiving === schedule.id}
-                          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
+                          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                           title="アーカイブ"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1337,6 +1349,51 @@ export default function ApplianceDetailPage({
               className="flex-1 py-2.5 bg-[#FF3B30] text-white font-semibold rounded-xl hover:bg-[#E5342B] transition-colors disabled:opacity-50"
             >
               {isDeletingSchedule ? "削除中..." : "削除"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Archive Confirmation Modal */}
+      <Modal
+        isOpen={showArchiveModal}
+        onClose={() => {
+          setShowArchiveModal(false);
+          setScheduleToArchive(null);
+        }}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-gray-900 mb-2">
+            メンテナンス項目をアーカイブ
+          </h3>
+          <p className="text-gray-600 text-sm mb-4">
+            「{scheduleToArchive?.task_name}」をアーカイブしますか？
+          </p>
+          <p className="text-[#007AFF] text-sm mb-6 flex items-center gap-2">
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>アーカイブした項目はいつでも復元できます</span>
+          </p>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setShowArchiveModal(false);
+                setScheduleToArchive(null);
+              }}
+              disabled={isArchiving === scheduleToArchive?.id}
+              className="flex-1 py-2.5 text-[#007AFF] font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleArchive}
+              disabled={isArchiving === scheduleToArchive?.id}
+              className="flex-1 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors disabled:opacity-50"
+            >
+              {isArchiving === scheduleToArchive?.id ? "アーカイブ中..." : "アーカイブ"}
             </button>
           </div>
         </div>
