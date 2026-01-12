@@ -112,10 +112,6 @@ export default function ApplianceDetailPage({
   // PDF loading state
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
 
-  // PDF viewer modal state
-  const [showPdfModal, setShowPdfModal] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-
   // Fetch appliance details
   useEffect(() => {
     const fetchData = async () => {
@@ -360,8 +356,7 @@ export default function ApplianceDetailPage({
     if (!appliance?.stored_pdf_path) {
       // If no stored PDF, use manual_source_url
       if (appliance?.manual_source_url) {
-        setPdfUrl(appliance.manual_source_url);
-        setShowPdfModal(true);
+        window.open(appliance.manual_source_url, "_blank");
       }
       return;
     }
@@ -374,27 +369,18 @@ export default function ApplianceDetailPage({
       }
       const data = await response.json();
       if (data.signed_url) {
-        setPdfUrl(data.signed_url);
-        setShowPdfModal(true);
+        window.open(data.signed_url, "_blank");
       }
     } catch (err) {
       console.error("Failed to get signed URL:", err);
       // Fallback to manual_source_url if available
       if (appliance?.manual_source_url) {
-        setPdfUrl(appliance.manual_source_url);
-        setShowPdfModal(true);
+        window.open(appliance.manual_source_url, "_blank");
       } else {
         setError("PDFを開けませんでした");
       }
     } finally {
       setIsLoadingPdf(false);
-    }
-  };
-
-  // Open PDF in external browser (fallback for iOS)
-  const handleOpenPdfExternal = () => {
-    if (pdfUrl) {
-      window.open(pdfUrl, "_blank");
     }
   };
 
@@ -1187,66 +1173,6 @@ export default function ApplianceDetailPage({
             >
               {isDeletingSchedule ? "削除中..." : "削除"}
             </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* PDF Viewer Modal */}
-      <Modal
-        isOpen={showPdfModal}
-        onClose={() => {
-          setShowPdfModal(false);
-          setPdfUrl(null);
-        }}
-        variant="fullscreen"
-      >
-        <div className="flex flex-col h-full bg-gray-100">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200">
-            <button
-              onClick={() => {
-                setShowPdfModal(false);
-                setPdfUrl(null);
-              }}
-              className="text-[#007AFF] font-medium flex items-center gap-1"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              戻る
-            </button>
-            <h2 className="font-semibold text-gray-900">説明書PDF</h2>
-            <button
-              onClick={handleOpenPdfExternal}
-              className="text-[#007AFF] font-medium flex items-center gap-1"
-            >
-              外部で開く
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </button>
-          </div>
-
-          {/* PDF Content */}
-          <div className="flex-1 overflow-hidden">
-            {pdfUrl ? (
-              <iframe
-                src={pdfUrl}
-                className="w-full h-full border-0"
-                title="説明書PDF"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-gray-500">PDFを読み込んでいます...</p>
-              </div>
-            )}
-          </div>
-
-          {/* iOS fallback notice */}
-          <div className="p-3 bg-amber-50 border-t border-amber-200 text-center">
-            <p className="text-sm text-amber-700">
-              PDFが表示されない場合は「外部で開く」をタップしてください
-            </p>
           </div>
         </div>
       </Modal>
