@@ -107,6 +107,7 @@ export function QAChat({
   const [tierLimitError, setTierLimitError] = useState<TierLimitError | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const hasUserInteracted = useRef(false);
 
   // 初期メッセージ
   useEffect(() => {
@@ -129,14 +130,20 @@ export function QAChat({
     setCurrentSessionId(sessionId);
   }, [sessionId]);
 
-  // メッセージが追加されたら自動スクロール
+  // メッセージが追加されたら自動スクロール（ユーザーが操作した後のみ）
   useEffect(() => {
+    if (!hasUserInteracted.current) {
+      return;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    // ユーザーが操作したことを記録（以降のメッセージ追加時にスクロール有効化）
+    hasUserInteracted.current = true;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),

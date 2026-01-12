@@ -777,10 +777,10 @@ export default function ApplianceDetailPage({
                 onClick={openPurchaseDateModal}
                 className="flex items-center gap-1.5 text-[#007AFF] text-sm font-medium hover:underline"
               >
-                {appliance.purchased_at ? formatDate(appliance.purchased_at) : "未設定"}
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
+                {appliance.purchased_at ? formatDate(appliance.purchased_at) : "未設定"}
               </button>
             </div>
 
@@ -1358,9 +1358,6 @@ export default function ApplianceDetailPage({
               className="block text-sm font-medium text-gray-700 mb-2"
             >
               購入日
-              <span className="text-xs text-gray-400 ml-2 font-normal">
-                例: 2025-06-15
-              </span>
             </label>
             <input
               type="date"
@@ -1370,16 +1367,6 @@ export default function ApplianceDetailPage({
               max={new Date().toISOString().split("T")[0]}
               className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#007AFF]/50 focus:border-[#007AFF] transition-colors"
             />
-            {editingPurchasedAt && (
-              <p className="text-sm text-gray-700 mt-2">
-                選択中:{" "}
-                {new Date(editingPurchasedAt).toLocaleDateString("ja-JP", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </p>
-            )}
             <p className="text-xs text-gray-500 mt-2">
               メンテナンス予定日の計算に使用します
             </p>
@@ -1428,9 +1415,6 @@ export default function ApplianceDetailPage({
               className="block text-sm font-medium text-gray-700 mb-2"
             >
               次回予定日
-              <span className="text-xs text-gray-400 ml-2 font-normal">
-                例: 2025-06-15
-              </span>
             </label>
             <input
               type="date"
@@ -1439,16 +1423,6 @@ export default function ApplianceDetailPage({
               onChange={(e) => setEditingNextDueAt(e.target.value)}
               className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#007AFF]/50 focus:border-[#007AFF] transition-colors"
             />
-            {editingNextDueAt && (
-              <p className="text-sm text-gray-700 mt-2">
-                選択中:{" "}
-                {new Date(editingNextDueAt).toLocaleDateString("ja-JP", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </p>
-            )}
             <p className="text-xs text-gray-500 mt-2">
               メンテナンスの次回予定日を直接指定できます
             </p>
