@@ -107,33 +107,32 @@ def _convert_frequency_days_to_interval(frequency_days: int) -> tuple[str, int |
 
     Returns:
         Tuple of (interval_type, interval_value)
-        - interval_type: 'days', 'months', 'years', or 'manual'
+        - interval_type: 'days', 'months', or 'manual'
         - interval_value: properly converted value or None for manual
+
+    Note:
+        DB constraint only allows 'days', 'months', 'manual'.
+        For periods of 1 year or more, we convert to months (e.g., 1 year = 12 months).
 
     Examples:
         - 1 day → ('days', 1)
         - 7 days → ('days', 7)
         - 30 days → ('months', 1)
         - 90 days → ('months', 3)
-        - 365 days → ('years', 1)
-        - 730 days → ('years', 2)
+        - 365 days → ('months', 12)
+        - 730 days → ('months', 24)
     """
     if frequency_days <= 0:
         return ("manual", None)
     elif frequency_days < 30:
         return ("days", frequency_days)
-    elif frequency_days < 365:
+    else:
         # Convert days to months, rounding to nearest month
+        # This handles both sub-year and multi-year periods
         months = round(frequency_days / 30)
         # Ensure at least 1 month
         months = max(1, months)
         return ("months", months)
-    else:
-        # Convert days to years, rounding to nearest year
-        years = round(frequency_days / 365)
-        # Ensure at least 1 year
-        years = max(1, years)
-        return ("years", years)
 
 
 async def get_or_extract_maintenance_items(

@@ -72,45 +72,42 @@ def get_or_create_daily_usage(user_id: str, today: date | None = None) -> dict:
 
     client = get_supabase_client()
     try:
-        # Try upsert to create if not exists
+        # First, try to fetch existing record
         response = (
             client.table("user_daily_usage")
-            .upsert(
-                {
-                    "user_id": user_id,
-                    "date": today.isoformat(),
-                    "manual_searches": 0,
-                    "qa_questions": 0,
-                },
-                on_conflict="user_id,date",
-            )
-            .select()
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("date", today.isoformat())
             .execute()
         )
 
         if response.data and len(response.data) > 0:
             return response.data[0]
 
-        # Fallback: try to fetch existing record
-        response = (
+        # Record doesn't exist, insert new one
+        insert_response = (
             client.table("user_daily_usage")
-            .select("*")
-            .eq("user_id", user_id)
-            .eq("date", today.isoformat())
-            .single()
+            .insert(
+                {
+                    "user_id": user_id,
+                    "date": today.isoformat(),
+                    "manual_searches": 0,
+                    "qa_questions": 0,
+                }
+            )
             .execute()
         )
 
-        return (
-            response.data
-            if response.data
-            else {
-                "user_id": user_id,
-                "date": today.isoformat(),
-                "manual_searches": 0,
-                "qa_questions": 0,
-            }
-        )
+        if insert_response.data and len(insert_response.data) > 0:
+            return insert_response.data[0]
+
+        # Return default if insert failed (e.g., race condition)
+        return {
+            "user_id": user_id,
+            "date": today.isoformat(),
+            "manual_searches": 0,
+            "qa_questions": 0,
+        }
     except Exception as e:
         logger.error(f"Error getting/creating daily usage: {e}")
         # Return default empty usage

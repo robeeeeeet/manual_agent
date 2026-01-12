@@ -1779,11 +1779,11 @@ export default function RegisterPage() {
                           <p className="text-amber-800 font-medium mb-3">
                             上記のPDFを開いて、お使いの製品の説明書かご確認ください。
                           </p>
-                          <div className="flex gap-3">
+                          <div className="flex flex-col gap-3">
                             <Button
                               onClick={handleConfirmManual}
                               isLoading={isConfirmingManual}
-                              className="flex-1"
+                              className="w-full"
                             >
                               {isConfirmingManual
                                 ? "PDF保存・Q&A生成中..."
@@ -1793,7 +1793,7 @@ export default function RegisterPage() {
                               variant="outline"
                               onClick={handleRejectManual}
                               disabled={isConfirmingManual}
-                              className="flex-1"
+                              className="w-full"
                             >
                               違う説明書を探す
                             </Button>
