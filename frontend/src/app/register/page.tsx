@@ -207,6 +207,9 @@ export default function RegisterPage() {
         cache: "no-store", // Disable caching to prevent stale error responses
       });
 
+      // Debug: Log response status
+      console.log("[DEBUG] recognize response:", response.status, response.statusText);
+
       if (response.ok) {
         const data: ImageRecognitionResponse = await response.json();
 
@@ -245,10 +248,14 @@ export default function RegisterPage() {
           setCurrentStep(2);
         }
       } else {
-        alert("画像解析に失敗しました。手動入力をお試しください。");
+        // Debug: Show detailed error
+        const errorText = await response.text().catch(() => "unknown");
+        console.error("[DEBUG] recognize error:", response.status, errorText);
+        alert(`画像解析に失敗しました (${response.status}): ${errorText.substring(0, 100)}`);
       }
-    } catch {
-      alert("エラーが発生しました。");
+    } catch (error) {
+      console.error("[DEBUG] recognize exception:", error);
+      alert(`エラーが発生しました: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsAnalyzing(false);
     }
