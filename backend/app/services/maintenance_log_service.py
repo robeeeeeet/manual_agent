@@ -81,7 +81,7 @@ async def complete_maintenance(
             .select(
                 "id, user_appliance_id, shared_item_id, interval_type, interval_value, "
                 "last_done_at, next_due_at, created_at, updated_at, "
-                "shared_maintenance_items!inner(task_name, description, source_page, importance), "
+                "shared_maintenance_items!inner(task_name, description, pdf_page_number, printed_page_number, importance),"
                 "user_appliances!inner(user_id, group_id)"
             )
             .eq("id", schedule_id)
@@ -159,7 +159,13 @@ async def complete_maintenance(
         item_details = schedule.get("shared_maintenance_items", {}) or {}
         updated_schedule["task_name"] = item_details.get("task_name", "")
         updated_schedule["description"] = item_details.get("description")
-        updated_schedule["source_page"] = item_details.get("source_page")
+        updated_schedule["pdf_page_number"] = item_details.get("pdf_page_number")
+        updated_schedule["printed_page_number"] = item_details.get(
+            "printed_page_number"
+        )
+        updated_schedule["source_page"] = item_details.get(
+            "printed_page_number"
+        )  # deprecated, use printed_page_number
         updated_schedule["importance"] = item_details.get("importance", "medium")
 
         return {
@@ -293,7 +299,7 @@ async def get_upcoming_maintenance(
             .select(
                 "id, user_appliance_id, shared_item_id, interval_type, interval_value, "
                 "last_done_at, next_due_at, created_at, updated_at, "
-                "shared_maintenance_items!inner(task_name, description, source_page, importance), "
+                "shared_maintenance_items!inner(task_name, description, pdf_page_number, printed_page_number, importance),"
                 "user_appliances!inner(id, name, user_id, shared_appliance_id, "
                 "shared_appliances(maker, model_number, category))"
             )
@@ -309,7 +315,11 @@ async def get_upcoming_maintenance(
             item_details = schedule.pop("shared_maintenance_items", {}) or {}
             schedule["task_name"] = item_details.get("task_name", "")
             schedule["description"] = item_details.get("description")
-            schedule["source_page"] = item_details.get("source_page")
+            schedule["pdf_page_number"] = item_details.get("pdf_page_number")
+            schedule["printed_page_number"] = item_details.get("printed_page_number")
+            schedule["source_page"] = item_details.get(
+                "printed_page_number"
+            )  # deprecated, use printed_page_number
             schedule["importance"] = item_details.get("importance", "medium")
             result.append(schedule)
 
@@ -353,11 +363,14 @@ async def get_all_maintenance_with_details(
         seven_days_later = now + timedelta(days=7)
 
         # Step 1: Get user's personal appliances (not in any group)
+        # Include stored_pdf_path from shared_appliances for PDF link feature
         personal_appliances_data = []
         if not appliance_id:
             personal_result = (
                 client.table("user_appliances")
-                .select("id, name, shared_appliances(maker, model_number, category)")
+                .select(
+                    "id, name, shared_appliances(maker, model_number, category, stored_pdf_path)"
+                )
                 .eq("user_id", user_id)
                 .is_("group_id", "null")
                 .execute()
@@ -368,7 +381,7 @@ async def get_all_maintenance_with_details(
             specific_result = (
                 client.table("user_appliances")
                 .select(
-                    "id, name, user_id, group_id, shared_appliances(maker, model_number, category)"
+                    "id, name, user_id, group_id, shared_appliances(maker, model_number, category, stored_pdf_path)"
                 )
                 .eq("id", appliance_id)
                 .execute()
@@ -399,7 +412,7 @@ async def get_all_maintenance_with_details(
                 group_appliance_result = (
                     client.table("user_appliances")
                     .select(
-                        "id, name, shared_appliances(maker, model_number, category)"
+                        "id, name, shared_appliances(maker, model_number, category, stored_pdf_path)"
                     )
                     .eq("id", appliance_id)
                     .in_("group_id", group_ids)
@@ -410,7 +423,7 @@ async def get_all_maintenance_with_details(
                 group_appliance_result = (
                     client.table("user_appliances")
                     .select(
-                        "id, name, shared_appliances(maker, model_number, category)"
+                        "id, name, shared_appliances(maker, model_number, category, stored_pdf_path)"
                     )
                     .in_("group_id", group_ids)
                     .execute()
@@ -427,13 +440,13 @@ async def get_all_maintenance_with_details(
         appliance_map = {a["id"]: a for a in all_appliances_data}
 
         # Step 4: Get all maintenance schedules for these appliances
-        # JOIN shared_maintenance_items to get task_name, description, etc.
+        # JOIN shared_maintenance_items to get task_name, description, page info, etc.
         query = (
             client.table("maintenance_schedules")
             .select(
                 "id, user_appliance_id, shared_item_id, interval_type, interval_value, "
                 "last_done_at, next_due_at, created_at, updated_at, is_archived, "
-                "shared_maintenance_items!inner(task_name, description, source_page, importance)"
+                "shared_maintenance_items!inner(task_name, description, pdf_page_number, printed_page_number, importance)"
             )
             .in_("user_appliance_id", appliance_ids)
         )
@@ -496,7 +509,11 @@ async def get_all_maintenance_with_details(
                     "importance": item_details.get("importance", "medium"),
                     "interval_type": schedule.get("interval_type", "manual"),
                     "interval_value": schedule.get("interval_value"),
-                    "source_page": item_details.get("source_page"),
+                    "pdf_page_number": item_details.get("pdf_page_number"),
+                    "printed_page_number": item_details.get("printed_page_number"),
+                    "source_page": item_details.get(
+                        "printed_page_number"
+                    ),  # deprecated
                     "appliance_id": schedule["user_appliance_id"],
                     "appliance_name": appliance["name"],
                     "maker": shared.get("maker", ""),
@@ -505,6 +522,7 @@ async def get_all_maintenance_with_details(
                     "status": status,
                     "days_until_due": days_until_due,
                     "is_archived": is_archived,
+                    "stored_pdf_path": shared.get("stored_pdf_path"),
                 }
             )
 
@@ -579,7 +597,7 @@ async def get_appliance_next_maintenance(
             .select(
                 "id, user_appliance_id, shared_item_id, interval_type, interval_value, "
                 "last_done_at, next_due_at, created_at, updated_at, "
-                "shared_maintenance_items!inner(task_name, description, source_page, importance)"
+                "shared_maintenance_items!inner(task_name, description, pdf_page_number, printed_page_number, importance)"
             )
             .eq("user_appliance_id", user_appliance_id)
             .not_.is_("next_due_at", "null")
@@ -594,7 +612,11 @@ async def get_appliance_next_maintenance(
             item_details = schedule.pop("shared_maintenance_items", {}) or {}
             schedule["task_name"] = item_details.get("task_name", "")
             schedule["description"] = item_details.get("description")
-            schedule["source_page"] = item_details.get("source_page")
+            schedule["pdf_page_number"] = item_details.get("pdf_page_number")
+            schedule["printed_page_number"] = item_details.get("printed_page_number")
+            schedule["source_page"] = item_details.get(
+                "printed_page_number"
+            )  # deprecated, use printed_page_number
             schedule["importance"] = item_details.get("importance", "medium")
             return schedule
         return None

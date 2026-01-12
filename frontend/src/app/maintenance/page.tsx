@@ -44,6 +44,9 @@ export default function MaintenancePage() {
   const [historyLogs, setHistoryLogs] = useState<MaintenanceLog[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  // PDF loading state
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
+
   // Extract unique makers for filter
   const makers = useMemo<string[]>(() => {
     const uniqueMakers = new Set<string>();
@@ -122,6 +125,25 @@ export default function MaintenancePage() {
     return { bg: "bg-[#34C759]/10", text: "text-[#34C759]" };
   };
 
+  // Open PDF at specific page
+  const handleOpenPdfAtPage = async (applianceId: string, pageNumber: number) => {
+    setIsLoadingPdf(true);
+    try {
+      const response = await fetch(`/api/appliances/${applianceId}/manual-url`);
+      if (!response.ok) {
+        throw new Error("署名付きURLの取得に失敗しました");
+      }
+      const data = await response.json();
+      if (data.signed_url) {
+        window.open(`${data.signed_url}#page=${pageNumber}`, "_blank");
+      }
+    } catch (err) {
+      console.error("Failed to get signed URL:", err);
+    } finally {
+      setIsLoadingPdf(false);
+    }
+  };
+
   const selectedSchedule: MaintenanceSchedule | null = selectedItem
     ? {
         id: selectedItem.id,
@@ -133,6 +155,8 @@ export default function MaintenancePage() {
         interval_value: selectedItem.interval_value,
         last_done_at: selectedItem.last_done_at,
         next_due_at: selectedItem.next_due_at,
+        pdf_page_number: selectedItem.pdf_page_number,
+        printed_page_number: selectedItem.printed_page_number,
         source_page: selectedItem.source_page,
         importance: selectedItem.importance,
         created_at: "",
@@ -317,7 +341,8 @@ export default function MaintenancePage() {
         }}
         variant="dialog"
       >
-        <div className="p-6">
+        <div className="p-6 max-h-[calc(100vh-96px)] flex flex-col">
+          {/* Close button */}
           <button
             onClick={() => {
               setShowDetailModal(false);
@@ -333,93 +358,123 @@ export default function MaintenancePage() {
 
           {selectedItem && (
             <>
-              <h3 className="text-lg font-bold text-gray-900 mb-4 pr-8">
+              {/* Fixed Header */}
+              <h3 className="text-lg font-bold text-gray-900 mb-4 pr-8 flex-shrink-0">
                 {selectedItem.task_name}
               </h3>
 
-              {selectedItem.description && (
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">説明</h4>
-                  <SafeHtml html={selectedItem.description} className="text-gray-700" />
-                </div>
-              )}
-
-              <div className="mb-4 p-3 bg-[#F2F2F7] rounded-xl">
-                <h4 className="text-xs font-medium text-gray-500 mb-1">{selectedItem.category || "家電"}</h4>
-                <p className="text-sm text-gray-900">{selectedItem.appliance_name}</p>
-                <p className="text-xs text-gray-500">{selectedItem.maker} {selectedItem.model_number}</p>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4 mb-4 py-4 border-y border-gray-100">
-                <div>
-                  <h4 className="text-xs font-medium text-gray-500 mb-1">周期</h4>
-                  <p className="text-sm text-gray-900">
-                    {selectedItem.interval_type === "days"
-                      ? `${selectedItem.interval_value}日ごと`
-                      : selectedItem.interval_type === "months"
-                        ? `${selectedItem.interval_value}ヶ月ごと`
-                        : "手動"}
-                  </p>
-                </div>
-                <div>
-                  <h4 className="text-xs font-medium text-gray-500 mb-1">重要度</h4>
-                  <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${importanceConfig[selectedItem.importance].bg} ${importanceConfig[selectedItem.importance].text}`}>
-                    {importanceConfig[selectedItem.importance].label}
-                  </span>
-                </div>
-                {selectedItem.source_page && (
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-500 mb-1">参照ページ</h4>
-                    <p className="text-sm text-gray-900">{selectedItem.source_page}</p>
+              {/* Scrollable Content */}
+              <div className="overflow-y-auto flex-1 min-h-0">
+                {selectedItem.description && (
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-gray-500 mb-1">説明</h4>
+                    <SafeHtml html={selectedItem.description} className="text-gray-700" />
                   </div>
                 )}
-              </div>
 
-              <div className="space-y-3 mb-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">次回予定日</span>
-                  <div className="text-right">
-                    <span className="text-sm font-medium text-gray-900">{formatDate(selectedItem.next_due_at)}</span>
-                    <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded-full ${getStatusStyle(selectedItem.days_until_due, selectedItem.status).bg} ${getStatusStyle(selectedItem.days_until_due, selectedItem.status).text}`}>
-                      {getStatusText(selectedItem.days_until_due, selectedItem.status)}
+                <div className="mb-4 p-3 bg-[#F2F2F7] rounded-xl">
+                  <h4 className="text-xs font-medium text-gray-500 mb-1">{selectedItem.category || "家電"}</h4>
+                  <p className="text-sm text-gray-900">{selectedItem.appliance_name}</p>
+                  <p className="text-xs text-gray-500">{selectedItem.maker} {selectedItem.model_number}</p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 py-4 border-y border-gray-100">
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-500 mb-1">周期</h4>
+                    <p className="text-sm text-gray-900 whitespace-nowrap">
+                      {selectedItem.interval_type === "days"
+                        ? `${selectedItem.interval_value}日ごと`
+                        : selectedItem.interval_type === "months"
+                          ? `${selectedItem.interval_value}ヶ月ごと`
+                          : "手動"}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-500 mb-1">重要度</h4>
+                    <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${importanceConfig[selectedItem.importance].bg} ${importanceConfig[selectedItem.importance].text}`}>
+                      {importanceConfig[selectedItem.importance].label}
                     </span>
                   </div>
+                  {(selectedItem.pdf_page_number || selectedItem.printed_page_number || selectedItem.source_page) && (
+                    <div className="col-span-2 sm:col-span-1 pt-3 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+                      <h4 className="text-xs font-medium text-gray-500 mb-1">参照ページ</h4>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:flex-col sm:items-start sm:gap-1">
+                        {selectedItem.pdf_page_number && selectedItem.stored_pdf_path && (
+                          <button
+                            onClick={() => handleOpenPdfAtPage(selectedItem.appliance_id, selectedItem.pdf_page_number!)}
+                            disabled={isLoadingPdf}
+                            className="text-sm text-[#007AFF] hover:text-[#0066DD] hover:underline disabled:opacity-50 inline-flex items-center gap-1 whitespace-nowrap"
+                          >
+                            <span>PDF {selectedItem.pdf_page_number}ページ</span>
+                            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </button>
+                        )}
+                        {(selectedItem.printed_page_number || selectedItem.source_page) && (
+                          <p className="text-sm text-gray-600 whitespace-nowrap">
+                            説明書 {selectedItem.printed_page_number || selectedItem.source_page}ページ
+                          </p>
+                        )}
+                        {selectedItem.pdf_page_number && !selectedItem.stored_pdf_path && !selectedItem.printed_page_number && (
+                          <p className="text-sm text-gray-900 whitespace-nowrap">
+                            PDF {selectedItem.pdf_page_number}ページ
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {selectedItem.last_done_at && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">前回実施日</span>
-                    <span className="text-sm text-gray-900">{formatDate(selectedItem.last_done_at)}</span>
-                  </div>
-                )}
-              </div>
 
-              <div className="flex gap-3">
+                <div className="space-y-3 mb-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">次回予定日</span>
+                    <div className="text-right">
+                      <span className="text-sm font-medium text-gray-900">{formatDate(selectedItem.next_due_at)}</span>
+                      <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded-full ${getStatusStyle(selectedItem.days_until_due, selectedItem.status).bg} ${getStatusStyle(selectedItem.days_until_due, selectedItem.status).text}`}>
+                        {getStatusText(selectedItem.days_until_due, selectedItem.status)}
+                      </span>
+                    </div>
+                  </div>
+                  {selectedItem.last_done_at && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500">前回実施日</span>
+                      <span className="text-sm text-gray-900">{formatDate(selectedItem.last_done_at)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* History link */}
                 <button
                   onClick={() => fetchHistory(selectedItem.id)}
                   disabled={isLoadingHistory}
-                  className="flex-1 py-3 border border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  className="text-sm text-[#007AFF] hover:text-[#0066DD] mb-6 disabled:opacity-50"
                 >
-                  {isLoadingHistory ? "読込中..." : "履歴を見る"}
+                  完了履歴を表示
                 </button>
-                <button
-                  onClick={() => {
-                    setShowDetailModal(false);
-                    openCompleteModal(selectedItem);
-                  }}
-                  className="flex-1 py-3 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors"
-                >
-                  完了する
-                </button>
-              </div>
 
-              <div className="mt-4 text-center">
-                <Link
-                  href={`/appliances/${selectedItem.appliance_id}?from=maintenance`}
-                  className="text-sm text-[#007AFF] hover:underline"
-                >
-                  家電詳細ページへ →
-                </Link>
-              </div>
+                {/* Action buttons */}
+                <div className="pt-4 border-t border-gray-100">
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      openCompleteModal(selectedItem);
+                    }}
+                    className="w-full py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors"
+                  >
+                    完了する
+                  </button>
+                </div>
+
+                <div className="mt-4 text-center">
+                  <Link
+                    href={`/appliances/${selectedItem.appliance_id}?from=maintenance`}
+                    className="text-sm text-[#007AFF] hover:underline"
+                  >
+                    家電詳細ページへ →
+                  </Link>
+                </div>
+              </div>{/* End Scrollable Content */}
             </>
           )}
         </div>

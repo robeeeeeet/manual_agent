@@ -71,13 +71,24 @@ async def save_maintenance_items_to_cache(
         )
 
         # Convert LLM extraction format to DB format
+        # Support both new format (pdf_page_number, printed_page_number) and
+        # legacy format (page_reference) for backward compatibility
+        pdf_page = item.get("pdf_page_number")
+        printed_page = item.get("printed_page_number")
+        legacy_page = item.get("page_reference")
+
+        # If only legacy format is provided, use it as printed_page_number
+        if printed_page is None and legacy_page is not None:
+            printed_page = legacy_page
+
         db_item = {
             "shared_appliance_id": shared_appliance_id,
             "task_name": item.get("item_name", ""),
             "description": item.get("description", ""),
             "recommended_interval_type": interval_type,
             "recommended_interval_value": interval_value,
-            "source_page": item.get("page_reference"),
+            "pdf_page_number": pdf_page,
+            "printed_page_number": printed_page,
             "importance": item.get("importance", "medium"),
             "extracted_at": now,
         }
@@ -263,7 +274,7 @@ async def register_maintenance_schedules(
             # Approximate months as 30 days
             next_due_at = (now + timedelta(days=interval_value * 30)).isoformat()
 
-        # Note: task_name, description, source_page, importance are now stored
+        # Note: task_name, description, page info, importance are now stored
         # in shared_maintenance_items and retrieved via JOIN
         schedule = {
             "user_appliance_id": user_appliance_id,
@@ -281,7 +292,11 @@ async def register_maintenance_schedules(
                 schedule_data = result.data[0]
                 schedule_data["task_name"] = item.get("task_name")
                 schedule_data["description"] = item.get("description")
-                schedule_data["source_page"] = item.get("source_page")
+                schedule_data["pdf_page_number"] = item.get("pdf_page_number")
+                schedule_data["printed_page_number"] = item.get("printed_page_number")
+                schedule_data["source_page"] = item.get(
+                    "printed_page_number"
+                )  # backward compat, deprecated
                 schedule_data["importance"] = item.get("importance")
                 created_schedules.append(schedule_data)
         except Exception as e:

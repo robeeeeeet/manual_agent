@@ -233,10 +233,11 @@ async def extract_maintenance_items(
             "item_name": "項目名（例: 庫内の清掃）",
             "description": "<p>作業の概要説明</p><ol><li>手順1</li><li>手順2</li></ol>",
             "frequency": "周期（例: 使用後毎回, 週1回, 月1回, 年1回）",
-            "frequency_days": 周期を日数で表現（毎日=1, 週1回=7, 月1回=30, 年1回=365。不明な場合は30）,
+            "frequency_days": 周期を日数で表現（毎日=1, 週1回=7, 月1回=30, 年1回=365。不明な場合は0）,
             "category": "cleaning か inspection か replacement のいずれか1つのみ",
             "importance": "high か medium か low のいずれか1つのみ",
-            "page_reference": "記載ページ（わかる場合）"
+            "pdf_page_number": PDFビューアで表示されるページ番号（1から始まる連番、数値）,
+            "printed_page_number": "説明書に印刷されているページ番号（例: 26ページ）"
         }}
     ],
     "notes": "抽出時の補足事項"
@@ -333,6 +334,18 @@ description は以下の要素を**必ず**含めてください：
 - **high**: 安全性に関わる / 製品寿命に影響 / 頻度が高い（毎日〜週1回）
 - **medium**: 性能維持に関わる / 月1回程度の作業
 - **low**: 年1回程度 / 任意・推奨レベル
+
+## pdf_page_number と printed_page_number の違い（重要）
+
+- **pdf_page_number**: PDFビューア（Adobe Reader、ブラウザ等）で表示される **1から始まる連番**
+  - PDFファイルの1ページ目から数えて何枚目か
+  - 見開き2ページが1ページに収まっている場合でも、PDFとしては1ページとしてカウント
+- **printed_page_number**: 説明書に **印刷されている** ページ番号（例: "26ページ"、"P.15"）
+  - PDFのページ番号とは異なることが多い（表紙、目次、見開きなどの影響）
+
+例: 説明書に「26ページ」と印刷されている内容が、PDFでは14ページ目にある場合
+  - pdf_page_number: 14
+  - printed_page_number: "26ページ"
 
 ## 重要なルール
 - **実際に作業を伴う項目のみ**を抽出（「読む」「確認を怠らない」は対象外）

@@ -56,6 +56,8 @@ export default function Home() {
         interval_value: selectedItem.interval_value,
         last_done_at: selectedItem.last_done_at,
         next_due_at: selectedItem.next_due_at,
+        pdf_page_number: selectedItem.pdf_page_number,
+        printed_page_number: selectedItem.printed_page_number,
         source_page: selectedItem.source_page,
         importance: selectedItem.importance,
         created_at: "",

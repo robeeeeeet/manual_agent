@@ -471,14 +471,25 @@ class MaintenanceItem(BaseModel):
     frequency: str = Field(
         ..., description="Maintenance frequency (e.g., '週1回', '月1回')"
     )
-    frequency_days: int = Field(..., ge=1, description="Frequency in days")
+    frequency_days: int = Field(
+        ..., ge=0, description="Frequency in days (0 for manual)"
+    )
     category: Literal["cleaning", "inspection", "replacement", "safety"] = Field(
         ..., description="Item category"
     )
     importance: Literal["high", "medium", "low"] = Field(
         ..., description="Importance level"
     )
-    page_reference: str | None = Field(None, description="Reference page in manual")
+    pdf_page_number: int | None = Field(
+        None, description="PDF viewer page number (1-indexed)"
+    )
+    printed_page_number: str | None = Field(
+        None, description="Page number printed in the manual"
+    )
+    # Deprecated: kept for backward compatibility
+    page_reference: str | None = Field(
+        None, description="[Deprecated] Use pdf_page_number instead"
+    )
 
 
 class MaintenanceExtractionRequest(BaseModel):
@@ -582,7 +593,15 @@ class MaintenanceWithAppliance(BaseModel):
         ..., description="Interval type"
     )
     interval_value: int | None = Field(None, description="Interval value")
-    source_page: str | None = Field(None, description="Reference page in manual")
+    pdf_page_number: int | None = Field(
+        None, description="PDF viewer page number (1-indexed)"
+    )
+    printed_page_number: str | None = Field(
+        None, description="Page number printed in the manual"
+    )
+    source_page: str | None = Field(
+        None, description="[Deprecated] Reference page in manual"
+    )
     appliance_id: UUID = Field(..., description="User appliance ID")
     appliance_name: str = Field(..., description="User's appliance name")
     maker: str = Field(..., description="Manufacturer name")
@@ -595,6 +614,9 @@ class MaintenanceWithAppliance(BaseModel):
         None, description="Days until due (negative if overdue, null for manual)"
     )
     is_archived: bool = Field(False, description="Whether this schedule is archived")
+    stored_pdf_path: str | None = Field(
+        None, description="Stored PDF path in Supabase Storage"
+    )
 
 
 class MaintenanceCounts(BaseModel):

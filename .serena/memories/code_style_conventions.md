@@ -55,20 +55,23 @@ async def endpoint_name(request: RequestSchema):
   - `reset-password/` - パスワードリセットページ
   - `register/` - 家電登録ページ
   - `appliances/` - 家電一覧ページ
+    - `[id]/` - 家電詳細ページ（動的ルート）
   - `maintenance/` - メンテナンス一覧ページ
   - `groups/` - グループ管理ページ
+    - `[id]/` - グループ詳細ページ（動的ルート）
   - `mypage/` - マイページ
   - `help/` - 使い方ガイドページ
 - `src/components/` - Reactコンポーネント
   - `auth/` - 認証関連（AuthForm）
   - `layout/` - レイアウトコンポーネント（Header, Footer）
   - `ui/` - 汎用UIコンポーネント（Button, Card, Modal, SafeHtml, FeatureCard）
-  - `appliances/` - 家電関連コンポーネント
+  - `appliance/` - 家電関連コンポーネント（ShareButton）
   - `maintenance/` - メンテナンス関連（MaintenanceCompleteModal, MaintenanceStatusTabs, MaintenanceFilter, MaintenanceListItem）
   - `notification/` - 通知関連（NotificationPermission, NotificationPermissionModal, NotificationOnboarding）
   - `qa/` - QA機能関連（QASection, QAChat, QAChatMessage, QAFeedbackButtons, SearchProgressIndicator, QASessionHistory）
   - `tier/` - ティア関連（UsageBar, TierLimitModal）
-- `src/types/` - 型定義（appliance.ts）
+- `src/types/` - 型定義（appliance.ts, user.ts, qa.ts, group.ts）
+- `src/hooks/` - カスタムフック（usePushNotification, useDeviceContext, useAppliances, useMaintenance）
 - `src/contexts/` - React Context（AuthContext）
 - `src/lib/` - ユーティリティ
   - `supabase/` - Supabaseクライアント（client, server, middleware）

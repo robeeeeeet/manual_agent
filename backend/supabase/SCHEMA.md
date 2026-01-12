@@ -48,7 +48,8 @@
 │  │ description                    │   │ interval_value                 │    │
 │  │ recommended_interval_type      │   │ next_due_at                    │    │
 │  │ recommended_interval_value     │   │ last_done_at                   │    │
-│  │ source_page                    │   └────────────────────────────────┘    │
+│  │ pdf_page_number                │   └────────────────────────────────┘    │
+│  │ printed_page_number            │            │                            │
 │  │ importance                     │            │                            │
 │  │ extracted_at                   │            │                            │
 │  └─────────────────────────────────┘            │                            │
@@ -217,7 +218,8 @@
 | `description` | TEXT | NULL | - | タスクの詳細説明（HTML形式） |
 | `recommended_interval_type` | TEXT | NOT NULL | - | 推奨周期タイプ: 'days', 'months', 'manual' |
 | `recommended_interval_value` | INTEGER | NULL | - | 推奨周期の値（manual の場合は null） |
-| `source_page` | TEXT | NULL | - | 根拠ページ番号 |
+| `pdf_page_number` | INTEGER | NULL | - | PDFビューアで表示されるページ番号（1始まり） |
+| `printed_page_number` | TEXT | NULL | - | 説明書に印刷されているページ番号 |
 | `importance` | TEXT | NOT NULL | 'medium' | 'high', 'medium', 'low' |
 | `extracted_at` | TIMESTAMPTZ | NOT NULL | NOW() | LLMで抽出した日時 |
 | `created_at` | TIMESTAMPTZ | NOT NULL | NOW() | 作成日時 |
@@ -266,7 +268,7 @@
 **RLS**: 自分の家電のメンテナンスのみ参照・更新・削除可能
 
 **設計メモ**:
-- `task_name`, `description`, `source_page`, `importance` は `shared_maintenance_items` から JOIN で取得
+- `task_name`, `description`, `pdf_page_number`, `printed_page_number`, `importance` は `shared_maintenance_items` から JOIN で取得
 - `interval_type`, `interval_value` はユーザーがカスタマイズ可能（推奨周期と異なる周期を設定可能）
 - 共有項目: `shared_item_id` → `shared_maintenance_items`（`shared_appliance_id` 設定）
 - カスタム項目: `shared_item_id` → `shared_maintenance_items`（`user_appliance_id` 設定）
@@ -800,6 +802,21 @@ EXISTS (
 - ユーザーが過去のQA会話を参照・再開できるように
 - セッションタイトルをLLMで自動生成
 - 6時間の非アクティブでセッションを自動クローズ
+
+### 2026-01-12: PDFページ番号カラム分離
+
+**変更内容**:
+- `shared_maintenance_items` の `source_page` カラムを削除
+- 新規カラム追加:
+  - `pdf_page_number` (INTEGER): PDFビューアで表示されるページ番号（1始まり）
+  - `printed_page_number` (TEXT): 説明書に印刷されているページ番号
+- 既存データを Gemini API で解析してマイグレーション
+
+**設計意図**:
+- 見開き2ページ/シートのPDFでは、印刷ページ番号とPDFページ番号が異なる
+- `pdf_page_number` でPDFを正確なページで開けるようにする
+- `printed_page_number` でユーザーが説明書を参照しやすいようにする
+- 例: 残さいフィルターのお手入れ → PDF: 14ページ / 説明書: 26ページ
 
 ### 2026-01-11: メンテナンステーブル正規化
 

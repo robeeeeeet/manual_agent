@@ -42,7 +42,9 @@ export default function Modal({
       className={`fixed inset-0 z-50 ${
         variant === "fullscreen"
           ? ""
-          : "flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          : variant === "dialog"
+            ? "flex items-center justify-center px-4 pt-4 pb-20 bg-black/50 backdrop-blur-sm"
+            : "flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
       }`}
       onClick={variant === "fullscreen" ? undefined : onClose}
     >

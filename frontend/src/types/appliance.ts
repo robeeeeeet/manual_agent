@@ -164,6 +164,9 @@ export interface SharedMaintenanceItem {
   description: string | null;
   recommended_interval_type: "days" | "months" | "manual";
   recommended_interval_value: number | null;
+  pdf_page_number: number | null;
+  printed_page_number: string | null;
+  /** @deprecated Use pdf_page_number instead */
   source_page: string | null;
   importance: "high" | "medium" | "low";
   extracted_at: string;
@@ -196,6 +199,9 @@ export interface MaintenanceSchedule {
   interval_value: number | null;
   last_done_at: string | null;
   next_due_at: string | null;
+  pdf_page_number: number | null;
+  printed_page_number: string | null;
+  /** @deprecated Use pdf_page_number instead */
   source_page: string | null;
   importance: "high" | "medium" | "low";
   created_at: string;
@@ -255,6 +261,9 @@ export interface MaintenanceWithAppliance {
   importance: "high" | "medium" | "low";
   interval_type: "days" | "months" | "manual";
   interval_value: number | null;
+  pdf_page_number: number | null;
+  printed_page_number: string | null;
+  /** @deprecated Use pdf_page_number instead */
   source_page: string | null;
   appliance_id: string;
   appliance_name: string;
@@ -264,6 +273,8 @@ export interface MaintenanceWithAppliance {
   status: MaintenanceStatus;
   days_until_due: number | null;
   is_archived: boolean;
+  /** stored_pdf_path for PDF link feature */
+  stored_pdf_path?: string | null;
 }
 
 export interface MaintenanceCounts {

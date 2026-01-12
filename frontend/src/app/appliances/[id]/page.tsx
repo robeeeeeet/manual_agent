@@ -151,6 +151,8 @@ export default function ApplianceDetailPage({
               interval_value: item.interval_value,
               last_done_at: item.last_done_at,
               next_due_at: item.next_due_at,
+              pdf_page_number: item.pdf_page_number,
+              printed_page_number: item.printed_page_number,
               source_page: item.source_page,
               importance: item.importance,
               created_at: "",
@@ -226,6 +228,8 @@ export default function ApplianceDetailPage({
             interval_value: item.interval_value,
             last_done_at: item.last_done_at,
             next_due_at: item.next_due_at,
+            pdf_page_number: item.pdf_page_number,
+            printed_page_number: item.printed_page_number,
             source_page: item.source_page,
             importance: item.importance,
             created_at: "",
@@ -352,11 +356,14 @@ export default function ApplianceDetailPage({
   };
 
   // Handle opening PDF with signed URL
-  const handleOpenPdf = async () => {
+  const handleOpenPdf = async (pageNumber?: number) => {
     if (!appliance?.stored_pdf_path) {
       // If no stored PDF, use manual_source_url
       if (appliance?.manual_source_url) {
-        window.open(appliance.manual_source_url, "_blank");
+        const url = pageNumber
+          ? `${appliance.manual_source_url}#page=${pageNumber}`
+          : appliance.manual_source_url;
+        window.open(url, "_blank");
       }
       return;
     }
@@ -369,13 +376,20 @@ export default function ApplianceDetailPage({
       }
       const data = await response.json();
       if (data.signed_url) {
-        window.open(data.signed_url, "_blank");
+        // Append #page=N to open at specific page
+        const url = pageNumber
+          ? `${data.signed_url}#page=${pageNumber}`
+          : data.signed_url;
+        window.open(url, "_blank");
       }
     } catch (err) {
       console.error("Failed to get signed URL:", err);
       // Fallback to manual_source_url if available
       if (appliance?.manual_source_url) {
-        window.open(appliance.manual_source_url, "_blank");
+        const url = pageNumber
+          ? `${appliance.manual_source_url}#page=${pageNumber}`
+          : appliance.manual_source_url;
+        window.open(url, "_blank");
       } else {
         setError("PDFを開けませんでした");
       }
@@ -621,7 +635,7 @@ export default function ApplianceDetailPage({
                     <span className="font-medium text-gray-900">説明書PDF</span>
                   </div>
                   <button
-                    onClick={handleOpenPdf}
+                    onClick={() => handleOpenPdf()}
                     disabled={isLoadingPdf}
                     className="text-[#007AFF] hover:text-[#0066DD] font-medium flex items-center gap-1 disabled:opacity-50"
                   >
@@ -1013,7 +1027,7 @@ export default function ApplianceDetailPage({
         }}
         variant="dialog"
       >
-        <div className="p-6">
+        <div className="p-6 max-h-[calc(100vh-96px)] flex flex-col">
           {/* Close button */}
           <button
             onClick={() => {
@@ -1030,11 +1044,13 @@ export default function ApplianceDetailPage({
 
           {selectedSchedule && (
             <>
-              {/* Header */}
-              <h3 className="text-lg font-bold text-gray-900 mb-4 pr-8">
+              {/* Fixed Header - always visible */}
+              <h3 className="text-lg font-bold text-gray-900 mb-4 pr-8 flex-shrink-0">
                 {selectedSchedule.task_name}
               </h3>
 
+              {/* Scrollable Content */}
+              <div className="overflow-y-auto flex-1 min-h-0">
               {/* Description */}
               {selectedSchedule.description && (
                 <div className="mb-4">
@@ -1046,12 +1062,12 @@ export default function ApplianceDetailPage({
               )}
 
               {/* Meta info grid */}
-              <div className="grid grid-cols-3 gap-4 mb-4 py-4 border-y border-gray-100">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 py-4 border-y border-gray-100">
                 <div>
                   <h4 className="text-xs font-medium text-gray-500 mb-1">
                     周期
                   </h4>
-                  <p className="text-sm text-gray-900">
+                  <p className="text-sm text-gray-900 whitespace-nowrap">
                     {selectedSchedule.interval_type === "days"
                       ? `${selectedSchedule.interval_value}日ごと`
                       : selectedSchedule.interval_type === "months"
@@ -1064,21 +1080,56 @@ export default function ApplianceDetailPage({
                     重要度
                   </h4>
                   <span
-                    className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${
+                    className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${
                       importanceConfig[selectedSchedule.importance].bg
                     } ${importanceConfig[selectedSchedule.importance].text}`}
                   >
                     {importanceConfig[selectedSchedule.importance].label}
                   </span>
                 </div>
-                {selectedSchedule.source_page && (
-                  <div>
+                {(selectedSchedule.pdf_page_number ||
+                  selectedSchedule.printed_page_number ||
+                  selectedSchedule.source_page) && (
+                  <div className="col-span-2 sm:col-span-1 pt-3 sm:pt-0 border-t sm:border-t-0 border-gray-100">
                     <h4 className="text-xs font-medium text-gray-500 mb-1">
                       参照ページ
                     </h4>
-                    <p className="text-sm text-gray-900">
-                      {selectedSchedule.source_page}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:flex-col sm:items-start sm:gap-1">
+                      {selectedSchedule.pdf_page_number && appliance?.stored_pdf_path && (
+                        <button
+                          onClick={() =>
+                            handleOpenPdf(selectedSchedule.pdf_page_number!)
+                          }
+                          disabled={isLoadingPdf}
+                          className="text-sm text-[#007AFF] hover:text-[#0066DD] hover:underline disabled:opacity-50 inline-flex items-center gap-1 whitespace-nowrap"
+                        >
+                          <span>PDF {selectedSchedule.pdf_page_number}ページ</span>
+                          <svg
+                            className="w-3.5 h-3.5 flex-shrink-0"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                      {(selectedSchedule.printed_page_number || selectedSchedule.source_page) && (
+                        <p className="text-sm text-gray-600 whitespace-nowrap">
+                          説明書 {selectedSchedule.printed_page_number || selectedSchedule.source_page}ページ
+                        </p>
+                      )}
+                      {selectedSchedule.pdf_page_number && !appliance?.stored_pdf_path && !selectedSchedule.printed_page_number && (
+                        <p className="text-sm text-gray-900 whitespace-nowrap">
+                          PDF {selectedSchedule.pdf_page_number}ページ
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1132,6 +1183,7 @@ export default function ApplianceDetailPage({
                   完了する
                 </button>
               </div>
+              </div>{/* End Scrollable Content */}
             </>
           )}
         </div>
