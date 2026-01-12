@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Modal from "@/components/ui/Modal";
 import { isHeicFile, convertHeicToJpeg } from "@/lib/heicConverter";
+import { compressImageForUpload } from "@/lib/imageCompressor";
 import { useAuth } from "@/contexts/AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { SafeHtml } from "@/components/ui/SafeHtml";
@@ -197,8 +198,22 @@ export default function RegisterPage() {
     setLabelGuide(null); // Reset label guide
 
     try {
+      // Compress image before upload to avoid Vercel's 4.5MB limit
+      console.log("[DEBUG] Compressing image before upload...");
+      const compressionResult = await compressImageForUpload(imageFile);
+
+      if (!compressionResult.success || !compressionResult.file) {
+        alert(`画像の圧縮に失敗しました: ${compressionResult.error}`);
+        setIsAnalyzing(false);
+        return;
+      }
+
+      console.log(
+        `[DEBUG] Image compressed: ${(compressionResult.originalSize / 1024 / 1024).toFixed(2)}MB -> ${(compressionResult.compressedSize! / 1024 / 1024).toFixed(2)}MB`
+      );
+
       const formDataToSend = new FormData();
-      formDataToSend.append("image", imageFile);
+      formDataToSend.append("image", compressionResult.file);
       formDataToSend.append("categories", JSON.stringify(categories));
 
       const response = await fetch("/api/appliances/recognize", {
