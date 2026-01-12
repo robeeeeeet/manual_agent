@@ -6,7 +6,7 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
-  variant?: "lightbox" | "dialog";
+  variant?: "lightbox" | "dialog" | "fullscreen";
 }
 
 export default function Modal({
@@ -39,14 +39,20 @@ export default function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-      onClick={onClose}
+      className={`fixed inset-0 z-50 ${
+        variant === "fullscreen"
+          ? ""
+          : "flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      }`}
+      onClick={variant === "fullscreen" ? undefined : onClose}
     >
       <div
         className={`relative ${
           variant === "dialog"
             ? "bg-white rounded-xl shadow-2xl max-w-md w-full"
-            : "max-w-7xl max-h-full"
+            : variant === "fullscreen"
+              ? "w-full h-full bg-white"
+              : "max-w-7xl max-h-full"
         }`}
         onClick={(e) => e.stopPropagation()}
       >

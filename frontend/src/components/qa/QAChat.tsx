@@ -106,6 +106,7 @@ export function QAChat({
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(sessionId);
   const [tierLimitError, setTierLimitError] = useState<TierLimitError | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // 初期メッセージ
   useEffect(() => {
@@ -128,6 +129,11 @@ export function QAChat({
     setCurrentSessionId(sessionId);
   }, [sessionId]);
 
+  // メッセージが追加されたら自動スクロール
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -143,6 +149,9 @@ export function QAChat({
     setInput('');
     setIsLoading(true);
     setSearchProgress(null);
+
+    // 入力欄からフォーカスを外す（iOS: ソフトウェアキーボードが閉じて回答が見えるようになる）
+    inputRef.current?.blur();
 
     try {
       const response = await fetch(`/api/qa/${sharedApplianceId}/ask-stream`, {
@@ -366,6 +375,7 @@ QA機能をご利用いただくには、ログインが必要です。
       <form onSubmit={handleSubmit} className="p-2 sm:p-4 border-t border-gray-200">
         <div className="flex gap-1.5 sm:gap-2">
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}

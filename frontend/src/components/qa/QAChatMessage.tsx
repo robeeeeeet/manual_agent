@@ -3,7 +3,7 @@ import { QAFeedbackButtons } from './QAFeedbackButtons';
 
 interface QAChatMessageProps {
   message: ChatMessage;
-  onFeedback: (messageId: string, isHelpful: boolean) => void;
+  onFeedback: (messageId: string, isHelpful: boolean) => Promise<void>;
 }
 
 export function QAChatMessage({ message, onFeedback }: QAChatMessageProps) {
