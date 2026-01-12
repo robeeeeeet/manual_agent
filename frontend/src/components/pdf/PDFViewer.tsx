@@ -106,91 +106,125 @@ export function PDFViewer({
   };
 
   // 2点間の距離を計算（ピンチズーム用）
-  const getDistance = (touches: React.TouchList): number => {
+  const getDistance = useCallback((touches: TouchList): number => {
     if (touches.length < 2) return 0;
     const dx = touches[0].clientX - touches[1].clientX;
     const dy = touches[0].clientY - touches[1].clientY;
     return Math.sqrt(dx * dx + dy * dy);
-  };
-
-  // タッチ開始
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touches = e.touches;
-    const state = touchStateRef.current;
-
-    if (touches.length === 1) {
-      // シングルタッチ：スワイプ/タップ用
-      state.startX = touches[0].clientX;
-      state.startY = touches[0].clientY;
-      state.startTime = Date.now();
-      state.initialPinchDistance = null;
-    } else if (touches.length === 2) {
-      // ダブルタッチ：ピンチズーム用
-      state.initialPinchDistance = getDistance(touches);
-      state.initialScale = scale;
-    }
-  }, [scale]);
-
-  // タッチ移動（ピンチズーム処理）
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const touches = e.touches;
-    const state = touchStateRef.current;
-
-    if (touches.length === 2 && state.initialPinchDistance !== null) {
-      // ピンチズーム
-      const currentDistance = getDistance(touches);
-      const scaleChange = currentDistance / state.initialPinchDistance;
-      const newScale = Math.min(Math.max(state.initialScale * scaleChange, 0.5), 3.0);
-      setScale(newScale);
-    }
   }, []);
 
-  // タッチ終了（スワイプ/タップ判定）
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    const state = touchStateRef.current;
+  // タッチジェスチャーの状態を保持するref（useEffect内で最新値を参照するため）
+  const scaleRef = useRef(scale);
+  const numPagesRef = useRef(numPages);
+  const pageNumberRef = useRef(pageNumber);
 
-    // ピンチ中だった場合はリセットして終了
-    if (state.initialPinchDistance !== null) {
-      state.initialPinchDistance = null;
-      return;
-    }
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
 
-    const touch = e.changedTouches[0];
-    const deltaX = touch.clientX - state.startX;
-    const deltaY = touch.clientY - state.startY;
-    const deltaTime = Date.now() - state.startTime;
-    const absDeltaX = Math.abs(deltaX);
-    const absDeltaY = Math.abs(deltaY);
+  useEffect(() => {
+    numPagesRef.current = numPages;
+  }, [numPages]);
 
-    // スワイプ判定（水平方向に50px以上、300ms以内、縦より横の移動が大きい）
-    if (absDeltaX > 50 && deltaTime < 300 && absDeltaX > absDeltaY) {
-      if (deltaX > 0) {
-        // 右スワイプ → 前のページ
-        goToPrevPage();
-      } else {
-        // 左スワイプ → 次のページ
-        goToNextPage();
+  useEffect(() => {
+    pageNumberRef.current = pageNumber;
+  }, [pageNumber]);
+
+  // ネイティブタッチイベントリスナー（passive: false でブラウザズームを防止）
+  useEffect(() => {
+    if (!fullScreen || !pdfAreaRef.current) return;
+
+    const element = pdfAreaRef.current;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      const touches = e.touches;
+      const state = touchStateRef.current;
+
+      if (touches.length === 1) {
+        // シングルタッチ：スワイプ/タップ用
+        state.startX = touches[0].clientX;
+        state.startY = touches[0].clientY;
+        state.startTime = Date.now();
+        state.initialPinchDistance = null;
+      } else if (touches.length === 2) {
+        // ダブルタッチ：ピンチズーム用 - ブラウザのズームを防止
+        e.preventDefault();
+        state.initialPinchDistance = getDistance(touches);
+        state.initialScale = scaleRef.current;
       }
-      return;
-    }
+    };
 
-    // タップ判定（移動距離10px以内、300ms以内）
-    if (absDeltaX < 10 && absDeltaY < 10 && deltaTime < 300) {
-      const rect = pdfAreaRef.current?.getBoundingClientRect();
-      if (!rect) return;
+    const handleTouchMove = (e: TouchEvent) => {
+      const touches = e.touches;
+      const state = touchStateRef.current;
 
-      const tapX = touch.clientX - rect.left;
-      const tapZoneWidth = rect.width / 3;
-
-      // 左1/3タップ → 前のページ、右1/3タップ → 次のページ
-      if (tapX < tapZoneWidth) {
-        goToPrevPage();
-      } else if (tapX > rect.width - tapZoneWidth) {
-        goToNextPage();
+      if (touches.length === 2 && state.initialPinchDistance !== null) {
+        // ピンチズーム - ブラウザのズームを防止
+        e.preventDefault();
+        const currentDistance = getDistance(touches);
+        const scaleChange = currentDistance / state.initialPinchDistance;
+        const newScale = Math.min(Math.max(state.initialScale * scaleChange, 0.5), 3.0);
+        setScale(newScale);
       }
-      // 中央1/3タップは何もしない（将来的にUIトグル等に使用可能）
-    }
-  }, [goToNextPage, goToPrevPage]);
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      const state = touchStateRef.current;
+
+      // ピンチ中だった場合はリセットして終了
+      if (state.initialPinchDistance !== null) {
+        state.initialPinchDistance = null;
+        return;
+      }
+
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - state.startX;
+      const deltaY = touch.clientY - state.startY;
+      const deltaTime = Date.now() - state.startTime;
+      const absDeltaX = Math.abs(deltaX);
+      const absDeltaY = Math.abs(deltaY);
+
+      // スワイプ判定（水平方向に50px以上、300ms以内、縦より横の移動が大きい）
+      if (absDeltaX > 50 && deltaTime < 300 && absDeltaX > absDeltaY) {
+        if (deltaX > 0) {
+          // 右スワイプ → 前のページ
+          setPageNumber((prev) => Math.max(prev - 1, 1));
+        } else {
+          // 左スワイプ → 次のページ
+          setPageNumber((prev) => Math.min(prev + 1, numPagesRef.current || prev));
+        }
+        return;
+      }
+
+      // タップ判定（移動距離10px以内、300ms以内）
+      if (absDeltaX < 10 && absDeltaY < 10 && deltaTime < 300) {
+        const rect = pdfAreaRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const tapX = touch.clientX - rect.left;
+        const tapZoneWidth = rect.width / 3;
+
+        // 左1/3タップ → 前のページ、右1/3タップ → 次のページ
+        if (tapX < tapZoneWidth) {
+          setPageNumber((prev) => Math.max(prev - 1, 1));
+        } else if (tapX > rect.width - tapZoneWidth) {
+          setPageNumber((prev) => Math.min(prev + 1, numPagesRef.current || prev));
+        }
+        // 中央1/3タップは何もしない（将来的にUIトグル等に使用可能）
+      }
+    };
+
+    // passive: false でイベントリスナーを登録（e.preventDefault()を有効にするため）
+    element.addEventListener("touchstart", handleTouchStart, { passive: false });
+    element.addEventListener("touchmove", handleTouchMove, { passive: false });
+    element.addEventListener("touchend", handleTouchEnd, { passive: true });
+
+    return () => {
+      element.removeEventListener("touchstart", handleTouchStart);
+      element.removeEventListener("touchmove", handleTouchMove);
+      element.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [fullScreen, getDistance]);
 
   // フルスクリーン時のコンテナスタイル
   const containerClass = fullScreen
@@ -348,11 +382,8 @@ export function PDFViewer({
       <div
         ref={pdfAreaRef}
         className={`flex-1 overflow-auto ${
-          fullScreen ? "bg-gray-800" : "border border-gray-200 rounded-b-lg bg-gray-50"
+          fullScreen ? "bg-gray-800 touch-none" : "border border-gray-200 rounded-b-lg bg-gray-50"
         }`}
-        onTouchStart={fullScreen ? handleTouchStart : undefined}
-        onTouchMove={fullScreen ? handleTouchMove : undefined}
-        onTouchEnd={fullScreen ? handleTouchEnd : undefined}
       >
         {loading && (
           <div className="flex items-center justify-center h-64">
