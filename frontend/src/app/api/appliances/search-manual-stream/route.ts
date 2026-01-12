@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
+// Extend timeout for manual search (can take 30+ seconds with retries)
+export const maxDuration = 60;
+
 interface ExistingPdfCheckResponse {
   found: boolean;
   storage_path?: string | null;

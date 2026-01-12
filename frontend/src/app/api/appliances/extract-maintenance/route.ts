@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
+// Extend timeout for maintenance extraction (LLM processing can take 30+ seconds)
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get("content-type") || "";

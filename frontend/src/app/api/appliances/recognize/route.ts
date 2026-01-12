@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
+// Extend timeout for image recognition (Gemini API can take 10+ seconds)
+// Vercel Pro: max 60s, Vercel Hobby: max 10s (this won't help on Hobby)
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
