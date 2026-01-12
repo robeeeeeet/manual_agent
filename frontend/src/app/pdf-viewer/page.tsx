@@ -35,6 +35,7 @@ function PDFViewerContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [applianceName, setApplianceName] = useState<string>("");
+  const [isPdfEncrypted, setIsPdfEncrypted] = useState(false);
 
   // PDF読み込みエラー時のフォールバックモーダル
   const [showFallbackModal, setShowFallbackModal] = useState(false);
@@ -65,6 +66,10 @@ function PDFViewerContent() {
         }
         const applianceData = await applianceResponse.json();
         setApplianceName(applianceData.name || "");
+
+        // Check if PDF is encrypted (cannot be displayed in react-pdf)
+        const pdfEncrypted = applianceData.is_pdf_encrypted === true;
+        setIsPdfEncrypted(pdfEncrypted);
 
         if (!applianceData.stored_pdf_path) {
           throw new Error("この家電には説明書PDFが登録されていません");
@@ -169,7 +174,59 @@ function PDFViewerContent() {
     );
   }
 
-  // Show PDF Viewer with fallback modal
+  // If PDF is encrypted, show fallback modal directly (don't try to load in react-pdf)
+  if (isPdfEncrypted) {
+    return (
+      <div className="fixed inset-0 z-50 bg-gray-900 flex items-center justify-center">
+        <Modal
+          isOpen={true}
+          onClose={handleCancelFallback}
+          variant="dialog"
+        >
+          <div className="p-6">
+            <div className="w-14 h-14 bg-[#FF9500]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-7 h-7 text-[#FF9500]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+
+            <h3 className="text-lg font-bold text-gray-900 text-center mb-3">
+              保護されたPDF
+            </h3>
+
+            <p className="text-gray-600 text-sm text-center mb-6">
+              このPDFはセキュリティ保護されているため、
+              <br />
+              アプリ内での表示に対応していません。
+              <br />
+              ブラウザで開きますか？
+              <br />
+              <span className="text-gray-400 text-xs">
+                ※ ページ指定での表示はできません
+              </span>
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancelFallback}
+                className="flex-1 py-2.5 text-[#007AFF] font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                いいえ
+              </button>
+              <button
+                onClick={handleOpenInBrowser}
+                className="flex-1 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors"
+              >
+                はい
+              </button>
+            </div>
+          </div>
+        </Modal>
+      </div>
+    );
+  }
+
+  // Show PDF Viewer with fallback modal (for non-encrypted PDFs)
   return (
     <>
       <PDFViewer
@@ -180,7 +237,7 @@ function PDFViewerContent() {
         onLoadError={handlePdfLoadError}
       />
 
-      {/* PDF読み込みエラー時のフォールバックモーダル */}
+      {/* PDF読み込みエラー時のフォールバックモーダル（暗号化以外のエラー用） */}
       <Modal
         isOpen={showFallbackModal}
         onClose={handleCancelFallback}

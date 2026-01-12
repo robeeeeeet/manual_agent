@@ -22,6 +22,10 @@ class SharedApplianceBase(BaseModel):
     stored_pdf_path: str | None = Field(
         None, description="Path to stored PDF in Supabase Storage"
     )
+    is_pdf_encrypted: bool = Field(
+        False,
+        description="True if PDF is encrypted and cannot be displayed in react-pdf",
+    )
 
 
 class SharedApplianceCreate(SharedApplianceBase):
@@ -109,6 +113,10 @@ class UserApplianceWithDetails(UserAppliance):
     category: str = Field(..., description="Product category")
     manual_source_url: str | None = Field(None, description="Manual source URL")
     stored_pdf_path: str | None = Field(None, description="Stored PDF path")
+    is_pdf_encrypted: bool = Field(
+        False,
+        description="True if PDF is encrypted and cannot be displayed in react-pdf",
+    )
 
     # グループ情報（Phase 7: Family Sharing）
     group_name: str | None = Field(None, description="Group name (if group-owned)")

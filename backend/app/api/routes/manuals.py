@@ -269,6 +269,7 @@ async def confirm_manual(request: ManualConfirmRequest):
     pdf_stored = False
     storage_path = None
     storage_url = None
+    is_pdf_encrypted = False
 
     try:
         result = await save_pdf_from_url(
@@ -280,6 +281,7 @@ async def confirm_manual(request: ManualConfirmRequest):
         if result.get("success"):
             pdf_stored = True
             storage_path = result.get("storage_path")
+            is_pdf_encrypted = result.get("is_encrypted", False)
             # Get public URL for the stored PDF
             if storage_path:
                 storage_url = await get_pdf_public_url(storage_path)
@@ -296,6 +298,7 @@ async def confirm_manual(request: ManualConfirmRequest):
             category=request.category,
             manual_source_url=request.pdf_url,
             stored_pdf_path=storage_path,
+            is_pdf_encrypted=is_pdf_encrypted,
         )
         shared_appliance_id = str(shared_appliance.id)
     except Exception as e:

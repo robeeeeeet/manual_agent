@@ -69,6 +69,7 @@ async def get_or_create_shared_appliance(
     category: str,
     manual_source_url: str | None = None,
     stored_pdf_path: str | None = None,
+    is_pdf_encrypted: bool = False,
 ) -> SharedAppliance:
     """
     Get existing or create new shared appliance.
@@ -82,6 +83,7 @@ async def get_or_create_shared_appliance(
         category: Product category
         manual_source_url: Original URL of the manual PDF
         stored_pdf_path: Path to stored PDF in Supabase Storage
+        is_pdf_encrypted: True if PDF is encrypted and cannot be displayed in react-pdf
 
     Returns:
         SharedAppliance instance
@@ -114,6 +116,10 @@ async def get_or_create_shared_appliance(
         if stored_pdf_path and not existing.get("stored_pdf_path"):
             update_data["stored_pdf_path"] = stored_pdf_path
             needs_update = True
+        # Always update is_pdf_encrypted when storing a new PDF
+        if stored_pdf_path:
+            update_data["is_pdf_encrypted"] = is_pdf_encrypted
+            needs_update = True
 
         if needs_update:
             client.table("shared_appliances").update(update_data).eq(
@@ -134,6 +140,7 @@ async def get_or_create_shared_appliance(
         "maker": maker,
         "model_number": model_number,
         "category": category,
+        "is_pdf_encrypted": is_pdf_encrypted,
     }
     if manual_source_url:
         insert_data["manual_source_url"] = manual_source_url

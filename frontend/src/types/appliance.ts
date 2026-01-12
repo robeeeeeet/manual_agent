@@ -93,6 +93,7 @@ export interface SharedAppliance {
   category: string;
   manual_source_url: string | null;
   stored_pdf_path: string | null;
+  is_pdf_encrypted: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -126,6 +127,7 @@ export interface UserApplianceWithDetails extends UserAppliance {
   category: string;
   manual_source_url: string | null;
   stored_pdf_path: string | null;
+  is_pdf_encrypted: boolean;
   // Group information (Phase 7: Family Sharing)
   group_name: string | null;
   is_group_owned: boolean;

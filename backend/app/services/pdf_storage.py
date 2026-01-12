@@ -3,14 +3,18 @@ PDF Storage Service
 
 Handles downloading PDFs from URLs and storing them in Supabase Storage.
 Also provides functionality to search for existing PDFs by manufacturer and model number.
+Includes PDF decryption for encrypted PDFs (owner password only).
 """
 
 import hashlib
+import logging
 import re
 
 import httpx
 
 from app.services.supabase_client import get_supabase_client
+
+logger = logging.getLogger(__name__)
 
 # Storage bucket name for manual PDFs
 MANUALS_BUCKET = "manuals"
@@ -197,52 +201,75 @@ async def download_pdf(url: str, timeout: float = 60.0) -> bytes | None:
         return None
 
 
-async def upload_pdf_to_storage(pdf_content: bytes, storage_path: str) -> str | None:
+async def upload_pdf_to_storage(
+    pdf_content: bytes,
+    storage_path: str,
+    max_retries: int = 3,
+    retry_delay: float = 5.0,
+) -> str | None:
     """
-    Upload PDF content to Supabase Storage.
+    Upload PDF content to Supabase Storage with retry logic.
 
     Args:
         pdf_content: PDF file content as bytes
         storage_path: Path within the storage bucket
+        max_retries: Maximum number of upload attempts (default: 3)
+        retry_delay: Delay between retries in seconds (default: 5.0)
 
     Returns:
         Full storage path on success, None on failure
     """
+    import asyncio
+
     client = get_supabase_client()
     if not client:
-        print("Supabase client not available")
+        logger.error("Supabase client not available")
         return None
 
-    try:
-        print(f"Uploading PDF to storage: {storage_path} ({len(pdf_content)} bytes)")
+    file_size_mb = len(pdf_content) / (1024 * 1024)
 
-        # Upload to storage
-        # Note: upsert=True will overwrite if file exists
-        result = client.storage.from_(MANUALS_BUCKET).upload(
-            path=storage_path,
-            file=pdf_content,
-            file_options={
-                "content-type": "application/pdf",
-                "upsert": "true",  # Overwrite if exists
-            },
-        )
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info(
+                f"Uploading PDF to storage: {storage_path} "
+                f"({file_size_mb:.1f}MB, attempt {attempt}/{max_retries})"
+            )
 
-        print(f"Upload result: {result}")
+            # Upload to storage
+            # Note: upsert=True will overwrite if file exists
+            client.storage.from_(MANUALS_BUCKET).upload(
+                path=storage_path,
+                file=pdf_content,
+                file_options={
+                    "content-type": "application/pdf",
+                    "upsert": "true",  # Overwrite if exists
+                },
+            )
 
-        # Return the storage path (not URL, as we'll generate signed URLs when needed)
-        return storage_path
+            logger.info(f"Upload successful: {storage_path}")
+            return storage_path
 
-    except Exception as e:
-        import traceback
+        except Exception as e:
+            error_msg = str(e)
+            logger.warning(f"Upload attempt {attempt} failed: {error_msg[:100]}")
 
-        print(f"Error uploading PDF to storage: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
-        return None
+            if attempt < max_retries:
+                logger.info(f"Retrying in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+            else:
+                logger.error(
+                    f"Upload failed after {max_retries} attempts: {storage_path}"
+                )
+                return None
+
+    return None
 
 
 async def save_pdf_from_url(manufacturer: str, model_number: str, pdf_url: str) -> dict:
     """
     Download a PDF from URL and save it to Supabase Storage.
+    If the PDF is encrypted with owner password, decrypt it before saving.
+    If encrypted with user password (cannot decrypt), save as-is and flag it.
 
     Args:
         manufacturer: Manufacturer name
@@ -253,35 +280,58 @@ async def save_pdf_from_url(manufacturer: str, model_number: str, pdf_url: str) 
         Dict with:
             - success: bool
             - storage_path: str (if successful)
+            - is_encrypted: bool (True if still encrypted after decryption attempt)
             - error: str (if failed)
     """
-    print(
+    # Import here to avoid circular import at module load time
+    from app.services.pdf_decryption import decrypt_pdf
+
+    logger.info(
         f"save_pdf_from_url called: manufacturer={manufacturer}, model={model_number}"
     )
-    print(f"PDF URL: {pdf_url}")
+    logger.info(f"PDF URL: {pdf_url}")
 
     # Generate storage path
     storage_path = generate_storage_path(manufacturer, model_number)
-    print(f"Storage path: {storage_path}")
+    logger.info(f"Storage path: {storage_path}")
 
     # Download PDF
-    print("Downloading PDF...")
+    logger.info("Downloading PDF...")
     pdf_content = await download_pdf(pdf_url)
     if not pdf_content:
-        print("PDF download failed")
+        logger.error("PDF download failed")
         return {"success": False, "error": "PDFのダウンロードに失敗しました"}
 
-    print(f"PDF downloaded successfully: {len(pdf_content)} bytes")
+    logger.info(f"PDF downloaded successfully: {len(pdf_content)} bytes")
 
-    # Upload to storage
-    print("Uploading to storage...")
+    # Attempt to decrypt PDF (handles owner password protection)
+    logger.info("Checking PDF encryption and attempting decryption...")
+    decrypted_content, was_decrypted, still_encrypted = decrypt_pdf(pdf_content)
+
+    if was_decrypted:
+        logger.info(f"PDF decrypted successfully for {manufacturer}/{model_number}")
+        pdf_content = decrypted_content
+    elif still_encrypted:
+        logger.warning(
+            f"PDF requires user password, cannot decrypt: {manufacturer}/{model_number}"
+        )
+        # Keep original content, but flag as encrypted
+    else:
+        logger.info("PDF was not encrypted")
+
+    # Upload to storage (either decrypted or original if user password required)
+    logger.info("Uploading to storage...")
     saved_path = await upload_pdf_to_storage(pdf_content, storage_path)
     if not saved_path:
-        print("Storage upload failed")
+        logger.error("Storage upload failed")
         return {"success": False, "error": "PDFの保存に失敗しました"}
 
-    print(f"PDF saved successfully to: {saved_path}")
-    return {"success": True, "storage_path": saved_path}
+    logger.info(f"PDF saved successfully to: {saved_path}")
+    return {
+        "success": True,
+        "storage_path": saved_path,
+        "is_encrypted": still_encrypted,
+    }
 
 
 async def get_pdf_public_url(storage_path: str) -> str | None:
