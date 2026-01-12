@@ -223,6 +223,54 @@ def remove_qa_entry(content: str, question: str) -> str:
     return updated
 
 
+async def delete_invalid_qa_from_storage(
+    manufacturer: str,
+    model_number: str,
+    question: str,
+) -> bool:
+    """
+    Storageから不整合QAエントリを削除.
+
+    セルフチェックで整合性NGと判断されたQAを削除する。
+
+    Args:
+        manufacturer: メーカー名
+        model_number: 型番
+        question: 削除対象の質問テキスト
+
+    Returns:
+        削除成功した場合True、失敗した場合False
+    """
+    # 1. get_qa_markdown() でマークダウン取得
+    try:
+        content = await get_qa_markdown(manufacturer, model_number)
+        if not content:
+            logger.warning(f"QA markdown not found: {manufacturer} {model_number}")
+            return False
+    except Exception as e:
+        logger.error(f"Failed to get QA markdown: {e}")
+        return False
+
+    # 2. remove_qa_entry() で該当QAを削除
+    updated_content = remove_qa_entry(content, question)
+
+    # 削除が実行されたかチェック（内容が変わっているか）
+    if updated_content == content:
+        logger.warning(f"QA entry not found in markdown: {question[:50]}...")
+        return False
+
+    # 3. save_qa_markdown() で保存
+    try:
+        await save_qa_markdown(manufacturer, model_number, updated_content)
+        logger.info(
+            f"Invalid QA entry deleted from markdown: {manufacturer} {model_number}"
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save updated QA markdown: {e}")
+        return False
+
+
 async def delete_ratings_for_question(
     shared_appliance_id: UUID,
     question_hash: str,

@@ -194,7 +194,7 @@ async def _check_llm_based(
 
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt,
         )
 

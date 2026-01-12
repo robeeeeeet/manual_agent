@@ -25,6 +25,8 @@ export function QASection({ sharedApplianceId, manufacturer, modelNumber, hasPdf
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>();
   // 初期メッセージ（過去セッション復元用）
   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
+  // チャットリセット用カウンター（新しい会話開始時にインクリメント）
+  const [chatResetKey, setChatResetKey] = useState(0);
 
   const productName = `${manufacturer} ${modelNumber}`;
 
@@ -94,6 +96,7 @@ export function QASection({ sharedApplianceId, manufacturer, modelNumber, hasPdf
 
       setCurrentSessionId(sessionId);
       setInitialMessages(messages);
+      setChatResetKey((prev) => prev + 1); // チャットコンポーネントをリセット
       setViewMode('chat');
     } catch (err) {
       console.error('Error loading session:', err);
@@ -114,12 +117,14 @@ export function QASection({ sharedApplianceId, manufacturer, modelNumber, hasPdf
 
       setCurrentSessionId(data.new_session_id || undefined);
       setInitialMessages([]);
+      setChatResetKey((prev) => prev + 1); // チャットコンポーネントをリセット
       setViewMode('chat');
     } catch (err) {
       console.error('Error creating new session:', err);
       // エラーでも新しい会話は開始できるようにする
       setCurrentSessionId(undefined);
       setInitialMessages([]);
+      setChatResetKey((prev) => prev + 1); // チャットコンポーネントをリセット
       setViewMode('chat');
     }
   };
@@ -185,11 +190,13 @@ export function QASection({ sharedApplianceId, manufacturer, modelNumber, hasPdf
 
       {viewMode === 'chat' ? (
         <QAChat
+          key={chatResetKey}
           sharedApplianceId={sharedApplianceId}
           productName={productName}
           sessionId={currentSessionId}
           initialMessages={initialMessages.length > 0 ? initialMessages : undefined}
           onSessionIdChange={setCurrentSessionId}
+          onNewConversation={handleNewConversation}
         />
       ) : (
         <QASessionHistory

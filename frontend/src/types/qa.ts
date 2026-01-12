@@ -60,12 +60,16 @@ export interface ChatMessage {
   reference?: string | null;
   timestamp: Date;
   feedbackGiven?: boolean;
+  // セルフチェック関連
+  selfCheckScore?: number; // 整合性スコア (1-5)
+  needsVerification?: boolean; // 確認が必要なフラグ
+  usedGeneralKnowledge?: boolean; // 一般知識で補完したか
 }
 
 // SSEストリーミングイベント
 export interface QAStreamEvent {
   event: 'step_start' | 'step_complete' | 'answer' | 'error';
-  step?: number;
+  step?: number; // 1, 1.5, 2, 2.5, 3, 3.5（小数点は検証ステップ）
   step_name?: string;
   answer?: string;
   source?: 'qa' | 'text_cache' | 'pdf' | 'none';
@@ -73,6 +77,11 @@ export interface QAStreamEvent {
   added_to_qa?: boolean;
   error?: string;
   session_id?: string; // 会話履歴セッションID
+  // セルフチェック関連
+  self_check_score?: number; // 整合性スコア (1-5)
+  needs_verification?: boolean; // 確認が必要なフラグ
+  deleted_invalid_qa?: boolean; // 不整合FAQを削除したか
+  used_general_knowledge?: boolean; // 一般知識で補完したか
 }
 
 // 検索ステップの進捗状態
