@@ -949,3 +949,136 @@ async def update_next_due_at(
     except Exception as e:
         logger.error(f"Error updating next_due_at: {e}")
         raise MaintenanceNotFoundError(f"Failed to update next_due_at: {e}") from e
+
+
+async def update_interval(
+    user_id: str,
+    schedule_id: str,
+    interval_type: str,
+    interval_value: int | None,
+) -> dict:
+    """
+    Update the interval settings for a maintenance schedule.
+
+    Authorization: User must have access to the appliance that the schedule belongs to.
+    This means either:
+    - User is the personal owner of the appliance, OR
+    - User is a member of the group that owns the appliance
+
+    Args:
+        user_id: User's UUID
+        schedule_id: Maintenance schedule UUID
+        interval_type: "days", "months", or "manual"
+        interval_value: Number of days/months (None for manual)
+
+    Returns:
+        dict with result: {"success": True, "schedule_id": "...", "interval_type": "...", "interval_value": ...}
+
+    Raises:
+        MaintenanceNotFoundError: If schedule not found
+        MaintenanceAccessDeniedError: If user doesn't have access
+        ValueError: If interval_type is invalid
+    """
+    # Validate interval_type
+    valid_types = {"days", "months", "manual"}
+    if interval_type not in valid_types:
+        raise ValueError(
+            f"Invalid interval_type. Valid values: {', '.join(valid_types)}"
+        )
+
+    # Validate interval_value
+    if interval_type in {"days", "months"}:
+        if interval_value is None or interval_value < 1:
+            raise ValueError(
+                f"interval_value must be a positive integer for interval_type '{interval_type}'"
+            )
+    else:  # manual
+        interval_value = None  # Force None for manual type
+
+    client = get_supabase_client()
+    if not client:
+        raise MaintenanceNotFoundError("Database not available")
+
+    try:
+        # 1. Get the schedule and its associated appliance
+        schedule_result = (
+            client.table("maintenance_schedules")
+            .select("id, user_appliance_id")
+            .eq("id", schedule_id)
+            .execute()
+        )
+
+        if not schedule_result.data:
+            raise MaintenanceNotFoundError(
+                f"Maintenance schedule {schedule_id} not found"
+            )
+
+        schedule = schedule_result.data[0]
+        user_appliance_id = schedule["user_appliance_id"]
+
+        # 2. Get the appliance to check ownership
+        appliance_result = (
+            client.table("user_appliances")
+            .select("id, user_id, group_id")
+            .eq("id", user_appliance_id)
+            .execute()
+        )
+
+        if not appliance_result.data:
+            raise MaintenanceNotFoundError("Associated appliance not found")
+
+        appliance = appliance_result.data[0]
+
+        # 3. Check access
+        has_access = False
+
+        # Check personal ownership
+        if appliance.get("user_id") == user_id:
+            has_access = True
+
+        # Check group membership
+        if not has_access and appliance.get("group_id"):
+            membership_result = (
+                client.table("group_members")
+                .select("id")
+                .eq("group_id", appliance["group_id"])
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if membership_result.data:
+                has_access = True
+
+        if not has_access:
+            raise MaintenanceAccessDeniedError(
+                "You don't have permission to update this maintenance schedule"
+            )
+
+        # 4. Update interval settings
+        update_data = {
+            "interval_type": interval_type,
+            "interval_value": interval_value,
+        }
+        client.table("maintenance_schedules").update(update_data).eq(
+            "id", schedule_id
+        ).execute()
+
+        logger.info(
+            f"Updated interval for schedule {schedule_id} to {interval_type}/{interval_value} by user {user_id}"
+        )
+
+        return {
+            "success": True,
+            "schedule_id": schedule_id,
+            "interval_type": interval_type,
+            "interval_value": interval_value,
+        }
+
+    except MaintenanceNotFoundError:
+        raise
+    except MaintenanceAccessDeniedError:
+        raise
+    except ValueError:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating interval: {e}")
+        raise MaintenanceNotFoundError(f"Failed to update interval: {e}") from e

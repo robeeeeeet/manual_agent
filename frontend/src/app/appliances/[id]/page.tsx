@@ -125,6 +125,14 @@ export default function ApplianceDetailPage({
   const [editingNextDueAt, setEditingNextDueAt] = useState("");
   const [isSavingNextDue, setIsSavingNextDue] = useState(false);
 
+  // Interval edit modal state
+  const [showIntervalModal, setShowIntervalModal] = useState(false);
+  const [editingIntervalType, setEditingIntervalType] = useState<
+    "days" | "months" | "manual"
+  >("days");
+  const [editingIntervalValue, setEditingIntervalValue] = useState<number>(1);
+  const [isSavingInterval, setIsSavingInterval] = useState(false);
+
   // Fetch appliance details
   useEffect(() => {
     const fetchData = async () => {
@@ -328,6 +336,59 @@ export default function ApplianceDetailPage({
       );
     } finally {
       setIsSavingNextDue(false);
+    }
+  };
+
+  // Open interval edit modal
+  const openIntervalModal = () => {
+    if (!selectedSchedule) return;
+    setEditingIntervalType(selectedSchedule.interval_type || "manual");
+    setEditingIntervalValue(selectedSchedule.interval_value || 1);
+    setShowIntervalModal(true);
+  };
+
+  // Save interval settings
+  const handleSaveInterval = async () => {
+    if (!selectedSchedule) return;
+
+    setIsSavingInterval(true);
+    try {
+      const response = await fetch(
+        `/api/maintenance/${selectedSchedule.id}/interval`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            interval_type: editingIntervalType,
+            interval_value:
+              editingIntervalType === "manual" ? null : editingIntervalValue,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("メンテナンス周期の保存に失敗しました");
+      }
+
+      // Refresh schedules
+      await fetchSchedules();
+
+      // Update selected schedule
+      setSelectedSchedule({
+        ...selectedSchedule,
+        interval_type: editingIntervalType,
+        interval_value:
+          editingIntervalType === "manual" ? null : editingIntervalValue,
+      });
+
+      setShowIntervalModal(false);
+    } catch (err) {
+      console.error("Save interval error:", err);
+      setError(
+        err instanceof Error ? err.message : "メンテナンス周期の保存に失敗しました"
+      );
+    } finally {
+      setIsSavingInterval(false);
     }
   };
 
@@ -1181,9 +1242,20 @@ export default function ApplianceDetailPage({
               {/* Meta info grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 py-4 border-y border-gray-100">
                 <div>
-                  <h4 className="text-xs font-medium text-gray-500 mb-1">
-                    周期
-                  </h4>
+                  <div className="flex items-center gap-1 mb-1">
+                    <h4 className="text-xs font-medium text-gray-500">
+                      周期
+                    </h4>
+                    <button
+                      onClick={openIntervalModal}
+                      className="p-0.5 text-[#007AFF] hover:bg-[#007AFF]/10 rounded transition-colors"
+                      aria-label="メンテナンス周期を編集"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                  </div>
                   <p className="text-sm text-gray-900 whitespace-nowrap">
                     {selectedSchedule.interval_type === "days"
                       ? `${selectedSchedule.interval_value}日ごと`
@@ -1495,8 +1567,11 @@ export default function ApplianceDetailPage({
             <button
               onClick={handleSaveNextDue}
               disabled={isSavingNextDue}
-              className="flex-1 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors disabled:opacity-50"
+              className="flex-1 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
+              {isSavingNextDue && (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              )}
               {isSavingNextDue ? "保存中..." : "保存"}
             </button>
           </div>
@@ -1509,6 +1584,94 @@ export default function ApplianceDetailPage({
               予定日をクリア
             </button>
           )}
+        </div>
+      </Modal>
+
+      {/* Interval Edit Modal */}
+      <Modal
+        isOpen={showIntervalModal}
+        onClose={() => setShowIntervalModal(false)}
+        variant="dialog"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-gray-900 mb-4">
+            メンテナンス周期を編集
+          </h3>
+          <div className="space-y-4 mb-6">
+            <div>
+              <label
+                htmlFor="interval-type"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                周期タイプ
+              </label>
+              <select
+                id="interval-type"
+                value={editingIntervalType}
+                onChange={(e) =>
+                  setEditingIntervalType(
+                    e.target.value as "days" | "months" | "manual"
+                  )
+                }
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#007AFF]/50 focus:border-[#007AFF] transition-colors"
+              >
+                <option value="days">日ごと</option>
+                <option value="months">ヶ月ごと</option>
+                <option value="manual">手動</option>
+              </select>
+            </div>
+            {editingIntervalType !== "manual" && (
+              <div>
+                <label
+                  htmlFor="interval-value"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  間隔
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    id="interval-value"
+                    min="1"
+                    value={editingIntervalValue}
+                    onChange={(e) =>
+                      setEditingIntervalValue(
+                        Math.max(1, parseInt(e.target.value) || 1)
+                      )
+                    }
+                    className="w-24 px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#007AFF]/50 focus:border-[#007AFF] transition-colors"
+                  />
+                  <span className="text-sm text-gray-600">
+                    {editingIntervalType === "days" ? "日" : "ヶ月"}
+                  </span>
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-gray-500">
+              {editingIntervalType === "manual"
+                ? "手動の場合、次回予定日は自動計算されません。"
+                : "完了時に次回予定日が自動的に計算されます。"}
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowIntervalModal(false)}
+              disabled={isSavingInterval}
+              className="flex-1 py-2.5 text-[#007AFF] font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleSaveInterval}
+              disabled={isSavingInterval}
+              className="flex-1 py-2.5 bg-[#007AFF] text-white font-semibold rounded-xl hover:bg-[#0066DD] transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            >
+              {isSavingInterval && (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              )}
+              {isSavingInterval ? "保存中..." : "保存"}
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

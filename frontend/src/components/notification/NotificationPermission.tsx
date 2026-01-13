@@ -155,9 +155,16 @@ export default function NotificationPermission() {
                 <button
                   onClick={unsubscribe}
                   disabled={loading}
-                  className="text-sm text-green-700 hover:text-green-800 underline disabled:opacity-50"
+                  className="text-sm text-green-700 hover:text-green-800 underline disabled:opacity-50 inline-flex items-center gap-1"
                 >
-                  解除
+                  {loading ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></span>
+                      解除中...
+                    </>
+                  ) : (
+                    "解除"
+                  )}
                 </button>
               </div>
               {testResult && (

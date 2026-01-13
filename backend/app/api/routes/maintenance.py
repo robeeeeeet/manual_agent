@@ -19,6 +19,7 @@ from app.services.maintenance_log_service import (
     archive_maintenance_schedule,
     delete_maintenance_schedule,
     get_all_maintenance_with_details,
+    update_interval,
 )
 
 router = APIRouter(prefix="/maintenance", tags=["maintenance"])
@@ -246,6 +247,53 @@ async def update_maintenance_next_due(
     try:
         result = await update_next_due_at(user_id, schedule_id, next_due_datetime)
         return result
+    except MaintenanceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except MaintenanceAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+
+
+@router.patch("/{schedule_id}/interval")
+async def update_maintenance_interval(
+    schedule_id: str,
+    x_user_id: Annotated[str | None, Header()] = None,
+    interval_type: str | None = None,
+    interval_value: int | None = None,
+) -> dict:
+    """
+    Update the interval settings for a maintenance schedule.
+
+    Authorization: User must have access to the appliance that the schedule belongs to.
+    This means either:
+    - User is the personal owner of the appliance, OR
+    - User is a member of the group that owns the appliance
+
+    Args:
+        schedule_id: Maintenance schedule UUID
+        x_user_id: User ID from header (required)
+        interval_type: "days", "months", or "manual"
+        interval_value: Number of days/months (None for manual)
+
+    Returns:
+        dict with result: {"success": True, "schedule_id": "...", "interval_type": "...", "interval_value": ...}
+
+    Raises:
+        400: If interval_type is invalid or interval_value is missing/invalid
+        404: If schedule not found
+        403: If user doesn't have access
+    """
+    user_id = _get_user_id_from_header(x_user_id)
+
+    if not interval_type:
+        raise HTTPException(status_code=400, detail="interval_type is required")
+
+    try:
+        result = await update_interval(
+            user_id, schedule_id, interval_type, interval_value
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except MaintenanceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except MaintenanceAccessDeniedError as e:
