@@ -45,7 +45,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // 保護されたルートへの未認証アクセスをリダイレクト
-  const protectedPaths = ["/register", "/appliances", "/dashboard", "/mypage", "/maintenance"];
+  const protectedPaths = ["/register", "/appliances", "/dashboard", "/mypage", "/maintenance", "/contact"];
   const isProtectedPath =
     request.nextUrl.pathname === "/" ||
     protectedPaths.some((path) => request.nextUrl.pathname.startsWith(path));

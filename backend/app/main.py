@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
     appliances,
+    contact,  # noqa: F401 - Contact form
     cron,
     groups,
     health,
@@ -126,6 +127,10 @@ app.include_router(
 )
 app.include_router(
     tiers.router,
+    prefix=settings.api_v1_prefix,
+)
+app.include_router(
+    contact.router,
     prefix=settings.api_v1_prefix,
 )
 

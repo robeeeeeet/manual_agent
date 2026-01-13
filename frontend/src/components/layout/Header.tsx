@@ -1,19 +1,43 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import NotificationPermission from "@/components/notification/NotificationPermission";
+
+// 管理者用スプレッドシートURL
+const ADMIN_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1IImtkoAN-ugkGjW0_Fk7F9tkVIs83NwWvND18JYwuI4/edit?usp=sharing";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const isLoginPage = pathname === "/login";
+
+  // 管理者チェック（tierがadminかどうか）
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (!user) {
+        setIsAdmin(false);
+        return;
+      }
+      try {
+        const response = await fetch("/api/user/usage");
+        if (response.ok) {
+          const data = await response.json();
+          setIsAdmin(data.tier?.name === "admin");
+        }
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+    checkAdminStatus();
+  }, [user]);
 
   // キャッシュをクリアしてページを更新
   const handleClearCacheAndRefresh = async () => {
@@ -106,10 +130,8 @@ export default function Header() {
                 />
               </svg>
             </Link>
-            <a
-              href="https://forms.gle/ffkRYfvQVJkLG1xWA"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href="/contact"
               className="text-gray-600 hover:text-[#007AFF] transition-colors"
               aria-label="お問い合わせ"
             >
@@ -126,7 +148,7 @@ export default function Header() {
                   d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
                 />
               </svg>
-            </a>
+            </Link>
             {!loading && (
               <>
                 {user ? (
@@ -325,10 +347,8 @@ export default function Header() {
                 </svg>
                 使い方ガイド
               </Link>
-              <a
-                href="https://forms.gle/ffkRYfvQVJkLG1xWA"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                href="/contact"
                 className="px-4 py-3 text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-100 flex items-center gap-3"
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -336,7 +356,7 @@ export default function Header() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
                 お問い合わせ
-              </a>
+              </Link>
               {!loading && (
                 <>
                   {user ? (
@@ -361,8 +381,23 @@ export default function Header() {
                         </svg>
                         マイページ
                       </Link>
-                      {/* PDF Test Link - 特定ユーザーのみ表示 */}
-                      {user.email === "notsuka0217@gmail.com" && (
+                      {/* 管理者用スプレッドシートリンク */}
+                      {isAdmin && (
+                        <a
+                          href={ADMIN_SPREADSHEET_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-3 text-[#007AFF] hover:bg-blue-50 active:bg-blue-100 transition-colors border-b border-gray-100 flex items-center gap-3"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <svg className="w-5 h-5 text-[#007AFF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          📊 お問い合わせ一覧
+                        </a>
+                      )}
+                      {/* PDF Test Link - 一時的に非表示（将来使用予定）
+                      {isAdmin && (
                         <Link
                           href="/pdf-test"
                           className="px-4 py-3 text-purple-600 hover:bg-purple-50 active:bg-purple-100 transition-colors border-b border-gray-100 flex items-center gap-3"
@@ -374,6 +409,7 @@ export default function Header() {
                           🧪 PDF ビューア テスト
                         </Link>
                       )}
+                      */}
                       <button
                         onClick={handleSignOut}
                         className="px-4 py-3 text-left text-[#FF3B30] hover:bg-gray-50 active:bg-gray-100 transition-colors flex items-center gap-3"

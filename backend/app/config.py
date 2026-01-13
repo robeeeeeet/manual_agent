@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     qa_self_check_enabled: bool = True  # セルフチェック有効/無効
     qa_self_check_threshold: int = 3  # 許容スコア閾値 (1-5)
 
+    # Google Apps Script Webhook (Contact form)
+    gas_webhook_url: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).parent.parent.parent / ".env"),
         env_file_encoding="utf-8",
