@@ -9,6 +9,62 @@
 
 ### Added
 
+#### お問い合わせページ ✅ 完了
+
+ログインユーザーがフィードバック（機能リクエスト、バグ報告、その他）を送信できるページ。
+
+**バックエンドサービス**
+- `contact_service.py`: お問い合わせ処理サービス
+  - `upload_screenshot()` - スクリーンショットをSupabase Storageにアップロード
+  - `send_to_gas_webhook()` - Google Apps Script Webhookにデータ送信
+  - `submit_contact()` - フォーム送信処理（Storage + Webhook）
+
+**バックエンドAPI**
+- `POST /api/v1/contact` - お問い合わせ送信
+
+**フロントエンドBFF層**
+- `/api/contact` - お問い合わせ送信（POST）
+
+**フロントエンドUI**
+- `/contact` ページ: お問い合わせフォーム
+  - 種類選択（機能リクエスト / バグ報告 / その他）
+  - 関連画面選択
+  - 内容入力（5000文字制限）
+  - バグ報告時のみ: 発生手順、スクリーンショット添付
+  - HEIC画像対応（自動変換）
+  - 送信成功画面
+
+**管理機能**
+- Headerに管理者用スプレッドシートリンク追加（tierがadminのユーザーのみ表示）
+- tierベースの管理者判定（`/api/user/usage`から取得）
+
+**技術的特徴**
+- Google Apps Script Webhookで Google Sheetsに記録
+- httpx AsyncClient + `follow_redirects=True` でGASの302リダイレクト対応
+- Supabase Storage `contact-screenshots` バケットにスクリーンショット保存
+- iOS風デザイン（既存ページと統一）
+
+#### メンテナンス頻度手動編集機能 ✅ 完了
+
+メンテナンス項目の周期を手動で変更できる機能。
+
+**バックエンドAPI**
+- `PATCH /api/v1/maintenance/{schedule_id}/interval` - 周期更新
+
+**フロントエンドBFF層**
+- `/api/maintenance/[id]/interval` - 周期更新（PATCH）
+
+**フロントエンドUI**
+- 家電詳細ページ・メンテナンス詳細モーダルに周期編集セクション追加
+  - 周期タイプ選択（日ごと / ヶ月ごと / 手動）
+  - 数値入力による間隔設定
+  - 保存ボタンとローディング状態
+
+**UI/UX改善**
+- 通知解除ボタンにローディングスピナー追加
+- 次回予定日編集時のローディングスピナー追加
+- 購入日フォームの簡素化（例・選択中表示を削除）
+
 #### 購入日・次回予定日管理機能 ✅ 完了
 
 家電の購入日を記録し、メンテナンス予定日を購入日から起算できる機能。また、カレンダーUIで次回予定日を直接編集可能。

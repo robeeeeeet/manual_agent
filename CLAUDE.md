@@ -84,7 +84,8 @@ manual_agent/
 │   │   │   ├── qa/        # QA関連API（質問応答、フィードバック）
 │   │   │   ├── push/      # Push通知API（subscribe, unsubscribe等）
 │   │   │   ├── notifications/ # 通知API（reminders等）
-│   │   │   └── user/      # ユーザーAPI（me, settings, maintenance-stats）
+│   │   │   ├── user/      # ユーザーAPI（me, settings, maintenance-stats）
+│   │   │   └── contact/   # お問い合わせAPI
 │   │   ├── auth/callback/ # 認証コールバック
 │   │   ├── login/         # ログインページ
 │   │   ├── signup/        # 新規登録ページ
@@ -96,7 +97,8 @@ manual_agent/
 │   │   │   └── [id]/      # グループ詳細ページ（動的ルート）
 │   │   ├── maintenance/   # メンテナンス一覧ページ
 │   │   ├── mypage/        # マイページ（統計、設定、ログアウト）
-│   │   └── help/          # ヘルプ・使い方ガイドページ
+│   │   ├── help/          # ヘルプ・使い方ガイドページ
+│   │   └── contact/       # お問い合わせページ
 │   ├── src/components/    # UIコンポーネント
 │   │   ├── appliance/     # 家電コンポーネント（ShareButton）
 │   │   ├── auth/          # 認証関連（AuthForm）
@@ -116,7 +118,7 @@ manual_agent/
 │   └── package.json
 ├── backend/               # FastAPI アプリケーション
 │   ├── app/
-│   │   ├── api/routes/    # APIルート（appliances, manuals, maintenance, notifications, push, users, qa, cron, groups, tiers）
+│   │   ├── api/routes/    # APIルート（appliances, manuals, maintenance, notifications, push, users, qa, cron, groups, tiers, contact）
 │   │   ├── schemas/       # Pydanticスキーマ
 │   │   ├── services/      # ビジネスロジック
 │   │   │   ├── image_recognition.py     # 画像認識
@@ -141,7 +143,8 @@ manual_agent/
 │   │   │   ├── qa_abuse_service.py      # QA不正利用防止（質問検証、違反記録、利用制限）
 │   │   │   ├── qa_session_service.py    # QAセッション管理（会話履歴、タイトル生成）
 │   │   │   ├── text_cache_service.py    # PDFテキストキャッシュ
-│   │   │   └── image_conversion.py      # 画像変換（HEIC等）
+│   │   │   ├── image_conversion.py      # 画像変換（HEIC等）
+│   │   │   └── contact_service.py       # お問い合わせ（Storage、GAS Webhook）
 │   │   └── main.py
 │   ├── supabase/          # DBスキーマ・マイグレーション
 │   │   ├── SCHEMA.md      # データベーススキーマ設計書
@@ -358,6 +361,8 @@ ALLOWED_TEST_NOTIFICATION_USERS=     # テスト通知許可ユーザー（カ�
   - **モバイルレイアウト改善**: 家電詳細ページの最適化、タッチ操作改善
   - **メンテナンス頻度手動編集**: 周期タイプ（日/月/手動）と間隔値の編集、`PATCH /api/v1/maintenance/{id}/interval` API
   - **UI/UX改善**: 通知解除・次回予定日保存時のスピナー追加、購入日フォーム簡素化
+  - **お問い合わせページ**: `/contact`（GAS Webhook連携、Supabase Storageスクリーンショット保存）
+  - **管理者用スプレッドシートリンク**: Headerに追加（tierベース判定）
 
 ### 次のフェーズ
 - Phase 8: 追加機能・改善（検討中）
