@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use, useMemo } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { mutate } from "swr";
 import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/ui/Modal";
@@ -59,7 +59,6 @@ export default function ApplianceDetailPage({
   params,
 }: ApplianceDetailPageProps) {
   const { id } = use(params);
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
 
@@ -216,7 +215,7 @@ export default function ApplianceDetailPage({
 
       // SWRキャッシュを無効化して一覧を再取得させる
       await mutate("/api/appliances");
-      router.push("/appliances");
+      window.location.href = "/appliances";
     } catch (err) {
       console.error("Delete error:", err);
       setError(err instanceof Error ? err.message : "削除に失敗しました");
@@ -522,6 +521,7 @@ export default function ApplianceDetailPage({
       setShowCompleteModal(false);
       setSelectedSchedule(null);
       setCompletionNotes("");
+      window.location.reload();
     } catch (err) {
       console.error("Complete error:", err);
       setError(

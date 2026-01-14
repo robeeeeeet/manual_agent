@@ -117,6 +117,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
         setGroup({ ...group, invite_code: data.invite_code });
       }
       setShowRegenerateCodeModal(false);
+      window.location.reload();
     } catch (err) {
       console.error("Error regenerating code:", err);
       // Stay on modal but show error could be added
@@ -146,6 +147,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
       const data = await response.json();
       setGroup((prev) => (prev ? { ...prev, name: data.name } : null));
       setShowEditModal(false);
+      window.location.reload();
     } catch (err) {
       console.error("Error updating group:", err);
       alert(
@@ -243,7 +245,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
 
       setShowRemoveMemberModal(false);
       setMemberToRemove(null);
-      await fetchGroup();
+      window.location.reload();
     } catch (err) {
       console.error("Error removing member:", err);
       // Stay on modal but show error could be added

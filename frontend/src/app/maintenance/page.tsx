@@ -83,7 +83,7 @@ export default function MaintenancePage() {
   const handleCompleteSuccess = () => {
     setShowCompleteModal(false);
     setSelectedItem(null);
-    refetch();
+    window.location.reload();
   };
 
   // Open next due date modal

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import Modal from "@/components/ui/Modal";
@@ -27,7 +26,6 @@ import TierLimitModal from "@/components/tier/TierLimitModal";
 type Step = 1 | 2 | 3 | 4 | 5;
 
 export default function RegisterPage() {
-  const router = useRouter();
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [inputMethod, setInputMethod] = useState<"image" | "manual" | null>(
@@ -2285,7 +2283,11 @@ export default function RegisterPage() {
                 )}
 
               <div className="flex flex-col gap-3">
-                <Button onClick={() => router.push("/appliances")}>
+                <Button
+                  onClick={() => {
+                    window.location.href = "/appliances";
+                  }}
+                >
                   登録した家電を見る
                 </Button>
                 <Button
