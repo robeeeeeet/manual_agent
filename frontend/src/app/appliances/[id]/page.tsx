@@ -112,9 +112,6 @@ export default function ApplianceDetailPage({
   const [scheduleToArchive, setScheduleToArchive] =
     useState<MaintenanceSchedule | null>(null);
 
-  // PDF signed URL (pre-fetched when appliance loads)
-  const [pdfSignedUrl, setPdfSignedUrl] = useState<string | null>(null);
-
   // Purchase date edit modal state
   const [showPurchaseDateModal, setShowPurchaseDateModal] = useState(false);
   const [editingPurchasedAt, setEditingPurchasedAt] = useState("");
@@ -152,21 +149,6 @@ export default function ApplianceDetailPage({
         }
         const applianceData: UserApplianceWithDetails = await response.json();
         setAppliance(applianceData);
-
-        // Pre-fetch signed URL for PDF if stored_pdf_path exists
-        if (applianceData.stored_pdf_path) {
-          try {
-            const pdfUrlResponse = await fetch(`/api/appliances/${id}/manual-url`);
-            if (pdfUrlResponse.ok) {
-              const pdfData = await pdfUrlResponse.json();
-              if (pdfData.signed_url) {
-                setPdfSignedUrl(pdfData.signed_url);
-              }
-            }
-          } catch (pdfErr) {
-            console.error("Failed to pre-fetch PDF URL:", pdfErr);
-          }
-        }
 
         // Fetch maintenance schedules via BFF API (include archived for separation)
         const maintenanceResponse = await fetch(
@@ -787,7 +769,7 @@ export default function ApplianceDetailPage({
                     </div>
                     <span className="font-medium text-gray-900">説明書PDF</span>
                   </div>
-                  {(pdfSignedUrl || appliance.stored_pdf_path) ? (
+                  {appliance.stored_pdf_path ? (
                     <Link
                       href={`/pdf-viewer?applianceId=${id}`}
                       className="text-[#007AFF] hover:text-[#0066DD] font-medium flex items-center gap-1"

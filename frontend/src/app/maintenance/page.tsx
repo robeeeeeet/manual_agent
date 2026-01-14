@@ -44,9 +44,6 @@ export default function MaintenancePage() {
   const [historyLogs, setHistoryLogs] = useState<MaintenanceLog[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  // PDF signed URL (pre-fetched when modal opens)
-  const [pdfSignedUrl, setPdfSignedUrl] = useState<string | null>(null);
-
   // Next due date edit modal state
   const [showNextDueModal, setShowNextDueModal] = useState(false);
   const [editingNextDueAt, setEditingNextDueAt] = useState("");
@@ -73,25 +70,9 @@ export default function MaintenancePage() {
     });
   }, [allItems, activeTab, importanceFilter, makerFilter]);
 
-  const openDetailModal = async (item: MaintenanceWithAppliance) => {
+  const openDetailModal = (item: MaintenanceWithAppliance) => {
     setSelectedItem(item);
     setShowDetailModal(true);
-    setPdfSignedUrl(null);
-
-    // Pre-fetch signed URL for PDF if available
-    if (item.stored_pdf_path && item.pdf_page_number) {
-      try {
-        const response = await fetch(`/api/appliances/${item.appliance_id}/manual-url`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.signed_url) {
-            setPdfSignedUrl(`${data.signed_url}#page=${item.pdf_page_number}`);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to pre-fetch PDF URL:", err);
-      }
-    }
   };
 
   const openCompleteModal = (item: MaintenanceWithAppliance) => {
