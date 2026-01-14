@@ -63,7 +63,10 @@ export default function MaintenanceListItem({
   if (compact) {
     // コンパクト版（ホームページ用）- iOS風リストスタイル
     return (
-      <div className="flex items-center gap-3">
+      <div
+        onClick={() => onItemClick?.(item)}
+        className={`flex items-center gap-3 ${onItemClick ? "cursor-pointer" : ""}`}
+      >
         {/* 左側：コンテンツ */}
         <div className="flex-1 min-w-0">
           <p className="font-medium text-gray-900 truncate" title={item.task_name}>

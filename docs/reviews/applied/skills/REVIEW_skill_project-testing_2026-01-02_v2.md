@@ -17,5 +17,3 @@
 
 - **（低）CIの最小コマンド例**
   - 例: `uv run pytest ...` / `npm run test:coverage` / `npx playwright test` の最小構成を1箇所にまとめる。
-
-

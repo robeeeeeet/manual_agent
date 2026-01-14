@@ -1,6 +1,7 @@
 # pre-commit configuration
 # See https://pre-commit.com for more information
 # Run `pre-commit install` to install hooks
+# Run `pre-commit install --hook-type commit-msg` for commit message checks
 
 repos:
   # Ruff - Python linter and formatter (replaces black, isort, flake8)
@@ -28,6 +29,42 @@ repos:
       # Checks for large files
       - id: check-added-large-files
         args: ['--maxkb=1000']
+      # Detect private keys
+      - id: detect-private-key
       # Prevents committing to main/master directly (optional, can be removed)
       # - id: no-commit-to-branch
       #   args: ['--branch', 'main', '--branch', 'master']
+
+  # Secret detection (comprehensive)
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: (package-lock\.json|\.env\.example|\.secrets\.baseline)
+
+  # Conventional commit message format
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.6.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, docs, refactor, test, chore, style, perf, ci, build, revert]
+
+  # Local hooks (TypeScript, debug code detection)
+  - repo: local
+    hooks:
+      # TypeScript type check
+      - id: typescript-check
+        name: TypeScript type check
+        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      # Detect debug code (print/console.log)
+      - id: no-debug-code
+        name: Check for debug code
+        entry: python3 .claude/hooks/no-debug-code.py
+        language: system
+        pass_filenames: false

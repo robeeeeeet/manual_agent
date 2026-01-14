@@ -611,9 +611,6 @@ export default function MaintenancePage() {
               className="block text-sm font-medium text-gray-700 mb-2"
             >
               次回予定日
-              <span className="text-xs text-gray-400 ml-2 font-normal">
-                例: 2025-06-15
-              </span>
             </label>
             <input
               type="date"
@@ -622,19 +619,6 @@ export default function MaintenancePage() {
               onChange={(e) => setEditingNextDueAt(e.target.value)}
               className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#007AFF]/50 focus:border-[#007AFF] transition-colors"
             />
-            {editingNextDueAt && (
-              <p className="text-sm text-gray-700 mt-2">
-                選択中:{" "}
-                {new Date(editingNextDueAt).toLocaleDateString("ja-JP", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </p>
-            )}
-            <p className="text-xs text-gray-500 mt-2">
-              メンテナンスの次回予定日を直接指定できます
-            </p>
           </div>
           <div className="flex gap-3">
             <button

@@ -22,5 +22,3 @@
    - functions → tables → indexes → triggers → policies のように固定する。
 3. **（中）DoD（完了条件）を追加**
    - 例: 未認証でSELECTできない、自分の行のみ取得/更新できる、Storageのパス制約が効く、など。
-
-

@@ -9,6 +9,7 @@ Note: Server must be running on http://localhost:8000
 """
 
 import sys
+
 import requests
 
 
