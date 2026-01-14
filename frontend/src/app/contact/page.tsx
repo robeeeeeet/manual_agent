@@ -117,6 +117,7 @@ export default function ContactPage() {
       }
 
       setSubmitted(true);
+      window.scrollTo(0, 0);
     } catch (err) {
       console.error("Submit error:", err);
       setError(err instanceof Error ? err.message : "送信に失敗しました");
