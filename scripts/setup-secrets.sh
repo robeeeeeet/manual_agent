@@ -23,6 +23,7 @@ SECRETS=(
     "SUPABASE_URL"
     "SUPABASE_PUBLISHABLE_KEY"
     "SUPABASE_SECRET_KEY"
+    "GAS_WEBHOOK_URL"
 )
 
 # --- 色付き出力 ---

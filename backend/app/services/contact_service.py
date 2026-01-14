@@ -199,4 +199,5 @@ async def submit_contact(
     return {
         "success": True,
         "message": "お問い合わせを送信しました",
+        "webhook_success": webhook_success,
     }

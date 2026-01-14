@@ -26,6 +26,7 @@ export default function ContactPage() {
   const [isConverting, setIsConverting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [webhookFailed, setWebhookFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -110,6 +111,11 @@ export default function ContactPage() {
         throw new Error(data.error || "送信に失敗しました");
       }
 
+      // Check if webhook failed (spreadsheet sync)
+      if (data.webhook_success === false) {
+        setWebhookFailed(true);
+      }
+
       setSubmitted(true);
     } catch (err) {
       console.error("Submit error:", err);
@@ -138,10 +144,24 @@ export default function ContactPage() {
               </svg>
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">送信完了</h2>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-4">
               お問い合わせありがとうございます。<br />
               内容を確認の上、必要に応じてご連絡いたします。
             </p>
+            {webhookFailed && (
+              <div className="bg-[#FF9500]/10 border border-[#FF9500]/30 rounded-xl p-3 mb-4">
+                <p className="text-[#996300] text-sm flex items-start gap-2">
+                  <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span>
+                    <strong>注意：</strong>スプレッドシートへの連携に失敗しました。
+                    スクリーンショットは保存されています。
+                    しばらく経っても対応がない場合は、再度お問い合わせください。
+                  </span>
+                </p>
+              </div>
+            )}
             <div className="flex flex-col gap-3 w-full max-w-xs mx-auto">
               <Link href="/" className="w-full">
                 <Button variant="primary" className="w-full">トップに戻る</Button>
@@ -151,6 +171,7 @@ export default function ContactPage() {
                 className="w-full"
                 onClick={() => {
                   setSubmitted(false);
+                  setWebhookFailed(false);
                   setFormData({ type: "", screen: "", content: "", reproductionSteps: "" });
                   setScreenshot(null);
                   setScreenshotPreview(null);
