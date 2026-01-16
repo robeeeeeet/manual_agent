@@ -2348,7 +2348,7 @@ export default function RegisterPage() {
         }}
         variant="dialog"
       >
-        <div className="p-6">
+        <div className="p-6 max-h-[calc(100vh-96px)] flex flex-col">
           {/* Close button */}
           <button
             onClick={() => {
@@ -2365,78 +2365,81 @@ export default function RegisterPage() {
 
           {selectedItemForDetail && (
             <>
-              {/* Header */}
-              <h3 className="text-lg font-bold text-gray-900 mb-4 pr-8">
+              {/* Header - fixed at top */}
+              <h3 className="text-lg font-bold text-gray-900 mb-4 pr-8 flex-shrink-0">
                 {selectedItemForDetail.task_name}
               </h3>
 
-              {/* Description with SafeHtml */}
-              {selectedItemForDetail.description && (
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-500 mb-2">
-                    説明
-                  </h4>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <SafeHtml html={selectedItemForDetail.description} className="text-gray-700" />
+              {/* Scrollable Content */}
+              <div className="overflow-y-auto flex-1 min-h-0">
+                {/* Description with SafeHtml */}
+                {selectedItemForDetail.description && (
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-gray-500 mb-2">
+                      説明
+                    </h4>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <SafeHtml html={selectedItemForDetail.description} className="text-gray-700" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Meta info */}
+                <div className="grid grid-cols-2 gap-4 mb-4 py-4 border-y border-gray-100">
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-500 mb-1">
+                      推奨周期
+                    </h4>
+                    <p className="text-sm text-gray-900">
+                      {selectedItemForDetail.recommended_interval_type === "days"
+                        ? `${selectedItemForDetail.recommended_interval_value}日ごと`
+                        : selectedItemForDetail.recommended_interval_type === "months"
+                          ? `${selectedItemForDetail.recommended_interval_value}ヶ月ごと`
+                          : "手動"}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-500 mb-1">
+                      重要度
+                    </h4>
+                    <span
+                      className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${getImportanceBadgeColor(
+                        selectedItemForDetail.importance
+                      )}`}
+                    >
+                      {importanceLabels[selectedItemForDetail.importance]}
+                    </span>
                   </div>
                 </div>
-              )}
 
-              {/* Meta info */}
-              <div className="grid grid-cols-2 gap-4 mb-4 py-4 border-y border-gray-100">
-                <div>
-                  <h4 className="text-xs font-medium text-gray-500 mb-1">
-                    推奨周期
-                  </h4>
-                  <p className="text-sm text-gray-900">
-                    {selectedItemForDetail.recommended_interval_type === "days"
-                      ? `${selectedItemForDetail.recommended_interval_value}日ごと`
-                      : selectedItemForDetail.recommended_interval_type === "months"
-                        ? `${selectedItemForDetail.recommended_interval_value}ヶ月ごと`
-                        : "手動"}
-                  </p>
-                </div>
-                <div>
-                  <h4 className="text-xs font-medium text-gray-500 mb-1">
-                    重要度
-                  </h4>
-                  <span
-                    className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${getImportanceBadgeColor(
-                      selectedItemForDetail.importance
-                    )}`}
-                  >
-                    {importanceLabels[selectedItemForDetail.importance]}
-                  </span>
-                </div>
-              </div>
+                {/* Source page */}
+                {selectedItemForDetail.source_page && (
+                  <div className="mb-4">
+                    <h4 className="text-xs font-medium text-gray-500 mb-1">
+                      参照ページ
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      📄 {selectedItemForDetail.source_page}
+                    </p>
+                  </div>
+                )}
 
-              {/* Source page */}
-              {selectedItemForDetail.source_page && (
-                <div className="mb-4">
-                  <h4 className="text-xs font-medium text-gray-500 mb-1">
-                    参照ページ
-                  </h4>
-                  <p className="text-sm text-gray-600">
-                    📄 {selectedItemForDetail.source_page}
-                  </p>
+                {/* Selection toggle */}
+                <div className="pt-4 border-t border-gray-100">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedItemIds.has(selectedItemForDetail.id)}
+                      onChange={() => toggleItemSelection(selectedItemForDetail.id)}
+                      className="h-5 w-5 text-[#007AFF] border-gray-300 rounded focus:ring-[#007AFF]/50"
+                    />
+                    <span className="text-sm text-gray-700">
+                      {selectedItemIds.has(selectedItemForDetail.id)
+                        ? "登録リストに追加済み"
+                        : "登録リストに追加する"}
+                    </span>
+                  </label>
                 </div>
-              )}
-
-              {/* Selection toggle */}
-              <div className="pt-4 border-t border-gray-100">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedItemIds.has(selectedItemForDetail.id)}
-                    onChange={() => toggleItemSelection(selectedItemForDetail.id)}
-                    className="h-5 w-5 text-[#007AFF] border-gray-300 rounded focus:ring-[#007AFF]/50"
-                  />
-                  <span className="text-sm text-gray-700">
-                    {selectedItemIds.has(selectedItemForDetail.id)
-                      ? "登録リストに追加済み"
-                      : "登録リストに追加する"}
-                  </span>
-                </label>
               </div>
             </>
           )}

@@ -1,6 +1,8 @@
 """Text cache service for PDF text extraction and caching."""
 
+import asyncio
 import logging
+import time
 
 from google import genai
 from google.genai import types
@@ -10,6 +12,9 @@ from app.services.pdf_storage import get_text_cache_path
 from app.services.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
+
+# タイムアウト設定（秒）
+TIMEOUT_TEXT_EXTRACTION = 120  # PDF テキスト抽出（大型PDFで時間がかかる）
 
 
 async def extract_text_from_pdf(pdf_bytes: bytes) -> str:
@@ -23,8 +28,10 @@ async def extract_text_from_pdf(pdf_bytes: bytes) -> str:
         Extracted text in Markdown format
 
     Raises:
+        asyncio.TimeoutError: If extraction times out
         Exception: If extraction fails
     """
+    start_time = time.time()
     client = genai.Client(api_key=settings.gemini_api_key)
 
     prompt = """
@@ -34,18 +41,28 @@ async def extract_text_from_pdf(pdf_bytes: bytes) -> str:
 - ページ番号がある場合は `[P.XX]` の形式で含めてください
 """
 
-    response = await client.aio.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=[
-            types.Content(
-                role="user",
-                parts=[
-                    types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
-                    types.Part.from_text(text=prompt),
+    try:
+        async with asyncio.timeout(TIMEOUT_TEXT_EXTRACTION):
+            response = await client.aio.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part.from_bytes(
+                                data=pdf_bytes, mime_type="application/pdf"
+                            ),
+                            types.Part.from_text(text=prompt),
+                        ],
+                    ),
                 ],
-            ),
-        ],
-    )
+            )
+        elapsed = time.time() - start_time
+        logger.info(f"extract_text_from_pdf completed in {elapsed:.2f}s")
+    except TimeoutError:
+        elapsed = time.time() - start_time
+        logger.warning(f"extract_text_from_pdf timed out after {elapsed:.2f}s")
+        raise
 
     return response.text
 

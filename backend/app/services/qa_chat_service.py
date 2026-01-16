@@ -14,6 +14,12 @@ from app.services.qa_rating_service import delete_invalid_qa_from_storage
 from app.services.qa_service import append_qa_to_markdown, get_qa_markdown
 from app.services.text_cache_service import get_or_create_text_cache
 
+# タイムアウト設定（秒）
+TIMEOUT_QA_SEARCH = 30  # QA検索
+TIMEOUT_TEXT_CACHE = 60  # テキストキャッシュ検索
+TIMEOUT_PDF_ANALYSIS = 90  # PDF直接分析
+TIMEOUT_SELF_CHECK = 30  # セルフチェック
+
 logger = logging.getLogger(__name__)
 
 # Step definitions for progress display
@@ -111,7 +117,14 @@ async def check_answer_consistency(
 
     Returns:
         SelfCheckResult: セルフチェック結果
+
+    Raises:
+        asyncio.TimeoutError: If operation times out
     """
+    import asyncio
+    import time
+
+    start_time = time.time()
     client = genai.Client(api_key=settings.gemini_api_key)
 
     prompt = SELF_CHECK_PROMPT.format(
@@ -121,10 +134,13 @@ async def check_answer_consistency(
     )
 
     try:
-        response = await client.aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
+        async with asyncio.timeout(TIMEOUT_SELF_CHECK):
+            response = await client.aio.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            )
+        elapsed = time.time() - start_time
+        logger.info(f"check_answer_consistency completed in {elapsed:.2f}s")
 
         text = response.text.strip()
 
@@ -141,6 +157,10 @@ async def check_answer_consistency(
                 answer_type=data.get("answer_type"),
                 type_match=data.get("type_match"),
             )
+    except TimeoutError:
+        elapsed = time.time() - start_time
+        logger.warning(f"check_answer_consistency timed out after {elapsed:.2f}s")
+        raise
     except Exception as e:
         logger.warning(f"Failed to parse self-check response: {e}")
 
@@ -165,7 +185,14 @@ async def search_qa_markdown(qa_content: str, question: str) -> dict | None:
 
     Returns:
         Dict with "answer" and "reference" keys, or None if not found
+
+    Raises:
+        asyncio.TimeoutError: If operation times out
     """
+    import asyncio
+    import time
+
+    start_time = time.time()
     client = genai.Client(api_key=settings.gemini_api_key)
 
     prompt = f"""
@@ -226,10 +253,18 @@ async def search_qa_markdown(qa_content: str, question: str) -> dict | None:
 - 回答がない場合: NOT_FOUND
 """
 
-    response = await client.aio.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-    )
+    try:
+        async with asyncio.timeout(TIMEOUT_QA_SEARCH):
+            response = await client.aio.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            )
+        elapsed = time.time() - start_time
+        logger.info(f"search_qa_markdown completed in {elapsed:.2f}s")
+    except TimeoutError:
+        elapsed = time.time() - start_time
+        logger.warning(f"search_qa_markdown timed out after {elapsed:.2f}s")
+        raise
 
     text = response.text.strip()
     if "NOT_FOUND" in text:
@@ -256,7 +291,13 @@ async def ask_text_cache(text_cache: str, question: str) -> dict | None:
 
     Returns:
         Dict with "answer" and "reference" keys, or None if not found
+
+    Raises:
+        asyncio.TimeoutError: If operation times out
     """
+    import time
+
+    start_time = time.time()
     client = genai.Client(api_key=settings.gemini_api_key)
 
     # Truncate to avoid token limit
@@ -337,10 +378,20 @@ async def ask_text_cache(text_cache: str, question: str) -> dict | None:
 }}
 """
 
-    response = await client.aio.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-    )
+    import asyncio
+
+    try:
+        async with asyncio.timeout(TIMEOUT_TEXT_CACHE):
+            response = await client.aio.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            )
+        elapsed = time.time() - start_time
+        logger.info(f"ask_text_cache completed in {elapsed:.2f}s")
+    except TimeoutError:
+        elapsed = time.time() - start_time
+        logger.warning(f"ask_text_cache timed out after {elapsed:.2f}s")
+        raise
 
     text = response.text.strip()
     if "NOT_FOUND" in text:
@@ -366,7 +417,13 @@ async def ask_pdf_directly(pdf_bytes: bytes, question: str) -> dict:
 
     Returns:
         Dict with "answer" and "reference" keys
+
+    Raises:
+        asyncio.TimeoutError: If operation times out
     """
+    import time
+
+    start_time = time.time()
     client = genai.Client(api_key=settings.gemini_api_key)
 
     prompt = f"""
@@ -441,18 +498,30 @@ async def ask_pdf_directly(pdf_bytes: bytes, question: str) -> dict:
 }}
 """
 
-    response = await client.aio.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=[
-            types.Content(
-                role="user",
-                parts=[
-                    types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
-                    types.Part.from_text(text=prompt),
+    import asyncio
+
+    try:
+        async with asyncio.timeout(TIMEOUT_PDF_ANALYSIS):
+            response = await client.aio.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part.from_bytes(
+                                data=pdf_bytes, mime_type="application/pdf"
+                            ),
+                            types.Part.from_text(text=prompt),
+                        ],
+                    ),
                 ],
-            ),
-        ],
-    )
+            )
+        elapsed = time.time() - start_time
+        logger.info(f"ask_pdf_directly completed in {elapsed:.2f}s")
+    except TimeoutError:
+        elapsed = time.time() - start_time
+        logger.warning(f"ask_pdf_directly timed out after {elapsed:.2f}s")
+        raise
 
     text = response.text.strip()
 
@@ -605,8 +674,20 @@ async def answer_question_stream(
     )
 
     qa_content = await get_qa_markdown(manufacturer, model_number)
+    step1_timeout = False
     if qa_content:
-        result = await search_qa_markdown(qa_content, full_question)
+        try:
+            result = await search_qa_markdown(qa_content, full_question)
+        except TimeoutError:
+            result = None
+            step1_timeout = True
+            yield QAStreamEvent(
+                event="step_timeout",
+                step=1,
+                step_name="QA検索がタイムアウトしました",
+                message="別の方法で検索を続けています...",
+            )
+
         if result:
             logger.info(f"Answer found in QA for {manufacturer} {model_number}")
 
@@ -617,9 +698,36 @@ async def answer_question_stream(
                     step=1.5,
                     step_name=STEP_DEFINITIONS[1.5],
                 )
-                check = await check_answer_consistency(
-                    question, result["answer"], self_check_threshold
-                )
+                try:
+                    check = await check_answer_consistency(
+                        question, result["answer"], self_check_threshold
+                    )
+                except TimeoutError:
+                    # タイムアウト時は検証をスキップして回答を返す
+                    logger.warning("Self-check timed out for QA result, skipping check")
+                    yield QAStreamEvent(
+                        event="step_timeout",
+                        step=1.5,
+                        step_name="回答検証がタイムアウトしました",
+                        message="検証をスキップして回答を表示します",
+                    )
+                    yield QAStreamEvent(
+                        event="step_complete",
+                        step=1,
+                        step_name="QAデータベースで回答を発見",
+                    )
+                    yield QAStreamEvent(
+                        event="answer",
+                        answer=result["answer"],
+                        source="qa",
+                        reference=result.get("reference"),
+                        added_to_qa=False,
+                        session_id=session_id,
+                        needs_verification=True,
+                        used_general_knowledge=False,
+                    )
+                    return
+
                 yield QAStreamEvent(
                     event="step_complete",
                     step=1.5,
@@ -671,13 +779,15 @@ async def answer_question_stream(
                 )
                 return
 
-    yield QAStreamEvent(
-        event="step_complete",
-        step=1,
-        step_name="QAデータベースに該当なし",
-    )
+    if not step1_timeout:
+        yield QAStreamEvent(
+            event="step_complete",
+            step=1,
+            step_name="QAデータベースに該当なし",
+        )
 
     # Step 2: Search in text cache
+    step2_timeout = False
     if pdf_bytes:
         yield QAStreamEvent(
             event="step_start",
@@ -685,10 +795,20 @@ async def answer_question_stream(
             step_name=STEP_DEFINITIONS[2],
         )
 
-        text_cache = await get_or_create_text_cache(
-            manufacturer, model_number, pdf_bytes
-        )
-        result = await ask_text_cache(text_cache, full_question)
+        try:
+            text_cache = await get_or_create_text_cache(
+                manufacturer, model_number, pdf_bytes
+            )
+            result = await ask_text_cache(text_cache, full_question)
+        except TimeoutError:
+            result = None
+            step2_timeout = True
+            yield QAStreamEvent(
+                event="step_timeout",
+                step=2,
+                step_name="テキスト検索がタイムアウトしました",
+                message="別の方法で検索を続けています...",
+            )
 
         if result:
             logger.info(f"Answer found in text cache for {manufacturer} {model_number}")
@@ -701,9 +821,52 @@ async def answer_question_stream(
                     step=2.5,
                     step_name=STEP_DEFINITIONS[2.5],
                 )
-                check = await check_answer_consistency(
-                    question, result["answer"], self_check_threshold
-                )
+                try:
+                    check = await check_answer_consistency(
+                        question, result["answer"], self_check_threshold
+                    )
+                except TimeoutError:
+                    # タイムアウト時は検証をスキップして回答を返す
+                    logger.warning(
+                        "Self-check timed out for text cache result, skipping check"
+                    )
+                    yield QAStreamEvent(
+                        event="step_timeout",
+                        step=2.5,
+                        step_name="回答検証がタイムアウトしました",
+                        message="検証をスキップして回答を表示します",
+                    )
+                    added = False
+                    if qa_content:
+                        try:
+                            await append_qa_to_markdown(
+                                manufacturer,
+                                model_number,
+                                question,
+                                result["answer"],
+                                "text_cache",
+                            )
+                            added = True
+                        except Exception as e:
+                            logger.error(f"Failed to append QA: {e}")
+
+                    yield QAStreamEvent(
+                        event="step_complete",
+                        step=2,
+                        step_name="テキストキャッシュで回答を発見",
+                    )
+                    yield QAStreamEvent(
+                        event="answer",
+                        answer=result["answer"],
+                        source="text_cache",
+                        reference=result.get("reference"),
+                        added_to_qa=added,
+                        session_id=session_id,
+                        needs_verification=True,
+                        used_general_knowledge=used_general_knowledge,
+                    )
+                    return
+
                 yield QAStreamEvent(
                     event="step_complete",
                     step=2.5,
@@ -781,11 +944,12 @@ async def answer_question_stream(
                 )
                 return
 
-        yield QAStreamEvent(
-            event="step_complete",
-            step=2,
-            step_name="テキストキャッシュに該当なし",
-        )
+        if not step2_timeout:
+            yield QAStreamEvent(
+                event="step_complete",
+                step=2,
+                step_name="テキストキャッシュに該当なし",
+            )
 
     # Step 3: Ask PDF directly
     if pdf_bytes:
@@ -795,7 +959,24 @@ async def answer_question_stream(
             step_name=STEP_DEFINITIONS[3],
         )
 
-        result = await ask_pdf_directly(pdf_bytes, full_question)
+        try:
+            result = await ask_pdf_directly(pdf_bytes, full_question)
+        except TimeoutError:
+            # PDF分析もタイムアウトした場合はエラーを返す
+            yield QAStreamEvent(
+                event="step_timeout",
+                step=3,
+                step_name="PDF分析がタイムアウトしました",
+                message="すべての検索方法がタイムアウトしました",
+            )
+            yield QAStreamEvent(
+                event="error",
+                error="申し訳ありません。検索に時間がかかりすぎています。"
+                "しばらく時間をおいて再度お試しください。",
+                session_id=session_id,
+            )
+            return
+
         logger.info(f"Answer generated from PDF for {manufacturer} {model_number}")
         used_general_knowledge = result.get("used_general_knowledge", False)
 
@@ -806,9 +987,36 @@ async def answer_question_stream(
                 step=3.5,
                 step_name=STEP_DEFINITIONS[3.5],
             )
-            check = await check_answer_consistency(
-                question, result["answer"], self_check_threshold
-            )
+            try:
+                check = await check_answer_consistency(
+                    question, result["answer"], self_check_threshold
+                )
+            except TimeoutError:
+                # タイムアウト時は検証をスキップして回答を返す
+                logger.warning("Self-check timed out for PDF result, skipping check")
+                yield QAStreamEvent(
+                    event="step_timeout",
+                    step=3.5,
+                    step_name="回答検証がタイムアウトしました",
+                    message="検証をスキップして回答を表示します",
+                )
+                yield QAStreamEvent(
+                    event="step_complete",
+                    step=3,
+                    step_name="PDFから回答を生成",
+                )
+                yield QAStreamEvent(
+                    event="answer",
+                    answer=result["answer"],
+                    source="pdf",
+                    reference=result.get("reference"),
+                    added_to_qa=False,
+                    session_id=session_id,
+                    needs_verification=True,
+                    used_general_knowledge=used_general_knowledge,
+                )
+                return
+
             yield QAStreamEvent(
                 event="step_complete",
                 step=3.5,

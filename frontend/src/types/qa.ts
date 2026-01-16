@@ -68,7 +68,7 @@ export interface ChatMessage {
 
 // SSEストリーミングイベント
 export interface QAStreamEvent {
-  event: 'step_start' | 'step_complete' | 'answer' | 'error';
+  event: 'step_start' | 'step_complete' | 'step_timeout' | 'answer' | 'error';
   step?: number; // 1, 1.5, 2, 2.5, 3, 3.5（小数点は検証ステップ）
   step_name?: string;
   answer?: string;
@@ -77,6 +77,7 @@ export interface QAStreamEvent {
   added_to_qa?: boolean;
   error?: string;
   session_id?: string; // 会話履歴セッションID
+  message?: string; // 追加メッセージ（タイムアウト時の案内等）
   // セルフチェック関連
   self_check_score?: number; // 整合性スコア (1-5)
   needs_verification?: boolean; // 確認が必要なフラグ
@@ -89,6 +90,8 @@ export interface SearchProgress {
   currentStep: number;
   stepName: string;
   completedSteps: number[];
+  timedOutSteps: number[]; // タイムアウトしたステップ
+  timeoutMessage?: string; // タイムアウト時のメッセージ
 }
 
 // QAエラーコード

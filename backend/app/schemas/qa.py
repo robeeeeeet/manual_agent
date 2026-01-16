@@ -119,7 +119,7 @@ class QABatchGenerateResponse(BaseModel):
 class QAStreamEvent(BaseModel):
     """SSE event for streaming QA search progress."""
 
-    event: str  # "step_start", "step_complete", "answer", "error"
+    event: str  # "step_start", "step_complete", "step_timeout", "answer", "error"
     step: float | None = None  # 1, 1.5, 2, 2.5, 3, 3.5 (小数点は検証ステップ)
     step_name: str | None = None  # Step description
     answer: str | None = None
@@ -128,6 +128,7 @@ class QAStreamEvent(BaseModel):
     added_to_qa: bool = False
     error: str | None = None
     session_id: str | None = None
+    message: str | None = None  # 追加メッセージ（タイムアウト時の案内等）
     # セルフチェック関連
     self_check_score: int | None = None  # 整合性スコア (1-5)
     needs_verification: bool = False  # 確認が必要なフラグ

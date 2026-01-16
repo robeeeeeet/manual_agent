@@ -220,6 +220,7 @@ QA機能をご利用いただくには、ログインが必要です。
       const decoder = new TextDecoder();
       let buffer = '';
       const completedSteps: number[] = [];
+      const timedOutSteps: number[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -240,12 +241,26 @@ QA機能をご利用いただくには、ログインが必要です。
                   currentStep: event.step,
                   stepName: event.step_name,
                   completedSteps: [...completedSteps],
+                  timedOutSteps: [...timedOutSteps],
                 });
               } else if (event.event === 'step_complete' && event.step) {
                 completedSteps.push(event.step);
                 setSearchProgress((prev) =>
                   prev
                     ? { ...prev, completedSteps: [...completedSteps] }
+                    : null
+                );
+              } else if (event.event === 'step_timeout' && event.step) {
+                // タイムアウトしたステップを追跡
+                timedOutSteps.push(Math.floor(event.step));
+                setSearchProgress((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        stepName: event.step_name || prev.stepName,
+                        timedOutSteps: [...timedOutSteps],
+                        timeoutMessage: event.message,
+                      }
                     : null
                 );
               } else if (event.event === 'answer') {
