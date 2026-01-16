@@ -24,14 +24,17 @@ from app.api.routes import (
 )
 from app.config import settings
 
-# Configure logging
+# Configure logging with environment variable control
+log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format="%(levelname)s:     %(name)s - %(message)s",
 )
-# Set our service loggers to INFO level
-logging.getLogger("app.services.manual_search").setLevel(logging.INFO)
-logging.getLogger("app.services.image_recognition").setLevel(logging.INFO)
+# Set our service loggers to configured level
+logging.getLogger("app.services.manual_search").setLevel(log_level)
+logging.getLogger("app.services.image_recognition").setLevel(log_level)
+logging.getLogger("app.services.qa_chat_service").setLevel(log_level)
+logging.getLogger("app.services.pdf_storage").setLevel(log_level)
 
 # Logger for main module
 main_logger = logging.getLogger(__name__)

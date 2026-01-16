@@ -1,9 +1,12 @@
 """Manufacturer domain mapping service with learning capability."""
 
+import logging
 import re
 from urllib.parse import urlparse
 
 from app.services.supabase_client import get_supabase_client
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_manufacturer_name(name: str) -> str:
@@ -108,7 +111,9 @@ class ManufacturerDomainService:
 
             return [row["domain"] for row in result.data]
         except Exception as e:
-            print(f"Error getting domains for {manufacturer}: {e}")
+            logger.error(
+                f"Error getting domains for {manufacturer}: {e}", exc_info=True
+            )
             return []
 
     async def save_domain(self, manufacturer: str, pdf_url: str) -> bool:
@@ -131,7 +136,7 @@ class ManufacturerDomainService:
 
         domain = extract_domain_from_url(pdf_url)
         if not domain:
-            print(f"Could not extract domain from URL: {pdf_url}")
+            logger.warning(f"Could not extract domain from URL: {pdf_url}")
             return False
 
         try:
@@ -152,7 +157,7 @@ class ManufacturerDomainService:
                 client.table("manufacturer_domains").update(
                     {"success_count": record["success_count"] + 1}
                 ).eq("id", record["id"]).execute()
-                print(
+                logger.info(
                     f"Updated domain mapping: {manufacturer} -> {domain} "
                     f"(count: {record['success_count'] + 1})"
                 )
@@ -166,9 +171,9 @@ class ManufacturerDomainService:
                         "success_count": 1,
                     }
                 ).execute()
-                print(f"New domain mapping: {manufacturer} -> {domain}")
+                logger.info(f"New domain mapping: {manufacturer} -> {domain}")
 
             return True
         except Exception as e:
-            print(f"Error saving domain for {manufacturer}: {e}")
+            logger.error(f"Error saving domain for {manufacturer}: {e}", exc_info=True)
             return False

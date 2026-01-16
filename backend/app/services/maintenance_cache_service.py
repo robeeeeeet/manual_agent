@@ -5,12 +5,15 @@ Provides caching for LLM-extracted maintenance items to avoid repeated API calls
 for the same appliance (same maker + model_number).
 """
 
+import logging
 from datetime import UTC, date, datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
 
 from app.services.maintenance_extraction import extract_maintenance_items
 from app.services.supabase_client import get_supabase_client
+
+logger = logging.getLogger(__name__)
 
 
 def _calculate_next_due_from_purchase(
@@ -82,7 +85,10 @@ async def get_cached_maintenance_items(shared_appliance_id: str) -> list[dict] |
         return None
 
     except Exception as e:
-        print(f"Error fetching cached maintenance items: {e}")
+        logger.error(
+            f"Error fetching cached maintenance items: shared_appliance_id={shared_appliance_id}, error={e}",
+            exc_info=True,
+        )
         return None
 
 
@@ -145,10 +151,16 @@ async def save_maintenance_items_to_cache(
                 saved_items.append(response.data[0])
         except Exception as e:
             # Log error but continue with other items
-            print(f"Error saving maintenance item '{item.get('item_name')}': {e}")
-            # Try upsert if duplicate
-            if "duplicate key" in str(e).lower() or "23505" in str(e):
-                print("  -> Item already exists, skipping")
+            error_str = str(e).lower()
+            if "duplicate key" in error_str or "23505" in error_str:
+                logger.debug(
+                    f"Maintenance item already exists, skipping: '{item.get('item_name')}'"
+                )
+            else:
+                logger.error(
+                    f"Error saving maintenance item '{item.get('item_name')}': {e}",
+                    exc_info=True,
+                )
 
     return saved_items
 
@@ -343,6 +355,9 @@ async def register_maintenance_schedules(
                 schedule_data["importance"] = item.get("importance")
                 created_schedules.append(schedule_data)
         except Exception as e:
-            print(f"Error creating schedule for '{item['task_name']}': {e}")
+            logger.error(
+                f"Error creating schedule for '{item['task_name']}': {e}",
+                exc_info=True,
+            )
 
     return created_schedules

@@ -2,6 +2,8 @@
  * Service Worker登録とPush通知購読のユーティリティ関数
  */
 
+import { logger } from "./logger";
+
 /**
  * VAPID公開鍵をURLセーフなBase64からUint8Arrayに変換
  * Web Push APIで使用するために必要な変換処理
@@ -27,17 +29,17 @@ export function urlBase64ToUint8Array(base64String: string): BufferSource {
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   // Service Workerがサポートされているか確認
   if (!('serviceWorker' in navigator)) {
-    console.warn('Service Worker is not supported in this browser');
+    logger.warn("ServiceWorker", "Service Worker is not supported in this browser");
     return null;
   }
 
   try {
     // next-pwaが登録したService Workerを取得
     const registration = await navigator.serviceWorker.ready;
-    console.log('Service Worker registered:', registration);
+    logger.debug("ServiceWorker", "Service Worker registered", { data: registration.scope });
     return registration;
   } catch (error) {
-    console.error('Service Worker registration failed:', error);
+    logger.error("ServiceWorker", "Service Worker registration failed", { error });
     return null;
   }
 }
@@ -55,7 +57,7 @@ export async function getSubscription(): Promise<PushSubscription | null> {
     const subscription = await registration.pushManager.getSubscription();
     return subscription;
   } catch (error) {
-    console.error('Failed to get subscription:', error);
+    logger.error("ServiceWorker", "Failed to get subscription", { error });
     return null;
   }
 }
@@ -67,14 +69,14 @@ export async function getSubscription(): Promise<PushSubscription | null> {
 export async function subscribeToPush(vapidPublicKey: string): Promise<PushSubscription | null> {
   // 通知の許可を確認
   if (!('Notification' in window)) {
-    console.warn('Notifications are not supported in this browser');
+    logger.warn("ServiceWorker", "Notifications are not supported in this browser");
     return null;
   }
 
   // 通知権限をリクエスト
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
-    console.warn('Notification permission denied');
+    logger.warn("ServiceWorker", "Notification permission denied");
     return null;
   }
 
@@ -94,14 +96,14 @@ export async function subscribeToPush(vapidPublicKey: string): Promise<PushSubsc
         userVisibleOnly: true, // ユーザーに見える通知のみ許可
         applicationServerKey: convertedVapidKey,
       });
-      console.log('Push subscription created:', subscription);
+      logger.debug("ServiceWorker", "Push subscription created");
     } else {
-      console.log('Push subscription already exists:', subscription);
+      logger.debug("ServiceWorker", "Push subscription already exists");
     }
 
     return subscription;
   } catch (error) {
-    console.error('Failed to subscribe to push:', error);
+    logger.error("ServiceWorker", "Failed to subscribe to push", { error });
     return null;
   }
 }
@@ -112,16 +114,16 @@ export async function subscribeToPush(vapidPublicKey: string): Promise<PushSubsc
 export async function unsubscribeFromPush(): Promise<boolean> {
   const subscription = await getSubscription();
   if (!subscription) {
-    console.log('No active subscription to unsubscribe');
+    logger.debug("ServiceWorker", "No active subscription to unsubscribe");
     return true;
   }
 
   try {
     const successful = await subscription.unsubscribe();
-    console.log('Push subscription unsubscribed:', successful);
+    logger.debug("ServiceWorker", "Push subscription unsubscribed", { data: successful });
     return successful;
   } catch (error) {
-    console.error('Failed to unsubscribe from push:', error);
+    logger.error("ServiceWorker", "Failed to unsubscribe from push", { error });
     return false;
   }
 }
@@ -141,16 +143,16 @@ export function getNotificationPermission(): NotificationPermission | null {
  */
 export async function requestNotificationPermission(): Promise<NotificationPermission | null> {
   if (!('Notification' in window)) {
-    console.warn('Notifications are not supported in this browser');
+    logger.warn("ServiceWorker", "Notifications are not supported in this browser");
     return null;
   }
 
   try {
     const permission = await Notification.requestPermission();
-    console.log('Notification permission:', permission);
+    logger.debug("ServiceWorker", "Notification permission", { data: permission });
     return permission;
   } catch (error) {
-    console.error('Failed to request notification permission:', error);
+    logger.error("ServiceWorker", "Failed to request notification permission", { error });
     return null;
   }
 }
@@ -162,13 +164,13 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 export async function showTestNotification(): Promise<void> {
   const registration = await registerServiceWorker();
   if (!registration) {
-    console.error('Service Worker not registered');
+    logger.error("ServiceWorker", "Service Worker not registered");
     return;
   }
 
   const permission = await requestNotificationPermission();
   if (permission !== 'granted') {
-    console.warn('Notification permission not granted');
+    logger.warn("ServiceWorker", "Notification permission not granted");
     return;
   }
 
@@ -184,8 +186,8 @@ export async function showTestNotification(): Promise<void> {
         dateOfArrival: Date.now(),
       },
     } as NotificationOptions);
-    console.log('Test notification shown');
+    logger.debug("ServiceWorker", "Test notification shown");
   } catch (error) {
-    console.error('Failed to show test notification:', error);
+    logger.error("ServiceWorker", "Failed to show test notification", { error });
   }
 }

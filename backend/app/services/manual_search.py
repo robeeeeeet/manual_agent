@@ -56,6 +56,7 @@ def custom_search(query: str, num_results: int = 10) -> list[dict]:
         "num": min(num_results, 10),
     }
 
+    start_time = time.time()
     try:
         response = requests.get(url, params=params, timeout=15)
         response.raise_for_status()
@@ -70,9 +71,17 @@ def custom_search(query: str, num_results: int = 10) -> list[dict]:
                     "snippet": item.get("snippet", ""),
                 }
             )
+        elapsed = time.time() - start_time
+        logger.info(
+            f"Custom Search API completed in {elapsed:.2f}s "
+            f"(query={query[:50]}..., results={len(results)})"
+        )
         return results
     except Exception as e:
-        print(f"Custom Search API error: {e}")
+        elapsed = time.time() - start_time
+        logger.error(
+            f"Custom Search API error (elapsed={elapsed:.2f}s): {e}", exc_info=True
+        )
         return []
 
 
@@ -218,7 +227,7 @@ def verify_pdf_is_target(pdf_url: str, manufacturer: str, model_number: str) -> 
             os.unlink(tmp_path)
 
     except Exception as e:
-        print(f"PDF verification error: {e}")
+        logger.error(f"PDF verification error: {e}", exc_info=True)
         return False
 
 

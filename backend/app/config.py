@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # Google Apps Script Webhook (Contact form)
     gas_webhook_url: str | None = None
 
+    # Logging
+    log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).parent.parent.parent / ".env"),
         env_file_encoding="utf-8",

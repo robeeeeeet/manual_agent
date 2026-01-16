@@ -9,6 +9,41 @@
 
 ### Added
 
+#### ロギング基盤整備 ✅ 完了
+
+バックエンド・フロントエンド両方のログ出力を統一し、本番環境でのデバッグ性を向上。
+
+**バックエンド**
+- `config.py`: `LOG_LEVEL` 環境変数追加（DEBUG/INFO/WARNING/ERROR/CRITICAL）
+- `main.py`: ログレベルを環境変数から設定
+- 各サービスの `print()` を `logger` に置き換え:
+  - `image_recognition.py`: Gemini API呼び出し時間の計測ログ
+  - `manual_search.py`: Custom Search API呼び出し時間・結果数のログ
+  - `pdf_storage.py`: PDFダウンロード時間・サイズのログ
+  - `maintenance_extraction.py`: PDF処理・抽出結果のログ
+  - `maintenance_cache_service.py`: キャッシュ操作のログ
+  - `manufacturer_domain.py`: ドメイン学習のログ
+  - `supabase_client.py`: クライアント初期化のログ
+
+**フロントエンド**
+- `lib/logger.ts`: 構造化ログユーティリティ
+  - 環境別出力制御（debug は開発環境のみ）
+  - タイムスタンプ・コンテキスト付きログ
+  - `apiError()`, `networkError()` 専用メソッド
+- `lib/api-errors.ts`: 統一エラーハンドリング
+  - `ErrorCodes` 定数（認証、バリデーション、レート制限等）
+  - HTTPステータス → エラーコード変換
+  - 日本語エラーメッセージ
+  - `handleApiResponse()`, `withErrorHandling()` ヘルパー
+- `components/ErrorBoundary.tsx`: Reactエラー境界コンポーネント
+  - 子コンポーネントのエラーをキャッチしてフォールバックUI表示
+  - 開発環境でのエラー詳細表示
+  - 再試行・ページ再読み込みボタン
+
+**適用箇所**
+- `usePushNotification.ts`: `console.error` → `logger` に置き換え
+- `serviceWorker.ts`: 全ログ出力を `logger` に置き換え
+
 #### QA検索タイムアウト処理 ✅ 完了
 
 Gemini APIが高負荷時に応答遅延する場合に備え、各検索ステップにタイムアウト処理を追加。

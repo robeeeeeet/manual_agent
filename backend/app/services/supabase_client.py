@@ -1,9 +1,12 @@
 """Supabase client singleton for backend services."""
 
+import logging
 from functools import lru_cache
 
 from app.config import settings
 from supabase import Client, create_client
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache
@@ -18,7 +21,7 @@ def get_supabase_client() -> Client | None:
         Supabase Client instance or None
     """
     if not settings.supabase_url:
-        print("Warning: SUPABASE_URL not configured")
+        logger.warning("SUPABASE_URL not configured")
         return None
 
     # Prefer secret_key for backend (bypasses RLS)
@@ -26,11 +29,11 @@ def get_supabase_client() -> Client | None:
     key = settings.supabase_secret_key or settings.supabase_publishable_key
 
     if not key:
-        print("Warning: No Supabase key configured")
+        logger.warning("No Supabase key configured")
         return None
 
     try:
         return create_client(settings.supabase_url, key)
     except Exception as e:
-        print(f"Error creating Supabase client: {e}")
+        logger.error(f"Error creating Supabase client: {e}", exc_info=True)
         return None

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 
+import { logger } from "@/lib/logger";
+
 interface UsePushNotificationResult {
   isSupported: boolean;
   permission: NotificationPermission | null;
@@ -47,7 +49,7 @@ export function usePushNotification(): UsePushNotificationResult {
           setIsSubscribed(subscription !== null);
         })
         .catch((err) => {
-          console.error("Service Worker registration failed:", err);
+          logger.error("PushNotification", "Service Worker registration failed", { error: err });
           setError("Service Workerの登録に失敗しました");
         });
     }
@@ -60,13 +62,13 @@ export function usePushNotification(): UsePushNotificationResult {
       const currentPermission = permissionOverride ?? permission;
 
       if (!registration) {
-        console.error("Subscribe failed: No service worker registration");
+        logger.error("PushNotification", "Subscribe failed: No service worker registration");
         setError("Service Workerが登録されていません");
         return;
       }
 
       if (currentPermission !== "granted") {
-        console.error("Subscribe failed: Permission not granted", currentPermission);
+        logger.warn("PushNotification", "Subscribe failed: Permission not granted", { data: currentPermission });
         return;
       }
 
@@ -78,7 +80,7 @@ export function usePushNotification(): UsePushNotificationResult {
         const vapidResponse = await fetch("/api/push/vapid-public-key");
         if (!vapidResponse.ok) {
           const errorData = await vapidResponse.json().catch(() => ({}));
-          console.error("VAPID key fetch failed:", errorData);
+          logger.apiError("PushNotification", "/api/push/vapid-public-key", vapidResponse.status, errorData);
           throw new Error(errorData.error || "VAPID公開鍵の取得に失敗しました");
         }
         const { publicKey } = await vapidResponse.json();
@@ -100,13 +102,13 @@ export function usePushNotification(): UsePushNotificationResult {
 
         if (!subscribeResponse.ok) {
           const errorData = await subscribeResponse.json().catch(() => ({}));
-          console.error("Subscribe API failed:", errorData);
+          logger.apiError("PushNotification", "/api/push/subscribe", subscribeResponse.status, errorData);
           throw new Error(errorData.error || "購読登録に失敗しました");
         }
 
         setIsSubscribed(true);
       } catch (err) {
-        console.error("Subscription failed:", err);
+        logger.error("PushNotification", "Subscription failed", { error: err });
         setError(err instanceof Error ? err.message : "通知の購読に失敗しました");
       } finally {
         setLoading(false);
@@ -137,7 +139,7 @@ export function usePushNotification(): UsePushNotificationResult {
         setError("通知が拒否されました。設定から許可してください。");
       }
     } catch (err) {
-      console.error("Permission request failed:", err);
+      logger.error("PushNotification", "Permission request failed", { error: err });
       setError("通知許可のリクエストに失敗しました");
     } finally {
       setLoading(false);
@@ -178,7 +180,7 @@ export function usePushNotification(): UsePushNotificationResult {
       await subscription.unsubscribe();
       setIsSubscribed(false);
     } catch (err) {
-      console.error("Unsubscribe failed:", err);
+      logger.error("PushNotification", "Unsubscribe failed", { error: err });
       setError("購読解除に失敗しました");
     } finally {
       setLoading(false);

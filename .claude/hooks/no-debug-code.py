@@ -34,6 +34,9 @@ EXCLUDED_PATHS = [
 ALLOWED_FILES = [
     'service-worker.js',
     'sw.js',
+    # Logger utility files (they implement logging, so console.log is expected)
+    'logger.ts',
+    'logger.js',
     # Test files may have debug output
     'test_',
     '_test.py',

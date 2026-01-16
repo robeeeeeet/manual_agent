@@ -171,6 +171,9 @@ async def download_pdf(url: str, timeout: float = 60.0) -> bytes | None:
     Returns:
         PDF content as bytes, or None if download failed
     """
+    import time
+
+    start_time = time.time()
     try:
         async with httpx.AsyncClient(
             timeout=timeout,
@@ -188,16 +191,33 @@ async def download_pdf(url: str, timeout: float = 60.0) -> bytes | None:
 
             # Check if content is PDF
             if content.startswith(b"%PDF") or "application/pdf" in content_type:
+                elapsed = time.time() - start_time
+                size_mb = len(content) / (1024 * 1024)
+                logger.info(
+                    f"PDF download completed in {elapsed:.2f}s "
+                    f"(size={size_mb:.2f}MB, url={url[:80]}...)"
+                )
                 return content
             else:
-                print(f"Downloaded content is not a PDF. Content-Type: {content_type}")
+                elapsed = time.time() - start_time
+                logger.warning(
+                    f"Downloaded content is not a PDF (elapsed={elapsed:.2f}s). "
+                    f"Content-Type: {content_type}, url={url}"
+                )
                 return None
 
     except httpx.HTTPError as e:
-        print(f"HTTP error downloading PDF from {url}: {e}")
+        elapsed = time.time() - start_time
+        logger.error(
+            f"HTTP error downloading PDF (elapsed={elapsed:.2f}s) from {url}: {e}"
+        )
         return None
     except Exception as e:
-        print(f"Error downloading PDF from {url}: {e}")
+        elapsed = time.time() - start_time
+        logger.error(
+            f"Error downloading PDF (elapsed={elapsed:.2f}s) from {url}: {e}",
+            exc_info=True,
+        )
         return None
 
 
@@ -352,7 +372,7 @@ async def get_pdf_public_url(storage_path: str) -> str | None:
         result = client.storage.from_(MANUALS_BUCKET).get_public_url(storage_path)
         return result
     except Exception as e:
-        print(f"Error getting public URL: {e}")
+        logger.error(f"Error getting public URL for {storage_path}: {e}", exc_info=True)
         return None
 
 
@@ -377,7 +397,9 @@ async def get_pdf_signed_url(storage_path: str, expires_in: int = 3600) -> str |
         )
         return result.get("signedURL")
     except Exception as e:
-        print(f"Error creating signed URL: {e}")
+        logger.error(
+            f"Error creating signed URL for {storage_path}: {e}", exc_info=True
+        )
         return None
 
 
@@ -435,7 +457,11 @@ async def find_existing_pdf(manufacturer: str, model_number: str) -> dict | None
         return None
 
     except Exception as e:
-        print(f"Error searching for existing PDF: {e}")
+        logger.error(
+            f"Error searching for existing PDF: manufacturer={manufacturer}, "
+            f"model_number={model_number}, error={e}",
+            exc_info=True,
+        )
         return None
 
 
@@ -472,5 +498,7 @@ async def check_pdf_exists_in_storage(storage_path: str) -> bool:
         return False
 
     except Exception as e:
-        print(f"Error checking PDF existence: {e}")
+        logger.error(
+            f"Error checking PDF existence: {storage_path}, error={e}", exc_info=True
+        )
         return False

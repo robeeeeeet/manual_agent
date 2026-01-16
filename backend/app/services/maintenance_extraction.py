@@ -1,6 +1,7 @@
 """Maintenance item extraction service using Gemini"""
 
 import json
+import logging
 import tempfile
 import time
 from pathlib import Path
@@ -10,6 +11,8 @@ from google import genai
 from google.genai import types
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Valid category and importance values
 VALID_CATEGORIES = {"cleaning", "inspection", "replacement"}
@@ -104,8 +107,10 @@ async def upload_pdf_to_gemini(client, pdf_bytes: bytes, filename: str):
             file = client.files.get(name=file.name)
 
         if file.state.name == "FAILED":
+            logger.error(f"Gemini file processing failed: {file.state.name}")
             raise Exception(f"File processing failed: {file.state.name}")
 
+        logger.info(f"PDF uploaded to Gemini successfully: {filename}")
         return file
 
     finally:
@@ -125,16 +130,23 @@ async def download_pdf_from_url(pdf_url: str) -> bytes:
     Returns:
         PDF file bytes
     """
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(pdf_url, headers=headers, timeout=30, stream=True)
-    response.raise_for_status()
+    logger.info(f"Downloading PDF from URL: {pdf_url}")
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(pdf_url, headers=headers, timeout=30, stream=True)
+        response.raise_for_status()
 
-    # Verify Content-Type
-    content_type = response.headers.get("Content-Type", "")
-    if "pdf" not in content_type.lower():
-        raise ValueError(f"URL does not point to PDF: {content_type}")
+        # Verify Content-Type
+        content_type = response.headers.get("Content-Type", "")
+        if "pdf" not in content_type.lower():
+            logger.warning(f"URL does not point to PDF: {content_type}, url={pdf_url}")
+            raise ValueError(f"URL does not point to PDF: {content_type}")
 
-    return response.content
+        logger.info(f"PDF downloaded successfully: {len(response.content)} bytes")
+        return response.content
+    except requests.RequestException as e:
+        logger.error(f"Failed to download PDF from {pdf_url}: {e}", exc_info=True)
+        raise
 
 
 async def extract_maintenance_items(
@@ -377,8 +389,18 @@ description は以下の要素を**必ず**含めてください：
         result = json.loads(response_text)
         # Sanitize the result to ensure it conforms to the schema
         result = sanitize_extraction_result(result)
+        items_count = len(result.get("maintenance_items", []))
+        logger.info(
+            f"Maintenance extraction completed: {items_count} items extracted, "
+            f"manufacturer={manufacturer}, model_number={model_number}"
+        )
         return result
     except json.JSONDecodeError as e:
+        logger.error(
+            f"Maintenance extraction JSON parse error: {str(e)}, "
+            f"manufacturer={manufacturer}, model_number={model_number}, "
+            f"raw_response={response_text[:200]}..."
+        )
         return {
             "error": f"JSON parse error: {str(e)}",
             "raw_response": response_text[:1000],

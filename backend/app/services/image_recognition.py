@@ -164,10 +164,15 @@ OK: {{"status": "need_label_photo", "model_number": null, ...}}
 
 JSON形式のみで回答してください。"""
 
-    # Call Gemini 2.0 Flash
+    # Call Gemini 2.0 Flash with performance logging
+    import time
+
+    start_time = time.time()
     response = client.models.generate_content(
         model="gemini-2.5-flash", contents=[image_part, prompt]
     )
+    elapsed = time.time() - start_time
+    logger.info(f"[IMAGE_RECOGNITION] Gemini API call completed in {elapsed:.2f}s")
 
     # Parse response
     response_text = response.text.strip()
