@@ -198,7 +198,6 @@ export default function RegisterPage() {
 
     try {
       // Compress image before upload to avoid Vercel's 4.5MB limit
-      console.log("[DEBUG] Compressing image before upload...");
       const compressionResult = await compressImageForUpload(imageFile);
 
       if (!compressionResult.success || !compressionResult.file) {
@@ -206,10 +205,6 @@ export default function RegisterPage() {
         setIsAnalyzing(false);
         return;
       }
-
-      console.log(
-        `[DEBUG] Image compressed: ${(compressionResult.originalSize / 1024 / 1024).toFixed(2)}MB -> ${(compressionResult.compressedSize! / 1024 / 1024).toFixed(2)}MB`
-      );
 
       const formDataToSend = new FormData();
       formDataToSend.append("image", compressionResult.file);
@@ -220,9 +215,6 @@ export default function RegisterPage() {
         body: formDataToSend,
         cache: "no-store", // Disable caching to prevent stale error responses
       });
-
-      // Debug: Log response status
-      console.log("[DEBUG] recognize response:", response.status, response.statusText);
 
       if (response.ok) {
         const data: ImageRecognitionResponse = await response.json();
@@ -264,13 +256,10 @@ export default function RegisterPage() {
           setCurrentStep(2);
         }
       } else {
-        // Debug: Show detailed error
         const errorText = await response.text().catch(() => "unknown");
-        console.error("[DEBUG] recognize error:", response.status, errorText);
         alert(`画像解析に失敗しました (${response.status}): ${errorText.substring(0, 100)}`);
       }
     } catch (error) {
-      console.error("[DEBUG] recognize exception:", error);
       alert(`エラーが発生しました: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsAnalyzing(false);
@@ -307,7 +296,6 @@ export default function RegisterPage() {
 
           // Check if user already owns this appliance
           if (checkData.already_owned) {
-            console.log("User already owns this appliance:", checkData.existing_appliance_name);
             setAlreadyOwnedAppliance({
               id: checkData.existing_appliance_id || "",
               name: checkData.existing_appliance_name || `${formData.manufacturer} ${formData.modelNumber}`,
@@ -318,7 +306,6 @@ export default function RegisterPage() {
 
           if (checkData.found && checkData.storage_url) {
             // Found existing PDF - use it directly without searching
-            console.log("Found existing PDF in storage:", checkData.storage_url);
             setManualSearchResult({
               success: true,
               pdf_url: checkData.storage_url,
@@ -332,7 +319,6 @@ export default function RegisterPage() {
             // Set shared_appliance_id for cache-based maintenance item fetching
             if (checkData.shared_appliance_id) {
               setSharedApplianceId(checkData.shared_appliance_id);
-              console.log("Using existing shared appliance:", checkData.shared_appliance_id);
             }
             setIsSearchingManual(false);
             return;
@@ -511,7 +497,6 @@ export default function RegisterPage() {
     try {
       // If PDF is from existing storage, skip API call (already saved)
       if (manualSearchResult.method === "existing_storage") {
-        console.log("Using existing storage PDF, skipping confirm API call");
         setManualConfirmed(true);
         return;
       }
@@ -536,12 +521,10 @@ export default function RegisterPage() {
         // Save storage_path for registration
         if (data.storage_path) {
           setStoredPdfPath(data.storage_path);
-          console.log("PDF stored at:", data.storage_path);
         }
         // Save shared_appliance_id for maintenance items cache
         if (data.shared_appliance_id) {
           setSharedApplianceId(data.shared_appliance_id);
-          console.log("Shared appliance created:", data.shared_appliance_id);
         }
       } else {
         console.error("Failed to confirm manual");
@@ -948,15 +931,14 @@ export default function RegisterPage() {
           if (checkResponse.ok) {
             const checkData = await checkResponse.json();
             if (checkData.already_owned) {
-              console.log("User already owns this appliance:", checkData.existing_appliance_name);
               setAlreadyOwnedAppliance({
                 id: checkData.existing_appliance_id || "",
                 name: checkData.existing_appliance_name || `${formData.manufacturer} ${formData.modelNumber}`,
               });
             }
           }
-        } catch (error) {
-          console.error("Error checking ownership:", error);
+        } catch {
+          // Ownership check failed - continue anyway
         }
       };
       checkOwnership();
